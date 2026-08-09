@@ -1,3 +1,10 @@
+importScripts("https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js");
+
+// Offline caching for the habit tracker app itself. Merged into the
+// OneSignal worker file because a given scope can only have one active
+// service worker registration — running two separate workers at the
+// same scope ("/habit-tracker/") would make one silently override the
+// other instead of both taking effect.
 var CACHE_NAME = "habit-tracker-v1";
 var ASSETS = [
   "./",

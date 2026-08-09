@@ -255,6 +255,8 @@
     els.monthObjectiveInput = document.getElementById("month-objective-input");
     els.monthObjectiveList = document.getElementById("month-objective-list");
     els.monthObjectiveEmpty = document.getElementById("month-objective-empty");
+
+    els.notifyBtn = document.getElementById("notify-btn");
   }
 
   function renderObjectiveList(listEl, emptyEl, scope, periodKey, items) {
@@ -492,15 +494,39 @@
     });
   }
 
+  // ---------- push notifications (OneSignal) ----------
+  // OneSignal.init() (see index.html) registers OneSignalSDKWorker.js itself,
+  // so no manual navigator.serviceWorker.register() call is needed here.
+
+  function setupNotifyButton() {
+    if (!window.OneSignalDeferred) return;
+    window.OneSignalDeferred.push(function (OneSignal) {
+      function updateBtn() {
+        if (!OneSignal.Notifications.isPushSupported()) {
+          els.notifyBtn.hidden = true;
+          return;
+        }
+        els.notifyBtn.hidden = false;
+        var granted = OneSignal.Notifications.permission;
+        els.notifyBtn.textContent = granted ? "🔔 Notifications activées" : "🔔 Activer les notifications";
+        els.notifyBtn.classList.toggle("enabled", granted);
+      }
+
+      updateBtn();
+      OneSignal.Notifications.addEventListener("permissionChange", updateBtn);
+
+      els.notifyBtn.addEventListener("click", function () {
+        if (!OneSignal.Notifications.permission) {
+          OneSignal.Notifications.requestPermission();
+        }
+      });
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     cacheEls();
     bindEvents();
     render();
+    setupNotifyButton();
   });
-
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", function () {
-      navigator.serviceWorker.register("service-worker.js").catch(function () {});
-    });
-  }
 })();

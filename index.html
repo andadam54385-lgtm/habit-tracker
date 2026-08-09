@@ -12,12 +12,25 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Habitudes">
+
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script>
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async function (OneSignal) {
+    await OneSignal.init({
+      appId: "8359adb1-5fc5-41ab-b782-b1d76e0de05b",
+      serviceWorkerPath: "OneSignalSDKWorker.js",
+      serviceWorkerParam: { scope: "/habit-tracker/" }
+    });
+  });
+</script>
 </head>
 <body>
 <div class="app">
   <header class="app-header">
     <h1>Mes habitudes</h1>
     <p class="subtitle">Suis tes habitudes jour après jour</p>
+    <button id="notify-btn" class="notify-btn" hidden>🔔 Activer les notifications</button>
   </header>
 
   <section class="add-habit">

@@ -34,9 +34,33 @@ body {
 }
 
 .subtitle {
-  margin: 0 0 20px;
+  margin: 0 0 12px;
   color: var(--text-muted);
   font-size: 0.9rem;
+}
+
+.notify-btn {
+  background: var(--card-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 0.82rem;
+  padding: 8px 14px;
+  margin-bottom: 8px;
+}
+
+.notify-btn:hover {
+  background: #eceef2;
+}
+
+.notify-btn.enabled {
+  background: var(--good);
+  border-color: var(--good);
+  color: white;
+  cursor: default;
+}
+
+.notify-btn.enabled:hover {
+  background: var(--good);
 }
 
 .add-habit {
