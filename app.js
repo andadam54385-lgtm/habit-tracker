@@ -16,16 +16,19 @@
   function loadState() {
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return { habits: [], completions: {} };
+      if (!raw) return { habits: [], completions: {}, objectives: { weekly: {}, monthly: {} } };
       var parsed = JSON.parse(raw);
       if (!parsed.habits) parsed.habits = [];
       if (!parsed.completions) parsed.completions = {};
+      if (!parsed.objectives) parsed.objectives = { weekly: {}, monthly: {} };
+      if (!parsed.objectives.weekly) parsed.objectives.weekly = {};
+      if (!parsed.objectives.monthly) parsed.objectives.monthly = {};
       parsed.habits.forEach(function (h) {
         if (!h.frequency || h.frequency < 1 || h.frequency > 7) h.frequency = 7;
       });
       return parsed;
     } catch (e) {
-      return { habits: [], completions: {} };
+      return { habits: [], completions: {}, objectives: { weekly: {}, monthly: {} } };
     }
   }
 
@@ -71,6 +74,10 @@
     return stripTime(date) > today;
   }
 
+  function monthKey(date) {
+    return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
+  }
+
   // ---------- habit data helpers ----------
 
   function makeId() {
@@ -114,6 +121,44 @@
     if (!confirm('Supprimer "' + label + '" ? Cette action est définitive.')) return;
     state.habits = state.habits.filter(function (h) { return h.id !== habitId; });
     delete state.completions[habitId];
+    saveState();
+    render();
+  }
+
+  // ---------- objectives (goals unrelated to habits) ----------
+
+  function readObjectives(scope, periodKey) {
+    var buckets = scope === "weekly" ? state.objectives.weekly : state.objectives.monthly;
+    return buckets[periodKey] || [];
+  }
+
+  function objectiveBucket(scope, periodKey) {
+    var buckets = scope === "weekly" ? state.objectives.weekly : state.objectives.monthly;
+    if (!buckets[periodKey]) buckets[periodKey] = [];
+    return buckets[periodKey];
+  }
+
+  function addObjective(scope, periodKey, text) {
+    text = text.trim();
+    if (!text) return;
+    objectiveBucket(scope, periodKey).push({ id: makeId(), text: text, done: false });
+    saveState();
+    render();
+  }
+
+  function toggleObjective(scope, periodKey, objectiveId) {
+    var list = readObjectives(scope, periodKey);
+    var obj = list.find(function (o) { return o.id === objectiveId; });
+    if (!obj) return;
+    obj.done = !obj.done;
+    saveState();
+    render();
+  }
+
+  function removeObjective(scope, periodKey, objectiveId) {
+    var buckets = scope === "weekly" ? state.objectives.weekly : state.objectives.monthly;
+    if (!buckets[periodKey]) return;
+    buckets[periodKey] = buckets[periodKey].filter(function (o) { return o.id !== objectiveId; });
     saveState();
     render();
   }
@@ -198,6 +243,64 @@
     els.totalMonthAvg = document.getElementById("total-month-avg");
     els.emptyState = document.getElementById("empty-state");
     els.table = document.getElementById("habit-table");
+
+    els.weekObjectiveLabel = document.getElementById("week-objective-label");
+    els.weekObjectiveForm = document.getElementById("week-objective-form");
+    els.weekObjectiveInput = document.getElementById("week-objective-input");
+    els.weekObjectiveList = document.getElementById("week-objective-list");
+    els.weekObjectiveEmpty = document.getElementById("week-objective-empty");
+
+    els.monthObjectiveLabel = document.getElementById("month-objective-label");
+    els.monthObjectiveForm = document.getElementById("month-objective-form");
+    els.monthObjectiveInput = document.getElementById("month-objective-input");
+    els.monthObjectiveList = document.getElementById("month-objective-list");
+    els.monthObjectiveEmpty = document.getElementById("month-objective-empty");
+  }
+
+  function renderObjectiveList(listEl, emptyEl, scope, periodKey, items) {
+    listEl.innerHTML = "";
+    items.forEach(function (obj) {
+      var li = document.createElement("li");
+
+      var check = document.createElement("span");
+      check.className = "objective-check" + (obj.done ? " done" : "");
+      check.textContent = obj.done ? "✓" : "";
+      check.addEventListener("click", function () { toggleObjective(scope, periodKey, obj.id); });
+      li.appendChild(check);
+
+      var text = document.createElement("span");
+      text.className = "objective-text" + (obj.done ? " done" : "");
+      text.textContent = obj.text;
+      text.addEventListener("click", function () { toggleObjective(scope, periodKey, obj.id); });
+      li.appendChild(text);
+
+      var delBtn = document.createElement("button");
+      delBtn.className = "delete-btn";
+      delBtn.title = "Supprimer";
+      delBtn.textContent = "✕";
+      delBtn.addEventListener("click", function () { removeObjective(scope, periodKey, obj.id); });
+      li.appendChild(delBtn);
+
+      listEl.appendChild(li);
+    });
+    emptyEl.hidden = items.length > 0;
+  }
+
+  function renderObjectives(weekDates) {
+    var weekKey = formatKey(weekDates[0]);
+    var monthAnchor = weekDates[0];
+    var mKey = monthKey(monthAnchor);
+
+    var start = weekDates[0], end = weekDates[6];
+    var sameMonth = start.getMonth() === end.getMonth();
+    els.weekObjectiveLabel.textContent = "Semaine du " + start.getDate() +
+      (sameMonth ? "" : " " + MONTH_LABELS[start.getMonth()]) +
+      " au " + end.getDate() + " " + MONTH_LABELS[end.getMonth()];
+    els.monthObjectiveLabel.textContent = MONTH_LABELS[monthAnchor.getMonth()].charAt(0).toUpperCase() +
+      MONTH_LABELS[monthAnchor.getMonth()].slice(1) + " " + monthAnchor.getFullYear();
+
+    renderObjectiveList(els.weekObjectiveList, els.weekObjectiveEmpty, "weekly", weekKey, readObjectives("weekly", weekKey));
+    renderObjectiveList(els.monthObjectiveList, els.monthObjectiveEmpty, "monthly", mKey, readObjectives("monthly", mKey));
   }
 
   function renderWeekLabel(weekDates) {
@@ -336,6 +439,7 @@
     renderHead(weekDates);
     renderRows(weekDates, monthDates);
     renderTotalRow(weekDates, monthDates);
+    renderObjectives(weekDates);
 
     var hasHabits = state.habits.length > 0;
     els.table.style.display = hasHabits ? "" : "none";
@@ -371,6 +475,20 @@
     els.todayBtn.addEventListener("click", function () {
       currentWeekStart = getWeekStart(new Date());
       render();
+    });
+
+    els.weekObjectiveForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var weekKey = formatKey(getWeekDates(currentWeekStart)[0]);
+      addObjective("weekly", weekKey, els.weekObjectiveInput.value);
+      els.weekObjectiveInput.value = "";
+    });
+
+    els.monthObjectiveForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var mKey = monthKey(getWeekDates(currentWeekStart)[0]);
+      addObjective("monthly", mKey, els.monthObjectiveInput.value);
+      els.monthObjectiveInput.value = "";
     });
   }
 

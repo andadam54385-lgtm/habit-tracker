@@ -115,6 +115,114 @@ button:hover { background: var(--primary-hover); }
 
 #today-btn { font-size: 0.8rem; }
 
+.objectives {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.objective-card {
+  flex: 1;
+  min-width: 260px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.objective-card h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.objective-period {
+  margin: 2px 0 12px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.objective-add {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.objective-add input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.objective-add input:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: -1px;
+}
+
+.objective-add button {
+  padding: 8px 14px;
+}
+
+.objective-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.objective-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.objective-list li:last-child {
+  border-bottom: none;
+}
+
+.objective-check {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  border-radius: 5px;
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: transparent;
+  font-size: 0.7rem;
+}
+
+.objective-check.done {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.objective-text {
+  flex: 1;
+  font-size: 0.88rem;
+  cursor: pointer;
+  word-break: break-word;
+}
+
+.objective-text.done {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.objective-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
 .table-wrap {
   background: var(--card-bg);
   border: 1px solid var(--border);

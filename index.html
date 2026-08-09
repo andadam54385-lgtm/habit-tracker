@@ -41,6 +41,29 @@
     <button id="today-btn">Aujourd'hui</button>
   </section>
 
+  <section class="objectives">
+    <div class="objective-card">
+      <h2>Objectifs de la semaine</h2>
+      <p class="objective-period" id="week-objective-label"></p>
+      <form class="objective-add" id="week-objective-form">
+        <input type="text" id="week-objective-input" placeholder="Ex: Terminer le rapport" maxlength="80">
+        <button type="submit">+</button>
+      </form>
+      <ul class="objective-list" id="week-objective-list"></ul>
+      <p class="objective-empty" id="week-objective-empty" hidden>Aucun objectif pour cette semaine.</p>
+    </div>
+    <div class="objective-card">
+      <h2>Objectifs du mois</h2>
+      <p class="objective-period" id="month-objective-label"></p>
+      <form class="objective-add" id="month-objective-form">
+        <input type="text" id="month-objective-input" placeholder="Ex: Lire 2 livres" maxlength="80">
+        <button type="submit">+</button>
+      </form>
+      <ul class="objective-list" id="month-objective-list"></ul>
+      <p class="objective-empty" id="month-objective-empty" hidden>Aucun objectif pour ce mois.</p>
+    </div>
+  </section>
+
   <section class="table-wrap">
     <table id="habit-table">
       <thead>
