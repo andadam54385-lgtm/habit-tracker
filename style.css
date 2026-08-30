@@ -757,9 +757,11 @@ td.rate-none { color: var(--text-faint); }
   box-shadow: var(--shadow);
 }
 
-.nut-tile-label { display: block; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-faint); }
-.nut-tile-val { font-size: 30px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.nut-tile-target { font-size: 14px; color: var(--text-soft); font-variant-numeric: tabular-nums; }
+.nut-tile-label { display: block; font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-faint); }
+/* La fourchette prend sa propre ligne : accolée au grand chiffre, elle se
+   coupait au milieu sur un écran étroit. */
+.nut-tile-val { display: block; font-size: 29px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.nut-tile-target { display: block; font-size: 13px; color: var(--text-soft); font-variant-numeric: tabular-nums; }
 .nut-tile .bar { margin-top: 8px; }
 .nut-tile.is-full .bar-fill { background: var(--ok); }
 
@@ -861,7 +863,110 @@ td.rate-none { color: var(--text-faint); }
   cursor: pointer;
 }
 
-.nut-libre { margin-top: 8px; }
+/* --- quantités, recherche d'aliments, cibles --- */
+
+.qty-box { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+
+.qty-btn {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.qty-btn:disabled { opacity: .35; cursor: default; }
+.qty-btn:active:not(:disabled) { transform: scale(.94); }
+
+.qty-val {
+  min-width: 62px;
+  height: 44px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-weight: 700;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.qty-val.is-static { display: inline-flex; align-items: center; justify-content: center; border-color: transparent; }
+
+.target-kcal { display: block; color: var(--accent); font-weight: 700; }
+[data-act="edit-targets"] { flex-direction: column; gap: 2px; padding: 10px 14px; line-height: 1.3; }
+
+.nut-tile.is-over .bar-fill { background: var(--critical); }
+.nut.is-over .bar-fill { background: var(--critical); }
+
+.food-results { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; max-height: 46vh; overflow-y: auto; }
+
+.food-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.food-row:active { background: var(--accent-soft); }
+.food-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.food-row-label { font-weight: 600; }
+.food-row-detail { font-size: 12.5px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.food-row-add { font-size: 24px; font-weight: 700; color: var(--accent); flex: 0 0 auto; }
+
+.q-preview {
+  padding: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.q-macros { display: flex; flex-wrap: wrap; gap: 12px; font-size: 14px; color: var(--text-soft); }
+.q-macros strong { font-size: 19px; color: var(--text); font-variant-numeric: tabular-nums; }
+.q-micros { margin: 8px 0 0; font-size: 12.5px; color: var(--text-faint); }
+
+.t-preview {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px;
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+}
+.t-preview-label { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-soft); }
+.t-preview-val { font-size: 20px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.nf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.nf-grid input {
+  min-height: var(--tap);
+  padding: 0 10px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  min-width: 0;
+}
+.nf-grid input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.nf-micros { margin-top: 12px; }
+
+.sup-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.sup-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.sup-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
+.sup-label { font-weight: 600; }
+.sup-detail { font-size: 12.5px; color: var(--text-faint); }
 
 .nut-libre input {
   min-height: var(--tap);

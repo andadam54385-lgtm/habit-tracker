@@ -17,7 +17,9 @@ function emptyState() {
     items: [],
     checks: {},          // itemId -> { "2026-08-30": true }
     daily: {},           // "2026-08-30" -> { sommeil, fc, energie }
-    nutrition: {},       // "2026-08-30" -> { foods: {foodId: qty}, libre: [{label,kcal,prot}] }
+    nutrition: {},       // "2026-08-30" -> { items: {foodId: qté}, supps: {id: unités}, libre: [] }
+    customFoods: [],     // aliments créés dans l'app
+    supplements: [],     // compléments calibrés par l'utilisateur
     objectives: { weekly: {}, monthly: {} },  // periodKey -> [{id,text,done}]
     notes: {},           // sectionKey -> texte libre
     importedHashes: {},  // hash -> timestamp (idempotence des imports)
@@ -78,9 +80,12 @@ export function load() {
   }
   if (!Array.isArray(state.items)) state.items = [];
   if (!Array.isArray(state.seededIds)) state.seededIds = [];
+  if (!Array.isArray(state.customFoods)) state.customFoods = [];
+  if (!Array.isArray(state.supplements)) state.supplements = [];
   state.settings = Object.assign(base.settings, state.settings || {});
   state.settings.reminders = Object.assign(base.settings.reminders, state.settings.reminders || {});
   if (!state.settings.folded || typeof state.settings.folded !== "object") state.settings.folded = {};
+  if (!state.settings.targets || typeof state.settings.targets !== "object") state.settings.targets = {};
 
   if (!state.objectives || typeof state.objectives !== "object") state.objectives = { weekly: {}, monthly: {} };
   if (!state.objectives.weekly || typeof state.objectives.weekly !== "object") state.objectives.weekly = {};

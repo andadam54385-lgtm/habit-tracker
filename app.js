@@ -11,7 +11,15 @@ import {
 } from "./js/views.js";
 import { viewImport, mountImport } from "./js/importview.js";
 import { viewSettings, mountSettings } from "./js/settings.js";
-import { viewNutrition, mountNutrition, bumpFood, removeLibre } from "./js/nutrition.js";
+import {
+  viewNutrition, mountNutrition, openFoodSearch, openQuantity,
+  openTargets, openSupplements, openLibre
+} from "./js/nutritionview.js";
+import {
+  removeLibre, addQuantity, addSupplementUnits, foodById,
+  SEED_SUPPLEMENTS, migrateNutritionLogs, upsertSupplement
+} from "./js/nutrition.js";
+import { state, save } from "./js/state.js";
 import { viewObjectives, mountObjectives, toggleObjective, removeObjective } from "./js/objectives.js";
 import { MIGRATION_RESULT } from "./js/state.js";
 
@@ -124,6 +132,27 @@ function isEditing() {
 // -------------------------------------------------------- délégation
 
 function onClick(e) {
+  // ---- diète
+  const nutAct = e.target.closest('[data-act^="qty-"], [data-act^="sup-"], [data-act="edit-qty"],' +
+    '[data-act="open-search"], [data-act="edit-targets"], [data-act="manage-supps"], [data-act="add-libre"]');
+  if (nutAct) {
+    const act = nutAct.dataset.act;
+    if (act === "open-search") { openFoodSearch(); return; }
+    if (act === "edit-targets") { openTargets(); return; }
+    if (act === "manage-supps") { openSupplements(); return; }
+    if (act === "add-libre") { openLibre(); return; }
+    if (act === "edit-qty") { openQuantity(nutAct.dataset.food); return; }
+    if (act === "qty-plus" || act === "qty-minus") {
+      const f = foodById(nutAct.dataset.food);
+      if (f) addQuantity(f.id, act === "qty-plus" ? f.step : -f.step);
+      return;
+    }
+    if (act === "sup-plus" || act === "sup-minus") {
+      addSupplementUnits(nutAct.dataset.sup, act === "sup-plus" ? 1 : -1);
+      return;
+    }
+  }
+
   const objToggle = e.target.closest('[data-act="obj-toggle"]');
   if (objToggle) {
     toggleObjective(objToggle.dataset.scope, objToggle.dataset.period, objToggle.dataset.obj);
@@ -133,12 +162,6 @@ function onClick(e) {
   const objDel = e.target.closest('[data-act="obj-del"]');
   if (objDel) {
     removeObjective(objDel.dataset.scope, objDel.dataset.period, objDel.dataset.obj);
-    return;
-  }
-
-  const step = e.target.closest('[data-act="nut-plus"], [data-act="nut-minus"]');
-  if (step) {
-    bumpFood(step.dataset.food, step.dataset.act === "nut-plus" ? 1 : -1);
     return;
   }
 
@@ -243,6 +266,17 @@ function collectSharedPayload() {
 
 function boot() {
   load();
+
+  // Journaux nutrition de l'ancien modèle « portions » -> quantités réelles.
+  if (migrateNutritionLogs() > 0) save();
+
+  // Compléments de départ, une seule fois : ensuite ils t'appartiennent.
+  if (!state.seededSupplements) {
+    state.seededSupplements = true;
+    if (!state.supplements.length) SEED_SUPPLEMENTS.forEach((s) => upsertSupplement(s));
+    save();
+  }
+
   applyTheme();
   scheduleReminders();
 

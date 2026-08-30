@@ -10,7 +10,7 @@
 import { state, save, makeId, dayKey, weekStart, isRecurring } from "./state.js";
 import { esc } from "./ui.js";
 import { SECTION_MAP } from "./seed.js";
-import { dailyTargetStats, weeklyTargetStats, dietRate, loggedDayKeys, NUTRIENT_MAP } from "./nutrition.js";
+import { dailyTargetStats, weeklyTargetStats, dietRate, loggedDayKeys, fmtRange } from "./nutrition.js";
 
 const MONTHS = [
   "janvier", "février", "mars", "avril", "mai", "juin",
@@ -268,7 +268,7 @@ function dietBlock(wDates, mDates) {
     html += '<li class="target' + (t.met ? " is-met" : "") + '">' +
       '<span class="target-mark" aria-hidden="true">' + (t.met ? "✓" : "○") + "</span>" +
       '<span class="target-label">' + esc(t.n.label) + "</span>" +
-      '<span class="target-val">' + Math.round(t.value) + " / " + t.n.target + " " + esc(t.n.unit) + "</span>" +
+      '<span class="target-val">' + Math.round(t.value) + " / " + esc(fmtRange(t.n)) + " " + esc(t.n.unit) + "</span>" +
     "</li>";
   }
   html += "</ul>";

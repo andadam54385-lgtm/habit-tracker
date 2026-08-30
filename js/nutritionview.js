@@ -1,0 +1,558 @@
+// Écran diète : journal du jour, recherche d'aliments par type,
+// réglage des cibles et calibrage des compléments.
+
+import { esc, openSheet, toast, confirmSheet } from "./ui.js";
+import { dayKey, weekDayKeys } from "./state.js";
+import {
+  nutrients, nutrientMap, targets, setTarget, kcalTarget, fmtRange,
+  allFoods, foodById, searchFoods, addCustomFood, removeCustomFood,
+  supplements, upsertSupplement, removeSupplement,
+  logFor, setQuantity, addQuantity, setSupplement, addSupplementUnits,
+  addLibre, removeLibre, dayTotals, preview, isMet,
+  loggedDayKeys, dietRate, FOOD_CATS, CAT_MAP, UNIT_LABEL
+} from "./nutrition.js";
+
+function fmtN(v) {
+  const r = v >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
+  return r.toLocaleString("fr-FR");
+}
+
+function unitOf(f) { return f.unit === "u" ? "" : f.unit; }
+
+// --------------------------------------------------------------- tuiles
+
+function macroTile(n, value) {
+  const pct = Math.min(100, (value / n.target) * 100);
+  const met = isMet(n, value);
+  const over = n.ceil && value > n.ceil;
+  return '<div class="nut-tile' + (met ? " is-full" : "") + (over ? " is-over" : "") + '">' +
+    '<span class="nut-tile-label">' + esc(n.label) + "</span>" +
+    '<span class="nut-tile-val">' + fmtN(value) + "</span>" +
+    '<span class="nut-tile-target">' + esc(fmtRange(n)) + " " + esc(n.unit) + "</span>" +
+    '<div class="bar"><div class="bar-fill" style="width:' + pct.toFixed(1) + '%"></div></div>' +
+    "</div>";
+}
+
+function bar(n, value) {
+  const pct = Math.min(100, (value / n.target) * 100);
+  const over = n.ceil && value > n.ceil;
+  const full = !over && isMet(n, value);
+  return '<div class="nut' + (over ? " is-over" : (full ? " is-full" : "")) + '">' +
+    '<div class="nut-head">' +
+      '<span class="nut-label">' + esc(n.label) + "</span>" +
+      '<span class="nut-val">' + fmtN(value) + ' <span class="nut-target">/ ' +
+        esc(fmtRange(n)) + " " + esc(n.unit) + "</span></span>" +
+    "</div>" +
+    '<div class="bar"><div class="bar-fill" style="width:' + pct.toFixed(1) + '%"></div></div>' +
+    (over && n.warn ? '<p class="nut-warn">⚠️ ' + esc(n.warn) + "</p>" : "") +
+    "</div>";
+}
+
+// ----------------------------------------------------------------- vue
+
+export function viewNutrition() {
+  const day = dayTotals();
+  const log = logFor();
+  const nuts = nutrients();
+  const nmap = nutrientMap();
+  const t = targets();
+
+  let html = '<div class="view">';
+  html += '<header class="view-head"><h1>🍽️ Diète</h1><p class="sub">' +
+    esc(new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })) +
+    "</p></header>";
+
+  html += '<div class="nut-tiles">' +
+    macroTile(nmap.kcal, day.kcal) + macroTile(nmap.prot, day.prot) +
+    macroTile(nmap.glu, day.glu) + macroTile(nmap.lip, day.lip) +
+    "</div>";
+
+  html += '<button type="button" class="btn btn-block btn-ghost" data-act="edit-targets">' +
+    "🎯 Mes cibles : " + t.prot + " P · " + t.glu + " G · " + t.lip + " L " +
+    "<span class=\"target-kcal\">→ " + esc(fmtRange(nmap.kcal)) + " kcal</span></button>";
+
+  // ---- journal du jour
+  html += '<div class="block-head"><h2>Ma journée</h2>' +
+    '<button type="button" class="btn btn-small btn-primary" data-act="open-search">+ Aliment</button></div>';
+
+  const entries = Object.entries(log.items || {});
+  if (!entries.length) {
+    html += '<p class="empty">Rien de saisi aujourd\'hui. Cherche un aliment pour commencer.</p>';
+  } else {
+    html += '<ul class="nut-foods">';
+    for (const [id, qty] of entries) {
+      const f = foodById(id);
+      if (!f) continue;
+      const p = preview(f, qty);
+      const over = f.warnPer && qty > f.warnPer;
+      html += '<li class="nut-food has-qty">' +
+        '<div class="nut-food-main" data-act="edit-qty" data-food="' + esc(id) + '" role="button" tabindex="0">' +
+          '<span class="nut-food-label">' + esc(f.label) + "</span>" +
+          '<span class="nut-food-detail">' + fmtN(p.kcal || 0) + " kcal · " +
+            fmtN(p.prot || 0) + " P · " + fmtN(p.glu || 0) + " G · " + fmtN(p.lip || 0) + " L</span>" +
+          (over ? '<span class="nut-warn">⚠️ ' + esc(f.warnText) + "</span>" : "") +
+        "</div>" +
+        '<div class="qty-box">' +
+          '<button type="button" class="qty-btn" data-act="qty-minus" data-food="' + esc(id) +
+            '" aria-label="Diminuer">−</button>' +
+          '<button type="button" class="qty-val" data-act="edit-qty" data-food="' + esc(id) + '">' +
+            fmtN(qty) + " " + esc(unitOf(f)) + "</button>" +
+          '<button type="button" class="qty-btn" data-act="qty-plus" data-food="' + esc(id) +
+            '" aria-label="Augmenter">+</button>' +
+        "</div>" +
+      "</li>";
+    }
+    html += "</ul>";
+  }
+
+  // ---- compléments
+  html += '<div class="block-head"><h2>Compléments</h2>' +
+    '<button type="button" class="btn btn-small btn-ghost" data-act="manage-supps">Calibrer</button></div>';
+  const sups = supplements();
+  if (!sups.length) {
+    html += '<p class="empty">Aucun complément enregistré.</p>';
+  } else {
+    html += '<ul class="nut-foods">';
+    for (const s of sups) {
+      const units = (log.supps || {})[s.id] || 0;
+      const apport = Object.entries(s.n).map(function ([k, v]) {
+        const n = nmap[k];
+        return fmtN(v * (units || 1)) + " " + (n ? n.unit : "") + " " + (n ? n.label.toLowerCase() : k);
+      }).join(" · ");
+      html += '<li class="nut-food' + (units ? " has-qty" : "") + '">' +
+        '<div class="nut-food-main">' +
+          '<span class="nut-food-label">' + esc(s.label) + "</span>" +
+          '<span class="nut-food-detail">' + (apport ? esc(apport) : "aucun apport chiffré") +
+            (units ? "" : " / " + esc(s.unit)) + "</span>" +
+        "</div>" +
+        '<div class="qty-box">' +
+          '<button type="button" class="qty-btn" data-act="sup-minus" data-sup="' + esc(s.id) +
+            '" aria-label="Diminuer"' + (units ? "" : " disabled") + ">−</button>" +
+          '<span class="qty-val is-static">' + fmtN(units) + "</span>" +
+          '<button type="button" class="qty-btn" data-act="sup-plus" data-sup="' + esc(s.id) +
+            '" aria-label="Augmenter">+</button>' +
+        "</div>" +
+      "</li>";
+    }
+    html += "</ul>";
+  }
+
+  // ---- ajout libre
+  if (log.libre && log.libre.length) {
+    html += '<h3 class="group-title">Ajouts libres</h3><ul class="nut-foods">';
+    log.libre.forEach(function (l, idx) {
+      html += '<li class="nut-food has-qty">' +
+        '<div class="nut-food-main">' +
+          '<span class="nut-food-label">' + esc(l.label) + "</span>" +
+          '<span class="nut-food-detail">' + fmtN(l.kcal) + " kcal · " + fmtN(l.prot) + " P · " +
+            fmtN(l.glu || 0) + " G · " + fmtN(l.lip || 0) + " L</span>" +
+        "</div>" +
+        '<button type="button" class="nut-del" data-act="nut-del" data-idx="' + idx + '" aria-label="Supprimer">✕</button>' +
+      "</li>";
+    });
+    html += "</ul>";
+  }
+  html += '<button type="button" class="btn btn-block btn-ghost" data-act="add-libre">+ Ajout libre (kcal / macros)</button>';
+
+  // ---- micronutriments
+  html += '<div class="block-head"><h2>Jour — minéraux & vitamines</h2></div><div class="nuts">';
+  for (const n of nuts) {
+    if (n.main || n.period !== "day") continue;
+    html += bar(n, day[n.key]);
+  }
+  html += "</div>";
+
+  const logged = loggedDayKeys(weekDayKeys()).length;
+  const dr = dietRate(weekDayKeys());
+  html += '<a class="callout" href="#/objectifs"><strong>' +
+    (dr === null ? "Aucune journée saisie cette semaine"
+      : Math.round(dr * 100) + " % de cibles tenues sur " + logged + " jour" + (logged > 1 ? "s" : "")) +
+    "</strong><span>Voir la réussite →</span></a>";
+
+  html += '<p class="hint nut-disclaimer">Valeurs pour 100 g / 100 ml, moyennes arrondies ' +
+    "(CIQUAL / USDA). L'outil suit des tendances — il ne remplace ni une pesée ni un avis médical.</p>";
+
+  html += "</div>";
+  return html;
+}
+
+// ------------------------------------------------- recherche d'aliments
+
+let searchState = { q: "", cat: "all" };
+
+export function openFoodSearch() {
+  openSheet("Chercher un aliment", function (body, close) {
+    function render() {
+      const results = searchFoods(searchState.q, searchState.cat);
+      body.innerHTML =
+        '<input type="search" id="fs-q" class="input input-lg" placeholder="Nom de l\'aliment…" ' +
+          'value="' + esc(searchState.q) + '" autocomplete="off">' +
+        '<select id="fs-cat" class="input">' +
+          '<option value="all"' + (searchState.cat === "all" ? " selected" : "") + ">Toutes les catégories</option>" +
+          FOOD_CATS.map(function (c) {
+            return '<option value="' + c.key + '"' + (searchState.cat === c.key ? " selected" : "") + ">" +
+              esc(c.icon + " " + c.label) + "</option>";
+          }).join("") +
+        "</select>" +
+        '<p class="sub result-count">' + results.length +
+          (results.length > 1 ? " aliments" : " aliment") + "</p>" +
+        (results.length
+          ? '<ul class="food-results">' + results.map(function (f) {
+              return '<li class="food-row" data-act="pick-food" data-food="' + esc(f.id) + '" role="button" tabindex="0">' +
+                '<span class="food-row-main">' +
+                  '<span class="food-row-label">' + esc(f.label) +
+                    (f.custom ? ' <span class="badge badge-quiet">perso</span>' : "") + "</span>" +
+                  '<span class="food-row-detail">' + fmtN(f.n.kcal || 0) + " kcal · " +
+                    fmtN(f.n.prot || 0) + " P · " + fmtN(f.n.glu || 0) + " G · " +
+                    fmtN(f.n.lip || 0) + " L / " + f.base + " " + esc(unitOf(f) || "pièce") + "</span>" +
+                "</span>" +
+                '<span class="food-row-add" aria-hidden="true">+</span>' +
+              "</li>";
+            }).join("") + "</ul>"
+          : '<p class="empty">Aucun aliment trouvé.</p>') +
+        '<button type="button" class="btn btn-block btn-ghost" data-act="new-food">+ Créer un aliment</button>';
+
+      const q = body.querySelector("#fs-q");
+      let timer = null;
+      q.addEventListener("input", function () {
+        clearTimeout(timer);
+        timer = setTimeout(function () {
+          searchState.q = q.value;
+          const caret = q.selectionStart;
+          render();
+          const nq = body.querySelector("#fs-q");
+          nq.focus();
+          nq.setSelectionRange(caret, caret);
+        }, 200);
+      });
+      body.querySelector("#fs-cat").addEventListener("change", function (e) {
+        searchState.cat = e.target.value;
+        render();
+      });
+      body.querySelector('[data-act="new-food"]').addEventListener("click", function () {
+        close();
+        openNewFood();
+      });
+      body.querySelectorAll('[data-act="pick-food"]').forEach(function (row) {
+        row.addEventListener("click", function () {
+          close();
+          openQuantity(row.dataset.food);
+        });
+      });
+    }
+    render();
+  });
+}
+
+// Saisie de la quantité, dans l'unité de l'aliment.
+export function openQuantity(foodId) {
+  const f = foodById(foodId);
+  if (!f) return;
+  const current = (logFor().items || {})[foodId] || 0;
+  const unit = unitOf(f) || "pièce";
+
+  openSheet(f.label, function (body, close) {
+    const quick = f.unit === "ml" ? [50, 100, 250, 500]
+      : f.unit === "g" ? [10, 50, 100, 200]
+      : [1, 2, 3, 5];
+
+    body.innerHTML =
+      '<label class="field"><span>Quantité en ' + esc(unit) + "</span>" +
+        '<input type="number" id="q-input" class="input input-lg" inputmode="decimal" min="0" ' +
+          'step="' + (f.unit === "u" || f.unit === "portion" ? 1 : 1) + '" value="' + (current || f.step) + '"></label>' +
+      '<div class="chips">' + quick.map(function (v) {
+        return '<button type="button" class="chip" data-add="' + v + '">+' + v + " " + esc(unit) + "</button>";
+      }).join("") + "</div>" +
+      '<div id="q-preview" class="q-preview"></div>' +
+      '<div class="sheet-actions">' +
+        (current ? '<button type="button" class="btn btn-danger-ghost" data-act="q-remove">Retirer</button>' : "") +
+        '<button type="button" class="btn btn-primary" data-act="q-save">' +
+          (current ? "Mettre à jour" : "Ajouter") + "</button>" +
+      "</div>";
+
+    const input = body.querySelector("#q-input");
+    const prev = body.querySelector("#q-preview");
+    const nmap = nutrientMap();
+
+    function refresh() {
+      const p = preview(f, input.value);
+      prev.innerHTML =
+        '<div class="q-macros">' +
+          '<span><strong>' + fmtN(p.kcal || 0) + "</strong> kcal</span>" +
+          "<span><strong>" + fmtN(p.prot || 0) + "</strong> g P</span>" +
+          "<span><strong>" + fmtN(p.glu || 0) + "</strong> g G</span>" +
+          "<span><strong>" + fmtN(p.lip || 0) + "</strong> g L</span>" +
+        "</div>" +
+        (function () {
+          const micros = Object.keys(p).filter((k) => nmap[k] && !nmap[k].main && p[k] >= 0.5);
+          if (!micros.length) return "";
+          return '<p class="q-micros">' + micros.map(function (k) {
+            return esc(nmap[k].label) + " " + fmtN(p[k]) + " " + esc(nmap[k].unit);
+          }).join(" · ") + "</p>";
+        })();
+    }
+
+    input.addEventListener("input", refresh);
+    body.querySelectorAll("[data-add]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        input.value = (parseFloat(input.value) || 0) + parseFloat(b.dataset.add);
+        refresh();
+      });
+    });
+    body.querySelector('[data-act="q-save"]').addEventListener("click", function () {
+      setQuantity(foodId, input.value);
+      close();
+      toast(f.label + " · " + fmtN(input.value) + " " + unit);
+    });
+    const rm = body.querySelector('[data-act="q-remove"]');
+    if (rm) rm.addEventListener("click", function () { setQuantity(foodId, 0); close(); });
+
+    refresh();
+    input.focus();
+    input.select();
+  });
+}
+
+// ------------------------------------------------------- créer un aliment
+
+export function openNewFood() {
+  openSheet("Créer un aliment", function (body, close) {
+    body.innerHTML =
+      '<label class="field"><span>Nom</span>' +
+        '<input type="text" id="nf-label" class="input" maxlength="80" placeholder="Ex : Galette de riz"></label>' +
+      '<label class="field"><span>Catégorie</span><select id="nf-cat" class="input">' +
+        FOOD_CATS.map((c) => '<option value="' + c.key + '">' + esc(c.icon + " " + c.label) + "</option>").join("") +
+      "</select></label>" +
+      '<label class="field"><span>Unité</span><select id="nf-unit" class="input">' +
+        '<option value="g">Grammes — valeurs pour 100 g</option>' +
+        '<option value="ml">Millilitres — valeurs pour 100 ml</option>' +
+        '<option value="u">À l\'unité — valeurs pour 1 pièce</option>' +
+      "</select></label>" +
+      '<p class="hint">Renseigne au moins les calories et les macros. ' +
+        "Les vitamines et minéraux sont facultatifs : laisse vide ce que tu ne sais pas.</p>" +
+      '<div class="nf-grid">' +
+        ["kcal", "prot", "glu", "lip"].map(function (k) {
+          const lbl = { kcal: "kcal", prot: "P (g)", glu: "G (g)", lip: "L (g)" }[k];
+          return '<input type="number" inputmode="decimal" id="nf-' + k + '" placeholder="' + lbl + '" step="0.1" min="0">';
+        }).join("") +
+      "</div>" +
+      '<details class="fold nf-micros"><summary class="fold-head">' +
+        '<span class="fold-caret" aria-hidden="true">›</span><h2>Vitamines & minéraux</h2></summary>' +
+        '<div class="fold-body"><div class="nf-grid">' +
+          nutrients().filter((n) => !n.main).map(function (n) {
+            return '<input type="number" inputmode="decimal" id="nf-' + n.key +
+              '" placeholder="' + esc(n.label + " (" + n.unit + ")") + '" step="0.1" min="0">';
+          }).join("") +
+        "</div></div></details>" +
+      '<div class="sheet-actions">' +
+        '<button type="button" class="btn btn-ghost" data-act="nf-cancel">Annuler</button>' +
+        '<button type="button" class="btn btn-primary" data-act="nf-save">Créer</button>' +
+      "</div>";
+
+    body.querySelector('[data-act="nf-cancel"]').addEventListener("click", close);
+    body.querySelector('[data-act="nf-save"]').addEventListener("click", function () {
+      const label = body.querySelector("#nf-label").value.trim();
+      if (!label) { body.querySelector("#nf-label").focus(); return; }
+      const n = {};
+      for (const nn of nutrients()) {
+        const el = body.querySelector("#nf-" + nn.key);
+        if (el && el.value !== "") n[nn.key] = el.value;
+      }
+      const created = addCustomFood({
+        label: label,
+        cat: body.querySelector("#nf-cat").value,
+        unit: body.querySelector("#nf-unit").value,
+        n: n
+      });
+      close();
+      if (created) { toast(label + " créé"); openQuantity(created.id); }
+    });
+    body.querySelector("#nf-label").focus();
+  });
+}
+
+// ------------------------------------------------------------- cibles
+
+export function openTargets() {
+  openSheet("Mes cibles", function (body, close) {
+    const t = targets();
+    body.innerHTML =
+      '<p class="hint">Fixe tes macros : les calories en découlent (4 kcal par gramme ' +
+        "de protéines et de glucides, 9 pour les lipides) et s'affichent en fourchette.</p>" +
+      '<label class="field"><span>Protéines (g)</span>' +
+        '<input type="number" id="t-prot" class="input input-lg" inputmode="numeric" min="0" max="500" value="' + t.prot + '"></label>' +
+      '<label class="field"><span>Glucides (g)</span>' +
+        '<input type="number" id="t-glu" class="input input-lg" inputmode="numeric" min="0" max="900" value="' + t.glu + '"></label>' +
+      '<label class="field"><span>Lipides (g)</span>' +
+        '<input type="number" id="t-lip" class="input input-lg" inputmode="numeric" min="0" max="400" value="' + t.lip + '"></label>' +
+      '<label class="field"><span>Tolérance autour de la cible</span><select id="t-tol" class="input">' +
+        [["0.05", "± 5 %"], ["0.08", "± 8 %"], ["0.1", "± 10 %"], ["0.15", "± 15 %"]].map(function (o) {
+          return '<option value="' + o[0] + '"' + (Math.abs(t.tolerance - parseFloat(o[0])) < 0.001 ? " selected" : "") +
+            ">" + o[1] + "</option>";
+        }).join("") +
+      "</select></label>" +
+      '<div id="t-preview" class="t-preview"></div>' +
+      '<div class="sheet-actions">' +
+        '<button type="button" class="btn btn-ghost" data-act="t-reset">Valeurs par défaut</button>' +
+        '<button type="button" class="btn btn-primary" data-act="t-save">Enregistrer</button>' +
+      "</div>";
+
+    const get = (id) => parseFloat(body.querySelector(id).value) || 0;
+    const prev = body.querySelector("#t-preview");
+
+    function refresh() {
+      const kcal = get("#t-prot") * 4 + get("#t-glu") * 4 + get("#t-lip") * 9;
+      const tol = parseFloat(body.querySelector("#t-tol").value);
+      prev.innerHTML = '<span class="t-preview-label">Total calorique</span>' +
+        '<span class="t-preview-val">' + Math.round(kcal * (1 - tol)).toLocaleString("fr-FR") +
+        " – " + Math.round(kcal * (1 + tol)).toLocaleString("fr-FR") + " kcal</span>";
+    }
+
+    body.querySelectorAll("#t-prot, #t-glu, #t-lip, #t-tol").forEach(function (el) {
+      el.addEventListener("input", refresh);
+      el.addEventListener("change", refresh);
+    });
+
+    body.querySelector('[data-act="t-save"]').addEventListener("click", function () {
+      setTarget("prot", get("#t-prot"));
+      setTarget("glu", get("#t-glu"));
+      setTarget("lip", get("#t-lip"));
+      setTarget("tolerance", body.querySelector("#t-tol").value);
+      close();
+      toast("Cibles mises à jour");
+    });
+    body.querySelector('[data-act="t-reset"]').addEventListener("click", function () {
+      setTarget("prot", 190); setTarget("glu", 335); setTarget("lip", 100); setTarget("tolerance", 0.08);
+      close();
+      toast("Cibles remises par défaut");
+    });
+
+    refresh();
+  });
+}
+
+// -------------------------------------------------- calibrer compléments
+
+export function openSupplements() {
+  openSheet("Calibrer les compléments", function (body, close) {
+    function render() {
+      const sups = supplements();
+      body.innerHTML =
+        '<p class="hint">Indique ce qu\'apporte <strong>une</strong> gélule ou dose. ' +
+          "L'app multiplie par la quantité prise : 400 mg × 2 = 800 mg.</p>" +
+        (sups.length
+          ? '<ul class="sup-list">' + sups.map(function (s) {
+              const nmap = nutrientMap();
+              const apport = Object.entries(s.n).map(function ([k, v]) {
+                return fmtN(v) + " " + (nmap[k] ? nmap[k].unit + " " + nmap[k].label.toLowerCase() : k);
+              }).join(" · ");
+              return '<li class="sup-row">' +
+                '<div class="sup-main" data-act="sup-edit" data-sup="' + esc(s.id) + '" role="button" tabindex="0">' +
+                  '<span class="sup-label">' + esc(s.label) + "</span>" +
+                  '<span class="sup-detail">' + (apport ? esc(apport) : "aucun apport chiffré") +
+                    " / " + esc(s.unit) + "</span>" +
+                "</div>" +
+                '<button type="button" class="nut-del" data-act="sup-remove" data-sup="' + esc(s.id) +
+                  '" aria-label="Supprimer">✕</button>' +
+              "</li>";
+            }).join("") + "</ul>"
+          : '<p class="empty">Aucun complément.</p>') +
+        '<button type="button" class="btn btn-block btn-primary" data-act="sup-new">+ Nouveau complément</button>';
+
+      body.querySelectorAll('[data-act="sup-edit"]').forEach(function (row) {
+        row.addEventListener("click", function () { close(); openSupplementEditor(row.dataset.sup); });
+      });
+      body.querySelectorAll('[data-act="sup-remove"]').forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          const s = supplements().find((x) => x.id === btn.dataset.sup);
+          close();
+          confirmSheet("Supprimer ?", "« " + (s ? s.label : "") + " » sera retiré, ainsi que ses prises enregistrées.",
+            "Supprimer", function () { removeSupplement(btn.dataset.sup); toast("Supprimé"); });
+        });
+      });
+      body.querySelector('[data-act="sup-new"]').addEventListener("click", function () {
+        close();
+        openSupplementEditor(null);
+      });
+    }
+    render();
+  });
+}
+
+export function openSupplementEditor(id) {
+  const existing = id ? supplements().find((s) => s.id === id) : null;
+  openSheet(existing ? existing.label : "Nouveau complément", function (body, close) {
+    const n = existing ? existing.n : {};
+    body.innerHTML =
+      '<label class="field"><span>Nom</span>' +
+        '<input type="text" id="se-label" class="input" maxlength="80" placeholder="Ex : Magnésium bisglycinate" ' +
+          'value="' + esc(existing ? existing.label : "") + '"></label>' +
+      '<label class="field"><span>Unité de prise</span>' +
+        '<input type="text" id="se-unit" class="input" maxlength="20" placeholder="gélule, dose, goutte…" ' +
+          'value="' + esc(existing ? existing.unit : "gélule") + '"></label>' +
+      '<p class="hint">Apport par unité. Laisse vide ce que le produit n\'apporte pas.</p>' +
+      '<div class="nf-grid">' +
+        nutrients().map(function (nn) {
+          return '<input type="number" inputmode="decimal" id="se-' + nn.key +
+            '" placeholder="' + esc(nn.label + " (" + nn.unit + ")") + '" step="0.1" min="0" value="' +
+            (n[nn.key] !== undefined ? n[nn.key] : "") + '">';
+        }).join("") +
+      "</div>" +
+      '<div class="sheet-actions">' +
+        '<button type="button" class="btn btn-ghost" data-act="se-cancel">Annuler</button>' +
+        '<button type="button" class="btn btn-primary" data-act="se-save">Enregistrer</button>' +
+      "</div>";
+
+    body.querySelector('[data-act="se-cancel"]').addEventListener("click", close);
+    body.querySelector('[data-act="se-save"]').addEventListener("click", function () {
+      const label = body.querySelector("#se-label").value.trim();
+      if (!label) { body.querySelector("#se-label").focus(); return; }
+      const vals = {};
+      for (const nn of nutrients()) {
+        const el = body.querySelector("#se-" + nn.key);
+        if (el && el.value !== "") vals[nn.key] = el.value;
+      }
+      upsertSupplement({ id: existing ? existing.id : null, label: label, unit: body.querySelector("#se-unit").value, n: vals });
+      close();
+      toast("Complément enregistré");
+    });
+    body.querySelector("#se-label").focus();
+  });
+}
+
+// ---------------------------------------------------------- ajout libre
+
+export function openLibre() {
+  openSheet("Ajout libre", function (body, close) {
+    body.innerHTML =
+      '<p class="hint">Pour un plat dont tu connais seulement les calories et les macros.</p>' +
+      '<label class="field"><span>Nom</span>' +
+        '<input type="text" id="lb-label" class="input" maxlength="60" placeholder="Ex : Restaurant, kebab"></label>' +
+      '<div class="nf-grid">' +
+        '<input type="number" id="lb-kcal" inputmode="numeric" placeholder="kcal" min="0">' +
+        '<input type="number" id="lb-prot" inputmode="decimal" placeholder="P (g)" step="0.5" min="0">' +
+        '<input type="number" id="lb-glu" inputmode="decimal" placeholder="G (g)" step="0.5" min="0">' +
+        '<input type="number" id="lb-lip" inputmode="decimal" placeholder="L (g)" step="0.5" min="0">' +
+      "</div>" +
+      '<div class="sheet-actions">' +
+        '<button type="button" class="btn btn-ghost" data-act="lb-cancel">Annuler</button>' +
+        '<button type="button" class="btn btn-primary" data-act="lb-save">Ajouter</button>' +
+      "</div>";
+
+    body.querySelector('[data-act="lb-cancel"]').addEventListener("click", close);
+    body.querySelector('[data-act="lb-save"]').addEventListener("click", function () {
+      const v = (id) => body.querySelector(id).value;
+      if (addLibre(v("#lb-label"), v("#lb-kcal"), v("#lb-prot"), v("#lb-glu"), v("#lb-lip")) === false) {
+        body.querySelector("#lb-label").focus();
+        return;
+      }
+      close();
+      toast("Ajouté");
+    });
+    body.querySelector("#lb-label").focus();
+  });
+}
+
+// ------------------------------------------------------------- montage
+
+export function mountNutrition() { /* tout passe par la délégation dans app.js */ }

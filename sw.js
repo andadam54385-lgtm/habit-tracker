@@ -1,7 +1,7 @@
 /* Service worker : coquille hors ligne + réception du partage système.
    Pas de push, pas de serveur — l'app reste entièrement locale. */
 
-const VERSION = "suivi-v7";
+const VERSION = "suivi-v8";
 const SHELL = [
   "./",
   "./index.html",
@@ -23,7 +23,9 @@ const SHELL = [
   "./js/settings.js",
   "./js/notify.js",
   "./js/nutrition.js",
-  "./js/objectives.js"
+  "./js/objectives.js",
+  "./js/foods.js",
+  "./js/nutritionview.js"
 ];
 
 self.addEventListener("install", function (event) {
