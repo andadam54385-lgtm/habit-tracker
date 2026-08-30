@@ -20,7 +20,11 @@ function emptyState() {
     nutrition: {},       // "2026-08-30" -> { foods: {foodId: qty}, libre: [{label,kcal,prot}] }
     notes: {},           // sectionKey -> texte libre
     importedHashes: {},  // hash -> timestamp (idempotence des imports)
-    settings: { theme: "auto", reminders: { retour: "18:30", matin: "07:00", on: false } },
+    settings: {
+      theme: "auto",
+      reminders: { retour: "18:30", matin: "07:00", on: false },
+      folded: {}         // sectionKey -> true si le thème est replié
+    },
     seededIds: []        // ids de graine déjà injectés — permet d'en ajouter plus tard
   };
 }
@@ -75,6 +79,7 @@ export function load() {
   if (!Array.isArray(state.seededIds)) state.seededIds = [];
   state.settings = Object.assign(base.settings, state.settings || {});
   state.settings.reminders = Object.assign(base.settings.reminders, state.settings.reminders || {});
+  if (!state.settings.folded || typeof state.settings.folded !== "object") state.settings.folded = {};
 
   applySeed();
   refreshBlockedStatuses();
@@ -124,6 +129,16 @@ function refreshBlockedStatuses() {
 }
 
 export function subscribe(fn) { listeners.push(fn); }
+
+// Persiste sans notifier : pour les préférences purement visuelles (plier un
+// thème), où un re-rendu complet couperait l'animation du navigateur.
+export function saveQuiet() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.error("Sauvegarde impossible", e);
+  }
+}
 
 export function replaceAll(next) {
   const base = emptyState();

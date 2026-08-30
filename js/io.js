@@ -202,7 +202,8 @@ function sanitizeState(parsed) {
     reminders: Object.assign(
       { matin: "07:00", retour: "18:30", on: false },
       (s.reminders && typeof s.reminders === "object") ? s.reminders : {}
-    )
+    ),
+    folded: (s.folded && typeof s.folded === "object" && !Array.isArray(s.folded)) ? s.folded : {}
   };
 
   const ids = new Set();

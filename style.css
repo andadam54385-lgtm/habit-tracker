@@ -551,6 +551,58 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
   font-variant-numeric: tabular-nums;
 }
 
+/* ------------------------------------------------------ thèmes pliables */
+
+.fold-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+.fold {
+  margin-top: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.fold-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 14px;
+  cursor: pointer;
+  list-style: none;              /* retire le triangle natif */
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fold-head::-webkit-details-marker { display: none; }
+.fold-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.fold-head h2 { flex: 1; min-width: 0; font-size: 17px; }
+
+.fold-caret {
+  flex: 0 0 auto;
+  width: 22px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-faint);
+  text-align: center;
+  transition: transform .15s ease;
+}
+
+.fold[open] > .fold-head .fold-caret { transform: rotate(90deg); }
+
+/* Les deux compteurs sont dans le HTML ; le CSS montre celui qui correspond
+   à l'état, ce qui évite d'attendre un re-rendu pour rafraîchir le texte. */
+.fold[open] > .fold-head .when-closed,
+.fold:not([open]) > .fold-head .when-open { display: none; }
+
+.fold:not([open]) > .fold-head .counter { color: var(--accent); }
+.fold:not([open]) > .fold-head .when-closed.is-done { color: var(--ok); }
+
+.fold-body { padding: 0 12px 12px; }
+.fold-body .items { margin-top: 0; }
+
 /* ---------------------------------------------------------- nutrition */
 
 .nut-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

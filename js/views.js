@@ -6,7 +6,7 @@ import { renderList, renderGrouped } from "./components.js";
 import { SECTIONS, SECTION_MAP } from "./seed.js";
 import {
   state, isDone, isRecurring, weekProgress, rootBlocker, dependentCount,
-  dayKey, dailyHistory, setDaily, setNote
+  dayKey, dailyHistory, setDaily, setNote, saveQuiet
 } from "./state.js";
 
 // ------------------------------------------------------------- sélecteurs
@@ -132,13 +132,42 @@ export function viewHome() {
 
 // --------------------------------------------------------------- today
 
+// Thème pliable. Les deux compteurs sont rendus d'avance et c'est le CSS qui
+// choisit lequel montrer selon [open] : le pliage reste instantané, sans
+// attendre un re-rendu.
+function foldBlock(foldKey, title, doneCount, total, body) {
+  const open = !(state.settings.folded && state.settings.folded[foldKey]);
+  const left = total - doneCount;
+  const closed = left > 0
+    ? left + (left > 1 ? " à faire" : " à faire")
+    : "✓ terminé";
+  return '<details class="fold" data-fold="' + esc(foldKey) + '"' + (open ? " open" : "") + ">" +
+    '<summary class="fold-head">' +
+      '<span class="fold-caret" aria-hidden="true">›</span>' +
+      "<h2>" + title + "</h2>" +
+      '<span class="counter">' +
+        '<span class="when-open">' + doneCount + " / " + total + "</span>" +
+        '<span class="when-closed' + (left ? "" : " is-done") + '">' + closed + "</span>" +
+      "</span>" +
+    "</summary>" +
+    '<div class="fold-body">' + body + "</div>" +
+  "</details>";
+}
+
 export function viewToday() {
   const key = dayKey();
   const today = dueToday(key);
   const lone = loneTasks();
 
   let html = '<div class="view">';
-  html += '<header class="view-head"><h1>Aujourd\'hui</h1><p class="sub">' + esc(fmtDate(new Date())) + "</p></header>";
+
+  const doneAll = today.filter((i) => isDone(i, key)).length;
+  html += '<header class="view-head"><h1>Aujourd\'hui</h1><p class="sub">' +
+    esc(fmtDate(new Date())) +
+    (today.length ? " · " + (today.length - doneAll) + " case" +
+      (today.length - doneAll > 1 ? "s" : "") + " restante" +
+      (today.length - doneAll > 1 ? "s" : "") : "") +
+    "</p></header>";
 
   const bySection = new Map();
   for (const i of today) {
@@ -150,18 +179,33 @@ export function viewToday() {
     html += '<p class="empty">Rien à faire aujourd\'hui.</p>';
   }
 
+  if (bySection.size > 1) {
+    html += '<div class="fold-actions">' +
+      '<button type="button" class="btn btn-small btn-ghost" data-act="fold-all">Tout replier</button>' +
+      '<button type="button" class="btn btn-small btn-ghost" data-act="unfold-all">Tout déplier</button>' +
+      "</div>";
+  }
+
   for (const [k, items] of bySection) {
     const sec = SECTION_MAP[k];
     const done = items.filter((i) => isDone(i, key)).length;
-    html += '<div class="block-head"><h2>' + esc(sec.icon + " " + sec.label) +
-      '</h2><span class="counter">' + done + " / " + items.length + "</span></div>";
-    html += renderList(items, {});
+    html += foldBlock(
+      "jour:" + k,
+      esc(sec.icon + " " + sec.label),
+      done,
+      items.length,
+      renderList(items, {})
+    );
   }
 
   if (lone.length) {
-    html += '<div class="block-head"><h2>Actions ponctuelles</h2>' +
-      '<span class="counter">' + lone.length + "</span></div>";
-    html += renderList(lone, { showSectionName: true });
+    html += foldBlock(
+      "jour:ponctuelles",
+      "Actions ponctuelles",
+      0,
+      lone.length,
+      renderList(lone, { showSectionName: true })
+    );
   }
 
   html += "</div>";
@@ -466,6 +510,23 @@ function sparkline(history, field, label, unit, floor, ceil) {
 
 // Écouteurs des champs de saisie, à rejouer après chaque rendu.
 export function mount() {
+  document.querySelectorAll("[data-fold]").forEach(function (box) {
+    box.addEventListener("toggle", function () {
+      if (!state.settings.folded) state.settings.folded = {};
+      if (box.open) delete state.settings.folded[box.dataset.fold];
+      else state.settings.folded[box.dataset.fold] = true;
+      saveQuiet();
+    });
+  });
+
+  const foldAll = document.querySelector('[data-act="fold-all"]');
+  const unfoldAll = document.querySelector('[data-act="unfold-all"]');
+  function setAll(open) {
+    document.querySelectorAll("[data-fold]").forEach(function (box) { box.open = open; });
+  }
+  if (foldAll) foldAll.addEventListener("click", () => setAll(false));
+  if (unfoldAll) unfoldAll.addEventListener("click", () => setAll(true));
+
   document.querySelectorAll("[data-metric]").forEach(function (input) {
     input.addEventListener("change", function () {
       const raw = input.value.trim();
