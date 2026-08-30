@@ -623,6 +623,25 @@ td.rate-none { color: var(--text-faint); }
 .rate-strip-main span { font-size: 14px; color: var(--text-soft); }
 .rate-strip-obj { font-size: 13.5px; font-weight: 600; color: var(--accent); text-align: right; }
 
+.target-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+
+.target {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.target.is-met { border-left-color: var(--ok); }
+.target-mark { font-weight: 800; color: var(--text-faint); width: 18px; text-align: center; }
+.target.is-met .target-mark { color: var(--ok); }
+.target-label { flex: 1; min-width: 0; font-weight: 600; }
+.target-val { font-variant-numeric: tabular-nums; font-size: 14px; color: var(--text-soft); white-space: nowrap; }
+
 .objective-card { margin-top: 14px; }
 .objective-period { margin: -6px 0 12px; }
 

@@ -16,8 +16,8 @@ export const NUTRIENTS = [
   { key: "kcal", label: "Calories", unit: "kcal", target: 3000, period: "day", main: true },
   { key: "prot", label: "Protéines", unit: "g", target: 190, period: "day", main: true },
 
-  { key: "k",   label: "Potassium",     unit: "mg", target: 4250, range: "4 000 – 4 500", period: "day" },
-  { key: "na",  label: "Sodium",        unit: "mg", target: 3250, range: "3 000 – 3 500", period: "day",
+  { key: "k",   label: "Potassium",     unit: "mg", target: 4250, min: 4000, range: "4 000 – 4 500", period: "day" },
+  { key: "na",  label: "Sodium",        unit: "mg", target: 3250, min: 3000, range: "3 000 – 3 500", period: "day",
     ceil: 3500, warn: "Au-delà de 3 500 mg, tu dépasses ta cible haute." },
   { key: "mg",  label: "Magnésium",     unit: "mg", target: 420, period: "day" },
   { key: "ca",  label: "Calcium",       unit: "mg", target: 950, period: "day" },
@@ -161,6 +161,49 @@ export function totalsFor(keys) {
 export function dayTotals() { return totalsFor([dayKey()]); }
 export function weekTotals() { return totalsFor(weekDayKeys()); }
 
+// ------------------------------------------------- cibles atteintes
+
+// Un jour sans rien de saisi n'est pas un échec : c'est un jour non
+// renseigné. Le score ne porte que sur les jours effectivement remplis,
+// sinon oublier de logger ressemblerait à ne pas manger.
+export function loggedDayKeys(keys) {
+  return keys.filter(function (k) {
+    const log = state.nutrition[k];
+    return !!log && (Object.keys(log.foods || {}).length > 0 || (log.libre || []).length > 0);
+  });
+}
+
+export function isMet(n, value) {
+  const min = n.min !== undefined ? n.min : n.target;
+  if (value < min) return false;
+  if (n.ceil && value > n.ceil) return false;   // le sodium se rate aussi par le haut
+  return true;
+}
+
+// Par cible quotidienne : combien de jours renseignés l'ont atteinte.
+export function dailyTargetStats(keys) {
+  const logged = loggedDayKeys(keys);
+  return NUTRIENTS.filter((n) => n.period === "day").map(function (n) {
+    const hit = logged.filter((k) => isMet(n, totalsFor([k])[n.key])).length;
+    return { n: n, hit: hit, days: logged.length, rate: logged.length ? hit / logged.length : null };
+  });
+}
+
+// Cibles hebdomadaires : c'est le cumul de la semaine qui compte.
+export function weeklyTargetStats(keys) {
+  const totals = totalsFor(keys);
+  return NUTRIENTS.filter((n) => n.period === "week").map(function (n) {
+    return { n: n, value: totals[n.key], met: isMet(n, totals[n.key]) };
+  });
+}
+
+// Taux de réussite diète : moyenne des cibles quotidiennes tenues.
+export function dietRate(keys) {
+  const stats = dailyTargetStats(keys).filter((s) => s.rate !== null);
+  if (!stats.length) return null;
+  return stats.reduce((a, s) => a + s.rate, 0) / stats.length;
+}
+
 // ---------------------------------------------------------------- format
 
 function fmtN(v) {
@@ -285,6 +328,14 @@ export function viewNutrition() {
     html += bar(n, week[n.key]);
   }
   html += "</div>";
+
+  const logged = loggedDayKeys(weekDayKeys()).length;
+  const dr = dietRate(weekDayKeys());
+  html += '<a class="callout" href="#/objectifs">' +
+    "<strong>" + (dr === null
+      ? "Aucune journée saisie cette semaine"
+      : Math.round(dr * 100) + " % de cibles tenues sur " + logged + " jour" + (logged > 1 ? "s" : "")) +
+    "</strong><span>Voir la réussite →</span></a>";
 
   html += '<p class="hint nut-disclaimer">Valeurs moyennes arrondies (bases CIQUAL / USDA). ' +
     "L'outil suit des tendances sur la semaine — il ne remplace ni une pesée ni un avis médical.</p>";
