@@ -18,8 +18,9 @@ import { MIGRATION_RESULT } from "./js/state.js";
 const NAV = [
   { href: "#/", label: "Accueil", icon: "🏠", match: (r) => r.name === "home" },
   { href: "#/jour", label: "Jour", icon: "✅", match: (r) => r.name === "today" },
+  { href: "#/nutrition", label: "Diète", icon: "🍽️", match: (r) => r.name === "nutrition" },
   { href: "#/bloque", label: "Bloqué", icon: "🔒", match: (r) => r.name === "blocked" },
-  { href: "#/rubriques", label: "Rubriques", icon: "☰", match: (r) => ["sections", "section", "daily", "search", "import", "settings", "nutrition", "objectives"].includes(r.name) }
+  { href: "#/rubriques", label: "Rubriques", icon: "☰", match: (r) => ["sections", "section", "daily", "search", "import", "settings", "objectives"].includes(r.name) }
 ];
 
 // ------------------------------------------------------------- routage

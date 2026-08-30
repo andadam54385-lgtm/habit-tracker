@@ -12,9 +12,16 @@ import { esc } from "./ui.js";
 
 // ------------------------------------------------------------- nutriments
 
+// Répartition des macros déduite des cibles de la spec (3 000 kcal, 190 g de
+// protéines) : 190 g de protéines = 760 kcal, ~100 g de lipides = 900 kcal,
+// le reste en glucides ≈ 335 g. Les lipides ont un plafond — au-delà ils
+// mangent la place des glucides, qui sont le carburant des séances.
 export const NUTRIENTS = [
-  { key: "kcal", label: "Calories", unit: "kcal", target: 3000, period: "day", main: true },
-  { key: "prot", label: "Protéines", unit: "g", target: 190, period: "day", main: true },
+  { key: "kcal", label: "Calories", unit: "kcal", target: 3000, min: 2800, period: "day", main: true },
+  { key: "prot", label: "Protéines", unit: "g", target: 190, min: 180, period: "day", main: true },
+  { key: "glu", label: "Glucides", unit: "g", target: 335, min: 280, period: "day", main: true },
+  { key: "lip", label: "Lipides", unit: "g", target: 100, min: 80, ceil: 130, period: "day", main: true,
+    warn: "Au-delà de 130 g, les lipides prennent la place des glucides." },
 
   { key: "k",   label: "Potassium",     unit: "mg", target: 4250, min: 4000, range: "4 000 – 4 500", period: "day" },
   { key: "na",  label: "Sodium",        unit: "mg", target: 3250, min: 3000, range: "3 000 – 3 500", period: "day",
@@ -44,40 +51,40 @@ export const FOOD_GROUPS = [
   {
     label: "Base quotidienne",
     foods: [
-      { id: "oeuf", label: "Œuf (1)", n: { kcal: 78, prot: 6.5, k: 70, na: 70, mg: 6, ca: 28, fe: 0.9, zn: 0.6, b9: 24, d: 1.1, b12: 0.5, se: 15, om3: 40 } },
-      { id: "avoine", label: "Avoine (80 g)", n: { kcal: 300, prot: 11, k: 344, na: 3, mg: 140, ca: 43, fe: 3.4, zn: 3, b9: 26, se: 23 } },
-      { id: "banane", label: "Banane (1)", n: { kcal: 105, prot: 1.3, k: 430, mg: 32, ca: 6, fe: 0.3, zn: 0.2, c: 10, b9: 24 } },
-      { id: "puree-amande", label: "Purée d'amande (20 g)", n: { kcal: 128, prot: 4.2, k: 150, mg: 54, ca: 52, fe: 0.7, zn: 0.6, b9: 10 } },
-      { id: "lait", label: "Lait entier (250 ml)", n: { kcal: 163, prot: 8, k: 390, na: 108, mg: 28, ca: 300, zn: 0.9, b9: 12, d: 0.3, b12: 1.1, se: 2.5 } },
-      { id: "amandes", label: "Amandes (30 g)", n: { kcal: 174, prot: 6.3, k: 220, mg: 81, ca: 80, fe: 1.1, zn: 0.9, b9: 13, se: 1 } },
+      { id: "oeuf", label: "Œuf (1)", n: { kcal: 78, prot: 6.5, glu: 0.6, lip: 5.3, k: 70, na: 70, mg: 6, ca: 28, fe: 0.9, zn: 0.6, b9: 24, d: 1.1, b12: 0.5, se: 15, om3: 40 } },
+      { id: "avoine", label: "Avoine (80 g)", n: { kcal: 300, prot: 11, glu: 54, lip: 5.5, k: 344, na: 3, mg: 140, ca: 43, fe: 3.4, zn: 3, b9: 26, se: 23 } },
+      { id: "banane", label: "Banane (1)", n: { kcal: 105, prot: 1.3, glu: 27, lip: 0.4, k: 430, mg: 32, ca: 6, fe: 0.3, zn: 0.2, c: 10, b9: 24 } },
+      { id: "puree-amande", label: "Purée d'amande (20 g)", n: { kcal: 128, prot: 4.2, glu: 3.8, lip: 11, k: 150, mg: 54, ca: 52, fe: 0.7, zn: 0.6, b9: 10 } },
+      { id: "lait", label: "Lait entier (250 ml)", n: { kcal: 163, prot: 8, glu: 12, lip: 8, k: 390, na: 108, mg: 28, ca: 300, zn: 0.9, b9: 12, d: 0.3, b12: 1.1, se: 2.5 } },
+      { id: "amandes", label: "Amandes (30 g)", n: { kcal: 174, prot: 6.3, glu: 6.5, lip: 15, k: 220, mg: 81, ca: 80, fe: 1.1, zn: 0.9, b9: 13, se: 1 } },
       { id: "bresil", label: "Noix du Brésil (1 noix)", warnQty: 2, warnText: "2 par jour, jamais plus (sélénium).",
-        n: { kcal: 33, prot: 0.7, k: 33, mg: 19, ca: 8, fe: 0.1, zn: 0.2, se: 95 } },
-      { id: "avocat", label: "Avocat (1)", n: { kcal: 224, prot: 2.8, k: 680, mg: 40, fe: 0.8, zn: 0.9, c: 14, b9: 113 } },
-      { id: "fruit", label: "Fruit (1)", n: { kcal: 80, prot: 0.5, k: 200, c: 30, b9: 15 } }
+        n: { kcal: 33, prot: 0.7, glu: 0.6, lip: 3.4, k: 33, mg: 19, ca: 8, fe: 0.1, zn: 0.2, se: 95 } },
+      { id: "avocat", label: "Avocat (1)", n: { kcal: 224, prot: 2.8, glu: 12, lip: 20, k: 680, mg: 40, fe: 0.8, zn: 0.9, c: 14, b9: 113 } },
+      { id: "fruit", label: "Fruit (1)", n: { kcal: 80, prot: 0.5, glu: 20, lip: 0.3, k: 200, c: 30, b9: 15 } }
     ]
   },
   {
     label: "Plats & protéines",
     foods: [
-      { id: "poulet", label: "Poulet (150 g)", n: { kcal: 248, prot: 46, k: 380, na: 110, mg: 40, fe: 1.1, zn: 1.5, b9: 6, b12: 0.5, se: 33 } },
-      { id: "boeuf", label: "Bœuf 5-15 % (150 g)", n: { kcal: 260, prot: 39, k: 500, na: 90, mg: 30, fe: 3.9, zn: 8, b12: 3.8, se: 30 } },
-      { id: "sardines", label: "Sardines (boîte 90 g)", n: { kcal: 187, prot: 22, k: 350, na: 400, mg: 35, ca: 350, fe: 2.5, zn: 1.2, d: 6, b12: 8, se: 47, om3: 1500 } },
-      { id: "maquereau", label: "Maquereau (150 g)", n: { kcal: 305, prot: 28, k: 470, na: 130, mg: 45, fe: 1.9, zn: 1, d: 12, b12: 12, se: 60, om3: 2500 } },
-      { id: "poisson-blanc", label: "Poisson blanc (150 g)", n: { kcal: 150, prot: 32, k: 500, na: 120, mg: 40, fe: 0.4, zn: 0.7, d: 2, b12: 2, se: 50, om3: 300 } },
-      { id: "riz", label: "Riz cuit (200 g)", n: { kcal: 260, prot: 5, k: 70, mg: 24, fe: 0.4, zn: 1.2, b9: 8 } },
-      { id: "pates", label: "Pâtes cuites (200 g)", n: { kcal: 290, prot: 10, k: 88, mg: 36, fe: 1, zn: 1.4, b9: 14 } },
-      { id: "patates", label: "Pommes de terre (300 g)", n: { kcal: 260, prot: 6, k: 1260, na: 18, mg: 69, ca: 30, fe: 2.4, zn: 0.9, c: 29, b9: 54 } },
-      { id: "julienne", label: "Julienne courgette-carotte (200 g)", n: { kcal: 60, prot: 2.4, k: 480, mg: 24, ca: 40, fe: 0.8, c: 15, b9: 40 } },
-      { id: "plat-pause", label: "Pause : salade de riz / wrap / boulettes", n: { kcal: 600, prot: 30, k: 450, na: 800, mg: 50, fe: 2.5, zn: 2.5, b9: 40 } },
-      { id: "huile", label: "Huile d'olive (1 c. à s.)", n: { kcal: 120 } }
+      { id: "poulet", label: "Poulet (150 g)", n: { kcal: 248, prot: 46, glu: 0, lip: 5.4, k: 380, na: 110, mg: 40, fe: 1.1, zn: 1.5, b9: 6, b12: 0.5, se: 33 } },
+      { id: "boeuf", label: "Bœuf 5-15 % (150 g)", n: { kcal: 260, prot: 39, glu: 0, lip: 11, k: 500, na: 90, mg: 30, fe: 3.9, zn: 8, b12: 3.8, se: 30 } },
+      { id: "sardines", label: "Sardines (boîte 90 g)", n: { kcal: 187, prot: 22, glu: 0, lip: 10.5, k: 350, na: 400, mg: 35, ca: 350, fe: 2.5, zn: 1.2, d: 6, b12: 8, se: 47, om3: 1500 } },
+      { id: "maquereau", label: "Maquereau (150 g)", n: { kcal: 305, prot: 28, glu: 0, lip: 21, k: 470, na: 130, mg: 45, fe: 1.9, zn: 1, d: 12, b12: 12, se: 60, om3: 2500 } },
+      { id: "poisson-blanc", label: "Poisson blanc (150 g)", n: { kcal: 150, prot: 32, glu: 0, lip: 1.8, k: 500, na: 120, mg: 40, fe: 0.4, zn: 0.7, d: 2, b12: 2, se: 50, om3: 300 } },
+      { id: "riz", label: "Riz cuit (200 g)", n: { kcal: 260, prot: 5, glu: 56, lip: 0.6, k: 70, mg: 24, fe: 0.4, zn: 1.2, b9: 8 } },
+      { id: "pates", label: "Pâtes cuites (200 g)", n: { kcal: 290, prot: 10, glu: 57, lip: 1.7, k: 88, mg: 36, fe: 1, zn: 1.4, b9: 14 } },
+      { id: "patates", label: "Pommes de terre (300 g)", n: { kcal: 260, prot: 6, glu: 60, lip: 0.3, k: 1260, na: 18, mg: 69, ca: 30, fe: 2.4, zn: 0.9, c: 29, b9: 54 } },
+      { id: "julienne", label: "Julienne courgette-carotte (200 g)", n: { kcal: 60, prot: 2.4, glu: 11, lip: 0.5, k: 480, mg: 24, ca: 40, fe: 0.8, c: 15, b9: 40 } },
+      { id: "plat-pause", label: "Pause : salade de riz / wrap / boulettes", n: { kcal: 600, prot: 30, glu: 70, lip: 22, k: 450, na: 800, mg: 50, fe: 2.5, zn: 2.5, b9: 40 } },
+      { id: "huile", label: "Huile d'olive (1 c. à s.)", n: { kcal: 120, prot: 0, glu: 0, lip: 13.5 } }
     ]
   },
   {
     label: "Boissons",
     foods: [
-      { id: "boisson-jour", label: "Boisson de journée (1 L complet)", n: { kcal: 107, prot: 1, k: 1300, na: 1900, mg: 60, ca: 120, c: 31 } },
-      { id: "betterave", label: "Jus betterave-carotte (pré-salle)", n: { kcal: 180, prot: 4, k: 900, na: 200, c: 15, b9: 250 } },
-      { id: "grenade", label: "Jus de grenade (250 ml)", n: { kcal: 135, prot: 0.4, k: 530, na: 10 } }
+      { id: "boisson-jour", label: "Boisson de journée (1 L complet)", n: { kcal: 107, prot: 1, glu: 25, lip: 0.3, k: 1300, na: 1900, mg: 60, ca: 120, c: 31 } },
+      { id: "betterave", label: "Jus betterave-carotte (pré-salle)", n: { kcal: 180, prot: 4, glu: 40, lip: 0.5, k: 900, na: 200, c: 15, b9: 250 } },
+      { id: "grenade", label: "Jus de grenade (250 ml)", n: { kcal: 135, prot: 0.4, glu: 33, lip: 0.3, k: 530, na: 10 } }
     ]
   }
 ];
@@ -111,18 +118,24 @@ export function bumpFood(id, delta) {
   save();
 }
 
-export function addLibre(label, kcal, prot) {
+function num(v) {
+  const n = parseFloat(String(v === undefined || v === null ? "" : v).replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
+export function addLibre(label, kcal, prot, glu, lip) {
   label = String(label || "").trim();
-  kcal = parseFloat(String(kcal).replace(",", "."));
-  prot = parseFloat(String(prot).replace(",", "."));
-  if (!label && !kcal) return false;
+  const k1 = num(kcal);
+  if (!label && !k1) return false;
   const k = dayKey();
   if (!state.nutrition[k]) state.nutrition[k] = emptyLog();
   if (!state.nutrition[k].libre) state.nutrition[k].libre = [];
   state.nutrition[k].libre.push({
     label: label || "Ajout libre",
-    kcal: Number.isFinite(kcal) ? kcal : 0,
-    prot: Number.isFinite(prot) ? prot : 0
+    kcal: k1,
+    prot: num(prot),
+    glu: num(glu),
+    lip: num(lip)
   });
   save();
   return true;
@@ -153,6 +166,8 @@ export function totalsFor(keys) {
     for (const l of log.libre || []) {
       t.kcal += l.kcal || 0;
       t.prot += l.prot || 0;
+      t.glu += l.glu || 0;
+      t.lip += l.lip || 0;
     }
   }
   return t;
@@ -253,10 +268,12 @@ export function viewNutrition() {
     esc(today.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })) +
     "</p></header>";
 
-  // Calories + protéines en grand.
+  // Les quatre macros en grand : calories, protéines, glucides, lipides.
   html += '<div class="nut-tiles">' +
     heroTile(NUTRIENT_MAP.kcal, day.kcal) +
     heroTile(NUTRIENT_MAP.prot, day.prot) +
+    heroTile(NUTRIENT_MAP.glu, day.glu) +
+    heroTile(NUTRIENT_MAP.lip, day.lip) +
     "</div>";
 
   // Journal du jour.
@@ -271,7 +288,8 @@ export function viewNutrition() {
         '<div class="nut-food-main">' +
           '<span class="nut-food-label">' + esc(f.label) + "</span>" +
           '<span class="nut-food-detail">' + fmtN(f.n.kcal || 0) + " kcal · " +
-            fmtN(f.n.prot || 0) + " g prot</span>" +
+            fmtN(f.n.prot || 0) + " P · " + fmtN(f.n.glu || 0) + " G · " +
+            fmtN(f.n.lip || 0) + " L</span>" +
           (overQty ? '<span class="nut-warn">⚠️ ' + esc(f.warnText) + "</span>" : "") +
         "</div>" +
         '<div class="stepper">' +
@@ -294,7 +312,8 @@ export function viewNutrition() {
       html += '<li class="nut-food has-qty">' +
         '<div class="nut-food-main">' +
           '<span class="nut-food-label">' + esc(l.label) + "</span>" +
-          '<span class="nut-food-detail">' + fmtN(l.kcal) + " kcal · " + fmtN(l.prot) + " g prot</span>" +
+          '<span class="nut-food-detail">' + fmtN(l.kcal) + " kcal · " + fmtN(l.prot) + " P · " +
+            fmtN(l.glu || 0) + " G · " + fmtN(l.lip || 0) + " L</span>" +
         "</div>" +
         '<button type="button" class="nut-del" data-act="nut-del" data-idx="' + idx +
           '" aria-label="Supprimer ' + esc(l.label) + '">✕</button>' +
@@ -304,9 +323,13 @@ export function viewNutrition() {
   }
   html += '<form class="nut-libre" id="nut-libre-form">' +
     '<input type="text" id="nut-libre-label" placeholder="Aliment hors liste" maxlength="60">' +
-    '<input type="number" id="nut-libre-kcal" inputmode="numeric" min="0" max="3000" placeholder="kcal">' +
-    '<input type="number" id="nut-libre-prot" inputmode="decimal" min="0" max="200" step="0.5" placeholder="g prot">' +
-    '<button type="submit" class="btn btn-primary">+</button>' +
+    '<div class="nut-libre-macros">' +
+      '<input type="number" id="nut-libre-kcal" inputmode="numeric" min="0" max="4000" placeholder="kcal">' +
+      '<input type="number" id="nut-libre-prot" inputmode="decimal" min="0" max="300" step="0.5" placeholder="P (g)">' +
+      '<input type="number" id="nut-libre-glu" inputmode="decimal" min="0" max="500" step="0.5" placeholder="G (g)">' +
+      '<input type="number" id="nut-libre-lip" inputmode="decimal" min="0" max="300" step="0.5" placeholder="L (g)">' +
+      '<button type="submit" class="btn btn-primary">+</button>' +
+    "</div>" +
   "</form>";
 
   // Minéraux & vitamines du jour.
@@ -349,10 +372,9 @@ export function mountNutrition() {
   if (!form) return;
   form.addEventListener("submit", function (e) {
     e.preventDefault();
-    const label = document.getElementById("nut-libre-label").value;
-    const kcal = document.getElementById("nut-libre-kcal").value;
-    const prot = document.getElementById("nut-libre-prot").value;
-    if (addLibre(label, kcal, prot) === false) {
+    const v = (id) => document.getElementById(id).value;
+    if (addLibre(v("nut-libre-label"), v("nut-libre-kcal"),
+                 v("nut-libre-prot"), v("nut-libre-glu"), v("nut-libre-lip")) === false) {
       document.getElementById("nut-libre-label").focus();
     }
   });

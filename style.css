@@ -744,6 +744,10 @@ td.rate-none { color: var(--text-faint); }
 /* ---------------------------------------------------------- nutrition */
 
 .nut-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.nut-tile-val { white-space: nowrap; }
+
+.nut-libre-macros { display: grid; grid-template-columns: repeat(4, 1fr) 56px; gap: 6px; margin-top: 8px; }
+.nut-libre-macros input { min-width: 0; }
 
 .nut-tile {
   padding: 14px;
@@ -857,12 +861,7 @@ td.rate-none { color: var(--text-faint); }
   cursor: pointer;
 }
 
-.nut-libre {
-  display: grid;
-  grid-template-columns: 1fr 76px 76px 56px;
-  gap: 8px;
-  margin-top: 8px;
-}
+.nut-libre { margin-top: 8px; }
 
 .nut-libre input {
   min-height: var(--tap);
@@ -1011,7 +1010,10 @@ td.rate-none { color: var(--text-faint); }
   font-weight: 600;
 }
 
-.nav-icon { font-size: 21px; line-height: 1; }
+.nav-icon { font-size: 20px; line-height: 1; }
+/* Cinq onglets : le libellé doit tenir sans couper sur un écran étroit. */
+.nav-item { padding: 0 2px; text-align: center; }
+.nav-item > span:last-child { font-size: 11px; white-space: nowrap; }
 .nav-item.is-active { color: var(--accent); }
 
 /* ------------------------------------------------------------ sheets */
