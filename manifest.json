@@ -1,13 +1,32 @@
 {
-  "name": "Suivi d'habitudes",
-  "short_name": "Habitudes",
+  "name": "Suivi personnel",
+  "short_name": "Suivi",
+  "description": "Protocoles santé, diète, entraînement, relaxation, apparence et apprentissages en un seul endroit.",
+  "lang": "fr",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f5f6f8",
+  "orientation": "portrait",
+  "background_color": "#f2f4f7",
   "theme_color": "#4f46e5",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "share_target": {
+    "action": "share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "shortcuts": [
+    { "name": "Aujourd'hui", "url": "./index.html#/jour" },
+    { "name": "Importer depuis Claude", "url": "./index.html#/import" },
+    { "name": "Suivi quotidien", "url": "./index.html#/suivi" }
   ]
 }

@@ -2,111 +2,36 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Suivi d'habitudes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Suivi personnel</title>
 <link rel="stylesheet" href="style.css">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
 <meta name="theme-color" content="#4f46e5">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Habitudes">
-
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-<script>
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-  OneSignalDeferred.push(async function (OneSignal) {
-    await OneSignal.init({
-      appId: "8359adb1-5fc5-41ab-b782-b1d76e0de05b",
-      serviceWorkerPath: "OneSignalSDKWorker.js",
-      serviceWorkerParam: { scope: "/habit-tracker/" }
-    });
-  });
-</script>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Suivi">
+<meta name="description" content="Suivi personnel — protocoles santé, diète, entraînement, relaxation, apparence et apprentissages en un seul endroit.">
 </head>
 <body>
-<div class="app">
-  <header class="app-header">
-    <h1>Mes habitudes</h1>
-    <p class="subtitle">Suis tes habitudes jour après jour</p>
-    <button id="notify-btn" class="notify-btn" hidden>🔔 Activer les notifications</button>
-  </header>
 
-  <section class="add-habit">
-    <input id="new-habit-input" type="text" placeholder="Nouvelle habitude (ex: Lire 10 min)" maxlength="60">
-    <select id="new-habit-freq" title="Objectif hebdomadaire">
-      <option value="7">Tous les jours</option>
-      <option value="6">6 jours / semaine</option>
-      <option value="5">5 jours / semaine</option>
-      <option value="4">4 jours / semaine</option>
-      <option value="3">3 jours / semaine</option>
-      <option value="2">2 jours / semaine</option>
-      <option value="1">1 jour / semaine</option>
-    </select>
-    <button id="add-habit-btn">Ajouter</button>
-  </section>
+<main id="app" class="app"><!-- vue injectée --></main>
 
-  <section class="week-nav">
-    <button id="prev-week-btn" title="Semaine précédente">&larr;</button>
-    <div class="week-label" id="week-label"></div>
-    <button id="next-week-btn" title="Semaine suivante">&rarr;</button>
-    <button id="today-btn">Aujourd'hui</button>
-  </section>
+<button id="fab" class="fab" type="button" aria-label="Ajouter une note">
+  <span aria-hidden="true">+</span>
+</button>
 
-  <section class="objectives">
-    <div class="objective-card">
-      <h2>Objectifs de la semaine</h2>
-      <p class="objective-period" id="week-objective-label"></p>
-      <form class="objective-add" id="week-objective-form">
-        <input type="text" id="week-objective-input" placeholder="Ex: Terminer le rapport" maxlength="80">
-        <button type="submit">+</button>
-      </form>
-      <ul class="objective-list" id="week-objective-list"></ul>
-      <p class="objective-empty" id="week-objective-empty" hidden>Aucun objectif pour cette semaine.</p>
-    </div>
-    <div class="objective-card">
-      <h2>Objectifs du mois</h2>
-      <p class="objective-period" id="month-objective-label"></p>
-      <form class="objective-add" id="month-objective-form">
-        <input type="text" id="month-objective-input" placeholder="Ex: Lire 2 livres" maxlength="80">
-        <button type="submit">+</button>
-      </form>
-      <ul class="objective-list" id="month-objective-list"></ul>
-      <p class="objective-empty" id="month-objective-empty" hidden>Aucun objectif pour ce mois.</p>
-    </div>
-  </section>
+<nav class="nav" aria-label="Navigation principale">
+  <a class="nav-item" href="#/"><span class="nav-icon" aria-hidden="true">🏠</span><span>Accueil</span></a>
+  <a class="nav-item" href="#/jour"><span class="nav-icon" aria-hidden="true">✅</span><span>Jour</span></a>
+  <a class="nav-item" href="#/bloque"><span class="nav-icon" aria-hidden="true">🔒</span><span>Bloqué</span></a>
+  <a class="nav-item" href="#/rubriques"><span class="nav-icon" aria-hidden="true">☰</span><span>Rubriques</span></a>
+</nav>
 
-  <section class="table-wrap">
-    <table id="habit-table">
-      <thead>
-        <tr id="table-head-row">
-          <th class="habit-col">Habitude</th>
-          <th class="freq-col">Objectif</th>
-          <!-- day headers injected -->
-          <th class="week-avg-col">Moy. sem.</th>
-          <th class="month-avg-col">Moy. mois</th>
-          <th class="actions-col"></th>
-        </tr>
-      </thead>
-      <tbody id="habit-tbody">
-        <!-- rows injected -->
-      </tbody>
-      <tfoot>
-        <tr id="total-row">
-          <td class="habit-col total-label">Total</td>
-          <td class="freq-col"></td>
-          <!-- day totals injected -->
-          <td class="week-avg-col" id="total-week-avg">-</td>
-          <td class="month-avg-col" id="total-month-avg">-</td>
-          <td class="actions-col"></td>
-        </tr>
-      </tfoot>
-    </table>
-    <p id="empty-state" class="empty-state" hidden>Aucune habitude pour l'instant. Ajoute-en une ci-dessus.</p>
-  </section>
-</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>
