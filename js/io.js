@@ -4,6 +4,10 @@
 import { state, save, addItem, setDaily, dayKey, isDone, isRecurring, weekProgress, rootBlocker, makeId } from "./state.js";
 import { SECTIONS, SECTION_MAP } from "./seed.js";
 import { totalsFor } from "./nutrition.js";
+import {
+  trackedItems, weekDates, monthDates, weekStartAt,
+  computeRate, computeTotalRate, formatPercent, frequencyOf
+} from "./objectives.js";
 
 // ------------------------------------------------------------- import
 
@@ -81,6 +85,8 @@ export function exportMarkdown() {
   out.push("_Export du " + now.toLocaleString("fr-FR") + "_");
   out.push("");
 
+  out.push(...exportObjectivesSection());
+
   for (const section of SECTIONS) {
     const items = state.items.filter((i) => i.section === section.key);
     const note = state.notes[section.key];
@@ -153,6 +159,50 @@ function exportDailyTable() {
   return rows.join("\n");
 }
 
+function exportObjectivesSection() {
+  const out = [];
+  const items = trackedItems();
+  const wDates = weekDates(weekStartAt(0));
+  const mDates = monthDates(new Date());
+  const w = computeTotalRate(items, wDates);
+  const m = computeTotalRate(items, mDates);
+
+  out.push("## Objectifs & réussite");
+  out.push("");
+  out.push("- Réussite de la semaine : **" + formatPercent(w) + "**");
+  out.push("- Réussite du mois : **" + formatPercent(m) + "**");
+  out.push("");
+
+  if (items.length) {
+    out.push("| Habitude | Objectif | Moy. sem. | Moy. mois |");
+    out.push("|---|---|---|---|");
+    for (const it of items) {
+      const f = frequencyOf(it);
+      out.push("| " + it.title + " | " + (f === 7 ? "tous les jours" : f + "×/sem") +
+        " | " + formatPercent(computeRate(it, wDates)) +
+        " | " + formatPercent(computeRate(it, mDates)) + " |");
+    }
+    out.push("");
+  }
+
+  for (const [scope, label] of [["weekly", "Objectifs de la semaine"], ["monthly", "Objectifs du mois"]]) {
+    const root = state.objectives[scope] || {};
+    const keys = Object.keys(root).sort().reverse();
+    if (!keys.length) continue;
+    out.push("### " + label);
+    out.push("");
+    for (const k of keys) {
+      if (!root[k] || !root[k].length) continue;
+      out.push("**" + k + "**");
+      out.push("");
+      for (const o of root[k]) out.push("- [" + (o.done ? "x" : " ") + "] " + o.text);
+      out.push("");
+    }
+  }
+
+  return out;
+}
+
 function exportNutritionTable() {
   const keys = Object.keys(state.nutrition || {}).sort();
   if (!keys.length) return "";
@@ -194,6 +244,23 @@ function sanitizeState(parsed) {
 
   for (const k of ["checks", "daily", "nutrition", "notes", "importedHashes"]) {
     if (!out[k] || typeof out[k] !== "object" || Array.isArray(out[k])) out[k] = {};
+  }
+
+  const obj = (parsed.objectives && typeof parsed.objectives === "object") ? parsed.objectives : {};
+  out.objectives = { weekly: {}, monthly: {} };
+  for (const scope of ["weekly", "monthly"]) {
+    const src = (obj[scope] && typeof obj[scope] === "object") ? obj[scope] : {};
+    for (const [periodKey, list] of Object.entries(src)) {
+      if (!Array.isArray(list)) continue;
+      const clean = list
+        .filter((o) => o && typeof o.text === "string" && o.text.trim())
+        .map((o) => ({
+          id: typeof o.id === "string" && o.id ? o.id : makeId("o"),
+          text: o.text.slice(0, 200),
+          done: !!o.done
+        }));
+      if (clean.length) out.objectives[scope][periodKey] = clean;
+    }
   }
 
   const s = (out.settings && typeof out.settings === "object") ? out.settings : {};

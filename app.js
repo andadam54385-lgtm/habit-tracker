@@ -12,12 +12,14 @@ import {
 import { viewImport, mountImport } from "./js/importview.js";
 import { viewSettings, mountSettings } from "./js/settings.js";
 import { viewNutrition, mountNutrition, bumpFood, removeLibre } from "./js/nutrition.js";
+import { viewObjectives, mountObjectives, toggleObjective, removeObjective } from "./js/objectives.js";
+import { MIGRATION_RESULT } from "./js/state.js";
 
 const NAV = [
   { href: "#/", label: "Accueil", icon: "🏠", match: (r) => r.name === "home" },
   { href: "#/jour", label: "Jour", icon: "✅", match: (r) => r.name === "today" },
   { href: "#/bloque", label: "Bloqué", icon: "🔒", match: (r) => r.name === "blocked" },
-  { href: "#/rubriques", label: "Rubriques", icon: "☰", match: (r) => ["sections", "section", "daily", "search", "import", "settings", "nutrition"].includes(r.name) }
+  { href: "#/rubriques", label: "Rubriques", icon: "☰", match: (r) => ["sections", "section", "daily", "search", "import", "settings", "nutrition", "objectives"].includes(r.name) }
 ];
 
 // ------------------------------------------------------------- routage
@@ -36,6 +38,7 @@ function parseRoute() {
     case "s": return { name: "section", key: parts[1], sub: parts[2], params };
     case "suivi": return { name: "daily", params };
     case "nutrition": return { name: "nutrition", params };
+    case "objectifs": return { name: "objectives", params };
     case "recherche": return { name: "search", params };
     case "import": return { name: "import", params };
     case "reglages": return { name: "settings", params };
@@ -53,6 +56,7 @@ function renderRoute(route) {
     case "section": return viewSection(route.key, route.sub);
     case "daily": return viewDaily();
     case "nutrition": return viewNutrition();
+    case "objectives": return viewObjectives(route.params.get("w") || 0);
     case "search": return viewSearch(route.params.get("q") || "");
     case "import": return viewImport();
     case "settings": return viewSettings();
@@ -74,6 +78,8 @@ function render() {
     mountSettings();
   } else if (route.name === "nutrition") {
     mountNutrition();
+  } else if (route.name === "objectives") {
+    mountObjectives();
   } else {
     mount();
   }
@@ -117,6 +123,18 @@ function isEditing() {
 // -------------------------------------------------------- délégation
 
 function onClick(e) {
+  const objToggle = e.target.closest('[data-act="obj-toggle"]');
+  if (objToggle) {
+    toggleObjective(objToggle.dataset.scope, objToggle.dataset.period, objToggle.dataset.obj);
+    return;
+  }
+
+  const objDel = e.target.closest('[data-act="obj-del"]');
+  if (objDel) {
+    removeObjective(objDel.dataset.scope, objDel.dataset.period, objDel.dataset.obj);
+    return;
+  }
+
   const step = e.target.closest('[data-act="nut-plus"], [data-act="nut-minus"]');
   if (step) {
     bumpFood(step.dataset.food, step.dataset.act === "nut-plus" ? 1 : -1);
@@ -238,6 +256,13 @@ function boot() {
   mq.addEventListener("change", applyTheme);
 
   render();
+
+  if (MIGRATION_RESULT.done) {
+    const bits = [];
+    if (MIGRATION_RESULT.habits) bits.push(MIGRATION_RESULT.habits + " habitude" + (MIGRATION_RESULT.habits > 1 ? "s" : ""));
+    if (MIGRATION_RESULT.objectives) bits.push(MIGRATION_RESULT.objectives + " objectif" + (MIGRATION_RESULT.objectives > 1 ? "s" : ""));
+    toast("Récupéré de l'ancienne app : " + bits.join(" et "));
+  }
 
   collectSharedPayload().then(function (text) {
     if (!text) return;

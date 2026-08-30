@@ -18,6 +18,7 @@ function emptyState() {
     checks: {},          // itemId -> { "2026-08-30": true }
     daily: {},           // "2026-08-30" -> { sommeil, fc, energie }
     nutrition: {},       // "2026-08-30" -> { foods: {foodId: qty}, libre: [{label,kcal,prot}] }
+    objectives: { weekly: {}, monthly: {} },  // periodKey -> [{id,text,done}]
     notes: {},           // sectionKey -> texte libre
     importedHashes: {},  // hash -> timestamp (idempotence des imports)
     settings: {
@@ -81,9 +82,91 @@ export function load() {
   state.settings.reminders = Object.assign(base.settings.reminders, state.settings.reminders || {});
   if (!state.settings.folded || typeof state.settings.folded !== "object") state.settings.folded = {};
 
+  if (!state.objectives || typeof state.objectives !== "object") state.objectives = { weekly: {}, monthly: {} };
+  if (!state.objectives.weekly || typeof state.objectives.weekly !== "object") state.objectives.weekly = {};
+  if (!state.objectives.monthly || typeof state.objectives.monthly !== "object") state.objectives.monthly = {};
+
+  migrateHabitTracker();
   applySeed();
   refreshBlockedStatuses();
   return state;
+}
+
+// Récupération des données du tracker d'habitudes : l'app vit à la même
+// adresse, ses données sont donc toujours dans le stockage du navigateur.
+// Une seule fois, sans jamais toucher à la clé d'origine — elle reste
+// disponible comme filet.
+export const MIGRATION_RESULT = { habits: 0, objectives: 0, done: false };
+
+function migrateHabitTracker() {
+  if (state.migratedFromHabitTracker) return;
+
+  let old = null;
+  try {
+    const raw = localStorage.getItem("habitTracker.v1");
+    if (raw) old = JSON.parse(raw);
+  } catch (e) {
+    old = null;
+  }
+
+  state.migratedFromHabitTracker = true;
+  if (!old || typeof old !== "object") return;
+
+  // Objectifs hebdo / mensuels, repris tels quels.
+  for (const scope of ["weekly", "monthly"]) {
+    const src = old.objectives && old.objectives[scope];
+    if (!src || typeof src !== "object") continue;
+    for (const [periodKey, list] of Object.entries(src)) {
+      if (!Array.isArray(list) || !list.length) continue;
+      const target = state.objectives[scope][periodKey] || [];
+      for (const o of list) {
+        if (!o || typeof o.text !== "string" || !o.text.trim()) continue;
+        if (target.some((x) => x.text === o.text)) continue;
+        target.push({ id: makeId("o"), text: o.text.slice(0, 200), done: !!o.done });
+        MIGRATION_RESULT.objectives++;
+      }
+      if (target.length) state.objectives[scope][periodKey] = target;
+    }
+  }
+
+  // Habitudes + historique de complétion.
+  if (Array.isArray(old.habits)) {
+    for (const h of old.habits) {
+      if (!h || typeof h.name !== "string" || !h.name.trim()) continue;
+      const freq = (h.frequency >= 1 && h.frequency <= 7) ? Math.round(h.frequency) : 7;
+      const id = "hab_" + String(h.id || makeId("h"));
+      if (state.items.some((i) => i.id === id)) continue;
+      state.items.push({
+        id: id,
+        section: "suivi",
+        sub: null,
+        group: "Habitudes reprises du tracker",
+        title: h.name.slice(0, 200),
+        detail: "",
+        warn: "",
+        kind: "task",
+        status: "todo",
+        priority: "normal",
+        blockedBy: null,
+        recurrence: freq === 7 ? { type: "daily" } : { type: "week", perWeek: freq },
+        source: "tracker",
+        createdAt: Date.now(),
+        doneAt: null,
+        pinned: false
+      });
+      MIGRATION_RESULT.habits++;
+
+      const comp = old.completions && old.completions[h.id];
+      if (comp && typeof comp === "object") {
+        if (!state.checks[id]) state.checks[id] = {};
+        for (const [dateKey, val] of Object.entries(comp)) {
+          if (val && /^\d{4}-\d{2}-\d{2}$/.test(dateKey)) state.checks[id][dateKey] = true;
+        }
+      }
+    }
+  }
+
+  MIGRATION_RESULT.done = MIGRATION_RESULT.habits > 0 || MIGRATION_RESULT.objectives > 0;
 }
 
 // N'injecte que les items de graine jamais vus. Un item supprimé par

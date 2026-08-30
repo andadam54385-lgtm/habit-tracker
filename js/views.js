@@ -4,6 +4,7 @@
 import { esc, escLines, fmtDate, fmtShort } from "./ui.js";
 import { renderList, renderGrouped } from "./components.js";
 import { SECTIONS, SECTION_MAP } from "./seed.js";
+import { weekSuccess, pendingObjectives, formatPercent, rateClass } from "./objectives.js";
 import {
   state, isDone, isRecurring, weekProgress, rootBlocker, dependentCount,
   dayKey, dailyHistory, setDaily, setNote, saveQuiet
@@ -94,6 +95,20 @@ export function viewHome() {
         '<h2 class="hero-title">Aucune action bloquante en attente.</h2>' +
       "</section>";
   }
+
+  // Réussite de la semaine + objectifs en cours : le cœur de l'app d'origine,
+  // gardé visible depuis l'accueil.
+  const rate = weekSuccess();
+  const objs = pendingObjectives();
+  html += '<a class="rate-strip ' + rateClass(rate) + '" href="#/objectifs">' +
+    '<span class="rate-strip-main"><strong>' + formatPercent(rate) + "</strong>" +
+      "<span>de réussite cette semaine</span></span>" +
+    '<span class="rate-strip-obj">' +
+      (objs.total
+        ? objs.done + " / " + objs.total + " objectif" + (objs.total > 1 ? "s" : "")
+        : "Aucun objectif fixé") +
+    " →</span>" +
+  "</a>";
 
   // 2. Les cases du jour.
   html += '<section class="block">' +
@@ -295,6 +310,7 @@ export function viewSections() {
   }
   html += "</nav>";
   html += '<div class="section-links">' +
+    '<a class="row-link" href="#/objectifs">🎯 Objectifs & réussite</a>' +
     '<a class="row-link" href="#/nutrition">🧮 Calculateur nutrition</a>' +
     '<a class="row-link" href="#/recherche">🔍 Recherche</a>' +
     '<a class="row-link" href="#/import">📥 Importer depuis Claude</a>' +
