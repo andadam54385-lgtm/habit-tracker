@@ -9,7 +9,8 @@ import {
   supplements, upsertSupplement, removeSupplement,
   logFor, setQuantity, addQuantity, setSupplement, addSupplementUnits,
   addLibre, removeLibre, dayTotals, preview, isMet,
-  loggedDayKeys, dietRate, FOOD_CATS, CAT_MAP, UNIT_LABEL
+  loggedDayKeys, dietRate, FOOD_CATS, CAT_MAP, UNIT_LABEL,
+  microCompleteness, foodsNeedingMicros, buildCompletionRequest
 } from "./nutrition.js";
 
 function fmtN(v) {
@@ -210,7 +211,10 @@ export function openFoodSearch() {
               "</li>";
             }).join("") + "</ul>"
           : '<p class="empty">Aucun aliment trouvé.</p>') +
-        '<button type="button" class="btn btn-block btn-ghost" data-act="new-food">+ Créer un aliment</button>';
+        '<button type="button" class="btn btn-block btn-ghost" data-act="new-food">+ Créer un aliment</button>' +
+        '<button type="button" class="btn btn-block btn-ghost" data-act="my-foods">🍽️ Mes aliments' +
+          (function () { const k = foodsNeedingMicros().length; return k ? " · " + k + " à compléter" : ""; })() +
+        "</button>";
 
       const q = body.querySelector("#fs-q");
       let timer = null;
@@ -232,6 +236,10 @@ export function openFoodSearch() {
       body.querySelector('[data-act="new-food"]').addEventListener("click", function () {
         close();
         openNewFood();
+      });
+      body.querySelector('[data-act="my-foods"]').addEventListener("click", function () {
+        close();
+        openMyFoods();
       });
       body.querySelectorAll('[data-act="pick-food"]').forEach(function (row) {
         row.addEventListener("click", function () {
@@ -313,6 +321,69 @@ export function openQuantity(foodId) {
   });
 }
 
+// ----------------------------------------- mes aliments / complétion micros
+
+// Un aliment saisi sans vitamines ni minéraux laisse un trou silencieux :
+// ses micros comptent zéro dans les totaux. Cet écran rend le trou visible
+// et fabrique la demande à coller dans une conversation avec Claude.
+export function openMyFoods() {
+  openSheet("Mes aliments", function (body, close) {
+    const perso = allFoods().filter((f) => f.custom);
+    const incomplets = foodsNeedingMicros();
+
+    body.innerHTML =
+      (incomplets.length
+        ? '<p class="callout callout-static"><strong>' + incomplets.length +
+          " aliment" + (incomplets.length > 1 ? "s n'ont" : " n'a") +
+          " aucune vitamine ni minéral renseigné.</strong> Leurs micros comptent " +
+          "pour zéro dans tes totaux — ce qui les sous-estime.</p>" +
+          '<button type="button" class="btn btn-block btn-primary" data-act="ask-claude">' +
+          "📋 Copier la demande pour Claude</button>" +
+          '<p class="hint">Colle-la dans une conversation, puis rapporte ma réponse ' +
+          "dans <strong>Diète → Importer</strong>. Les valeurs se rangeront toutes seules.</p>"
+        : '<p class="callout callout-static">Tous tes aliments ont au moins un micronutriment renseigné.</p>') +
+
+      (perso.length
+        ? '<h3 class="group-title">Aliments créés (' + perso.length + ")</h3>" +
+          '<ul class="sup-list">' + perso.map(function (f) {
+            const c = microCompleteness(f);
+            return '<li class="sup-row">' +
+              '<div class="sup-main">' +
+                '<span class="sup-label">' + esc(f.label) + "</span>" +
+                '<span class="sup-detail">' + fmtN(f.n.kcal || 0) + " kcal · " +
+                  fmtN(f.n.prot || 0) + " P · " + fmtN(f.n.glu || 0) + " G · " +
+                  fmtN(f.n.lip || 0) + " L / " + f.base + " " + esc(unitOf(f) || "pièce") +
+                  ' — <span class="' + (c.known ? "micro-ok" : "micro-hole") + '">' +
+                  c.known + "/" + c.total + " micros</span></span>" +
+              "</div>" +
+              '<button type="button" class="nut-del" data-act="cf-remove" data-food="' + esc(f.id) +
+                '" aria-label="Supprimer">✕</button>' +
+            "</li>";
+          }).join("") + "</ul>"
+        : '<p class="empty">Aucun aliment créé pour l\'instant.</p>');
+
+    const ask = body.querySelector('[data-act="ask-claude"]');
+    if (ask) {
+      ask.addEventListener("click", function () {
+        const req = buildCompletionRequest();
+        if (!req) { toast("Rien à compléter"); return; }
+        navigator.clipboard.writeText(req)
+          .then(() => toast("Demande copiée — colle-la à Claude"))
+          .catch(() => toast("Copie impossible", "error"));
+      });
+    }
+
+    body.querySelectorAll('[data-act="cf-remove"]').forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        const f = foodById(btn.dataset.food);
+        close();
+        confirmSheet("Supprimer ?", "« " + (f ? f.label : "") + " » sera retiré du catalogue.",
+          "Supprimer", function () { removeCustomFood(btn.dataset.food); toast("Supprimé"); });
+      });
+    });
+  });
+}
+
 // ------------------------------------------------------- créer un aliment
 
 export function openNewFood() {
@@ -365,7 +436,34 @@ export function openNewFood() {
         n: n
       });
       close();
-      if (created) { toast(label + " créé"); openQuantity(created.id); }
+      if (!created) return;
+      // Prévenir tout de suite plutôt que de laisser un trou silencieux.
+      if (microCompleteness(created).known === 0) {
+        openSheet("Vitamines et minéraux manquants", function (b2, close2) {
+          b2.innerHTML =
+            '<p class="sheet-text">« ' + esc(label) + " » n'a aucun micronutriment renseigné : " +
+            "ses vitamines et minéraux compteront pour zéro dans tes totaux.</p>" +
+            '<p class="hint">Je peux te donner les valeurs : copie la demande, colle-la dans ' +
+            "une conversation, puis rapporte ma réponse dans l'écran Importer.</p>" +
+            '<div class="sheet-actions">' +
+              '<button type="button" class="btn btn-ghost" data-act="skip">Plus tard</button>' +
+              '<button type="button" class="btn btn-primary" data-act="copy">📋 Copier la demande</button>' +
+            "</div>";
+          b2.querySelector('[data-act="skip"]').addEventListener("click", function () {
+            close2(); openQuantity(created.id);
+          });
+          b2.querySelector('[data-act="copy"]').addEventListener("click", function () {
+            navigator.clipboard.writeText(buildCompletionRequest([foodById(created.id)]) || "")
+              .then(() => toast("Demande copiée — colle-la à Claude"))
+              .catch(() => toast("Copie impossible", "error"));
+            close2();
+            openQuantity(created.id);
+          });
+        });
+        return;
+      }
+      toast(label + " créé");
+      openQuantity(created.id);
     });
     body.querySelector("#nf-label").focus();
   });

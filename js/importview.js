@@ -15,6 +15,7 @@ const CONSIGNE = [
   "Une ligne = une entrée, avec un tag entre crochets en début de ligne.",
   "Tags valides : sante/rendezvous, sante/ordonnances, sante/adire, sante/resultats, diete, nutrition, nutrition/plancher, nutrition/rotation, complements, entrainement, relaxation, visage, apprentissage, suivi.",
   "La ligne [suivi] accepte des paires clé=valeur : sommeil, fc, energie.",
+  "Pour compléter un aliment : [aliment:<id>] k=350 mg=140 ca=54 fe=4 zn=3 c=0 b9=32 d=0 b12=0 se=28 om3=0",
   "Exemple :",
   "```suivi",
   "[sante/rendezvous] Téléconsultation prise — mardi 2 sept, 20h30, Qare",
@@ -165,18 +166,20 @@ export function mountImport(prefill) {
 
     const groups = new Map();
     for (const e of pending.entries) {
-      const key = e.type === "metric" ? "suivi" : e.section;
+      const key = e.type === "metric" ? "suivi" : (e.type === "food" ? "__aliments" : e.section);
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(e);
     }
 
     for (const [key, list] of groups) {
-      const sec = SECTION_MAP[key] || { icon: "📥", label: "Boîte de réception" };
+      const sec = key === "__aliments"
+        ? { icon: "🍽️", label: "Aliments à compléter" }
+        : (SECTION_MAP[key] || { icon: "📥", label: "Boîte de réception" });
       html += '<h3 class="group-title">' + esc(sec.icon + " " + sec.label) + "</h3><ul class=\"preview-list\">";
       for (const e of list) {
         const label = e.type === "metric"
           ? esc(e.label) + (e.date ? " — " + esc(e.date) : " — aujourd'hui")
-          : escLines(e.title);
+          : (e.type === "food" ? esc(e.label) : escLines(e.title));
         html += '<li class="preview-item' + (e.duplicate ? " is-dup" : "") + '">' +
           '<span class="preview-mark">' + (e.duplicate ? "↺" : "+") + "</span>" +
           "<span>" + label +
@@ -205,6 +208,7 @@ export function mountImport(prefill) {
         preview.innerHTML = "";
         const bits = [];
         if (res.added) bits.push(res.added + (res.added > 1 ? " entrées ajoutées" : " entrée ajoutée"));
+        if (res.foods) bits.push(res.foods + " aliment" + (res.foods > 1 ? "s complétés" : " complété"));
         if (res.metrics) bits.push(res.metrics + " relevé" + (res.metrics > 1 ? "s" : "") + " de suivi");
         if (res.skipped) bits.push(res.skipped + " doublon" + (res.skipped > 1 ? "s" : "") + " ignoré" + (res.skipped > 1 ? "s" : ""));
         toast(bits.join(" · ") || "Rien à importer");

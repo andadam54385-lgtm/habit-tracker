@@ -3,7 +3,7 @@
 
 import { state, save, addItem, setDaily, dayKey, isDone, isRecurring, weekProgress, rootBlocker, makeId } from "./state.js";
 import { SECTIONS, SECTION_MAP } from "./seed.js";
-import { totalsFor } from "./nutrition.js";
+import { totalsFor, applyFoodValues } from "./nutrition.js";
 import {
   trackedItems, weekDates, monthDates, weekStartAt,
   computeRate, computeTotalRate, formatPercent, frequencyOf
@@ -14,12 +14,20 @@ import {
 // Écrit les entrées validées. Jamais appelé sans aperçu préalable (spec §4 bis).
 export function commitImport(entries, sourceLabel) {
   const source = sourceLabel || "import";
-  let added = 0, metrics = 0, skipped = 0;
+  let added = 0, metrics = 0, skipped = 0, foods = 0;
 
   for (const e of entries) {
     if (e.duplicate) { skipped++; continue; }
 
-    if (e.type === "metric") {
+    if (e.type === "food") {
+      const res = applyFoodValues(e.ref, e.values);
+      if (res) foods++;
+      else {
+        // Aliment introuvable : on garde la ligne plutôt que de la jeter.
+        addItem({ section: "inbox", title: "Valeurs non appliquées : " + e.ref, detail: e.raw, source: source });
+        added++;
+      }
+    } else if (e.type === "metric") {
       const key = e.date || dayKey();
       for (const [field, value] of Object.entries(e.values)) setDaily(key, field, value);
       metrics++;
@@ -42,7 +50,7 @@ export function commitImport(entries, sourceLabel) {
   }
 
   save();
-  return { added: added, metrics: metrics, skipped: skipped };
+  return { added: added, metrics: metrics, skipped: skipped, foods: foods };
 }
 
 // ---------------------------------------------------- export Markdown

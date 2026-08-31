@@ -46,6 +46,22 @@ function stripBullet(line) {
   return line.replace(/^\s*(?:[-*+•]|\d+[.)])\s+/, "").trim();
 }
 
+// Valeurs de micronutriments renvoyées par Claude pour un aliment.
+const MICRO_KEYS = ["k", "na", "mg", "ca", "fe", "zn", "c", "b9", "d", "b12", "se", "om3"];
+
+function parseNutrientValues(rest) {
+  const values = {};
+  const re = /([a-zA-Z0-9]+)\s*[=:]\s*(-?[0-9]+(?:[.,][0-9]+)?)/g;
+  let m;
+  while ((m = re.exec(rest)) !== null) {
+    const key = m[1].toLowerCase();
+    if (MICRO_KEYS.indexOf(key) < 0) continue;
+    const v = parseFloat(m[2].replace(",", "."));
+    if (Number.isFinite(v) && v >= 0) values[key] = v;
+  }
+  return values;
+}
+
 function parseMetrics(rest) {
   const values = {};
   const re = /([a-zA-Zéà]+)\s*[=:]\s*([0-9]+(?:[.,][0-9]+)?)/g;
@@ -94,6 +110,25 @@ export function parseImport(text, knownHashes) {
     if (tag) bracketCount++;
 
     const hash = hashLine(line);
+
+    // [aliment:<id>] k=350 mg=140 … -> complète un aliment existant.
+    if (tag && tag.startsWith("aliment:")) {
+      const ref = tag.slice(8).trim();
+      const values = parseNutrientValues(rest);
+      if (ref && Object.keys(values).length) {
+        entries.push(mark({
+          type: "food",
+          hash: hash,
+          raw: line,
+          ref: ref,
+          values: values,
+          duplicate: !!known[hash],
+          label: ref + " — " + Object.keys(values).length + " valeur" +
+            (Object.keys(values).length > 1 ? "s" : "")
+        }));
+        continue;
+      }
+    }
 
     if (dest && dest.section === "suivi") {
       const parsed = parseMetrics(rest);

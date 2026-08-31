@@ -87,12 +87,92 @@ export function fmtRange(n) {
 
 // ------------------------------------------------------------ aliments
 
+// Les compléments de micronutriments arrivés par import sont stockés à part :
+// ils enrichissent aussi bien un aliment du catalogue qu'un aliment perso,
+// sans dupliquer l'entrée dans la recherche.
+function withOverride(f) {
+  const ov = (state.foodOverrides || {})[f.id];
+  return ov ? Object.assign({}, f, { n: Object.assign({}, f.n, ov) }) : f;
+}
+
 export function allFoods() {
-  return CATALOGUE.concat(state.customFoods || []);
+  return CATALOGUE.concat(state.customFoods || []).map(withOverride);
 }
 
 export function foodById(id) {
-  return allFoods().find((f) => f.id === id) || null;
+  const base = CATALOGUE.find((f) => f.id === id) ||
+    (state.customFoods || []).find((f) => f.id === id);
+  return base ? withOverride(base) : null;
+}
+
+// Clés de micronutriments, dans l'ordre d'affichage.
+export const MICRO_KEYS = MICROS.map((m) => m.key);
+
+// Un aliment sans aucun micro renseigné crée un trou : ses vitamines et
+// minéraux comptent pour zéro dans les totaux, sans que ça se voie.
+export function microCompleteness(food) {
+  const known = MICRO_KEYS.filter((k) => food.n[k] !== undefined && food.n[k] !== null).length;
+  return { known: known, total: MICRO_KEYS.length, complete: known >= MICRO_KEYS.length };
+}
+
+export function foodsNeedingMicros() {
+  return allFoods().filter(function (f) {
+    if (f.id === "sel") return false;                 // le sel n'apporte que du sodium
+    return microCompleteness(f).known === 0;
+  });
+}
+
+// Applique les valeurs renvoyées par Claude. `ref` = id ou nom de l'aliment.
+export function applyFoodValues(ref, values) {
+  const key = String(ref || "").trim().toLowerCase();
+  const target = allFoods().find(function (f) {
+    return f.id.toLowerCase() === key || f.label.toLowerCase() === key;
+  });
+  if (!target) return null;
+  if (!state.foodOverrides) state.foodOverrides = {};
+  const cur = Object.assign({}, state.foodOverrides[target.id] || {});
+  let applied = 0;
+  for (const [k, v] of Object.entries(values || {})) {
+    if (MICRO_KEYS.indexOf(k) < 0) continue;
+    const num = parseFloat(String(v).replace(",", "."));
+    if (!Number.isFinite(num) || num < 0) continue;
+    cur[k] = num;
+    applied++;
+  }
+  if (!applied) return null;
+  state.foodOverrides[target.id] = cur;
+  save();
+  return { food: target, applied: applied };
+}
+
+// Texte à coller dans une conversation avec Claude.
+export function buildCompletionRequest(foods) {
+  const list = foods && foods.length ? foods : foodsNeedingMicros();
+  if (!list.length) return null;
+  const lignes = list.map(function (f) {
+    const unit = f.unit === "u" ? "1 pièce" : f.base + " " + f.unit;
+    return "- " + f.id + " · " + f.label + " · pour " + unit + " : " +
+      (f.n.kcal || 0) + " kcal, " + (f.n.prot || 0) + " g P, " +
+      (f.n.glu || 0) + " g G, " + (f.n.lip || 0) + " g L";
+  });
+  const cles = MICROS.map((m) => m.key + " (" + m.label + ", " + m.unit + ")").join(", ");
+
+  return [
+    "Complète les vitamines et minéraux de ces aliments.",
+    "",
+    "Donne les valeurs pour la quantité indiquée sur chaque ligne (pas pour 100 g si l'unité est différente).",
+    "Réponds uniquement par un bloc de code balisé `suivi`, une ligne par aliment, au format :",
+    "",
+    "```suivi",
+    "[aliment:<id>] " + MICRO_KEYS.map((k) => k + "=0").join(" "),
+    "```",
+    "",
+    "Clés attendues : " + cles + ".",
+    "Omets une clé si la valeur est négligeable.",
+    "",
+    "Aliments à compléter :",
+    lignes.join("\n")
+  ].join("\n");
 }
 
 export function addCustomFood(food) {

@@ -19,6 +19,7 @@ function emptyState() {
     daily: {},           // "2026-08-30" -> { sommeil, fc, energie }
     nutrition: {},       // "2026-08-30" -> { items: {foodId: qté}, supps: {id: unités}, libre: [] }
     customFoods: [],     // aliments créés dans l'app
+    foodOverrides: {},   // micros complétés par import : foodId -> { mg: 140, … }
     supplements: [],     // compléments calibrés par l'utilisateur
     objectives: { weekly: {}, monthly: {} },  // periodKey -> [{id,text,done}]
     notes: {},           // sectionKey -> texte libre
@@ -81,6 +82,7 @@ export function load() {
   if (!Array.isArray(state.items)) state.items = [];
   if (!Array.isArray(state.seededIds)) state.seededIds = [];
   if (!Array.isArray(state.customFoods)) state.customFoods = [];
+  if (!state.foodOverrides || typeof state.foodOverrides !== "object") state.foodOverrides = {};
   if (!Array.isArray(state.supplements)) state.supplements = [];
   state.settings = Object.assign(base.settings, state.settings || {});
   state.settings.reminders = Object.assign(base.settings.reminders, state.settings.reminders || {});
