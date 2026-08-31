@@ -144,7 +144,7 @@ function onClick(e) {
     '[data-act="fill-gap"], [data-act="new-recipe"], [data-act="edit-recipe"]');
   if (nutAct) {
     const act = nutAct.dataset.act;
-    if (act === "fill-gap") { openGapFiller(nutAct.dataset.nut); return; }
+    if (act === "fill-gap") { openGapFiller(nutAct.dataset.nut, nutAct.dataset.period); return; }
     if (act === "new-recipe") { openRecipeEditor(null); return; }
     if (act === "edit-recipe") { openRecipeEditor(nutAct.dataset.recipe); return; }
     if (act === "rec-plus" || act === "rec-minus") {

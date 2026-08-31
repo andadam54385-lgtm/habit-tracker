@@ -11,9 +11,11 @@ import {
   addLibre, removeLibre, dayTotals, preview, isMet,
   loggedDayKeys, dietRate, FOOD_CATS, CAT_MAP, UNIT_LABEL,
   microCompleteness, foodsNeedingMicros, buildCompletionRequest,
-  bestSourcesFor, gapsToday, recipes, recipePerPart, setQuantity as setQty
+  bestSourcesFor, gapsToday, gapsThisWeek, topGaps, weekTotals,
+  recipes, recipePerPart
 } from "./nutrition.js";
 import { nutritionTabs } from "./recipes.js";
+import { state } from "./state.js";
 
 function fmtN(v) {
   const r = v >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
@@ -36,40 +38,46 @@ function macroTile(n, value) {
     "</div>";
 }
 
-function bar(n, value) {
+function bar(n, value, period) {
   const pct = Math.min(100, (value / n.target) * 100);
   const over = n.ceil && value > n.ceil;
   const full = !over && isMet(n, value);
+  const per = (period || n.period) === "week" ? "sur la semaine" : "par jour";
   return '<div class="nut' + (over ? " is-over" : (full ? " is-full" : "")) + '">' +
     '<div class="nut-head">' +
-      '<span class="nut-label">' + esc(n.label) + "</span>" +
+      '<span class="nut-label">' + esc(n.label) +
+        ' <span class="nut-period">' + per + "</span></span>" +
       '<span class="nut-val">' + fmtN(value) + ' <span class="nut-target">/ ' +
         esc(fmtRange(n)) + " " + esc(n.unit) + "</span></span>" +
     "</div>" +
     '<div class="bar"><div class="bar-fill" style="width:' + pct.toFixed(1) + '%"></div></div>' +
     (over && n.warn ? '<p class="nut-warn">⚠️ ' + esc(n.warn) + "</p>" : "") +
+    (n.note ? '<p class="nut-note">' + esc(n.note) + "</p>" : "") +
     (!full && !over
-      ? '<button type="button" class="nut-fill" data-act="fill-gap" data-nut="' + esc(n.key) + '">' +
-        "Quoi manger pour combler ? →</button>"
+      ? '<button type="button" class="nut-fill" data-act="fill-gap" data-nut="' + esc(n.key) +
+        '" data-period="' + esc(period || n.period) + '">Quoi manger pour combler ? →</button>'
       : "") +
     "</div>";
 }
 
 // « Quel plat manger pour augmenter ce qui manque » : on classe aliments et
 // recettes par teneur pour une portion réaliste, et on dit combien il en faut.
-export function openGapFiller(nutKey) {
+export function openGapFiller(nutKey, period) {
   const nmap = nutrientMap();
   const n = nmap[nutKey];
   if (!n) return;
-  const value = dayTotals()[nutKey] || 0;
+  const per = period || n.period;
+  const value = (per === "week" ? weekTotals() : dayTotals())[nutKey] || 0;
   const min = n.min !== undefined ? n.min : n.target;
   const gap = Math.max(0, min - value);
+  const perLabel = per === "week" ? "sur la semaine" : "aujourd'hui";
 
   openSheet("Combler : " + n.label, function (body) {
     const sources = bestSourcesFor(nutKey, gap).slice(0, 12);
     body.innerHTML =
       '<div class="q-preview"><div class="q-macros">' +
-        "<span><strong>" + fmtN(value) + "</strong> / " + fmtN(min) + " " + esc(n.unit) + "</span>" +
+        "<span><strong>" + fmtN(value) + "</strong> / " + fmtN(min) + " " + esc(n.unit) +
+          ' <span class="nut-period">' + esc(perLabel) + "</span></span>" +
         (gap > 0 ? '<span class="gap-left">il manque <strong>' + fmtN(gap) + " " + esc(n.unit) + "</strong></span>" : "") +
       "</div></div>" +
       (n.note ? '<p class="hint">' + esc(n.note) + "</p>" : "") +
@@ -92,20 +100,46 @@ export function openGapFiller(nutKey) {
   });
 }
 
-// Les manques du jour, résumés en tête d'écran.
+// Les plus gros manques, périodes confondues, en tête de section.
 function gapsBanner() {
-  const gaps = gapsToday().filter((g) => g.gap > 0);
-  if (!gaps.length) return "";
-  const top = gaps.slice(0, 3);
+  const top = topGaps(4);
+  if (!top.length) {
+    return '<p class="callout callout-static">Toutes tes cibles en minéraux et ' +
+      "vitamines sont tenues.</p>";
+  }
   return '<section class="gaps">' +
-    '<p class="gaps-title">Ce qui manque aujourd\'hui</p>' +
+    '<p class="gaps-title">Les plus gros manques</p>' +
     '<div class="gaps-row">' + top.map(function (g) {
-      return '<button type="button" class="gap-chip" data-act="fill-gap" data-nut="' + esc(g.n.key) + '">' +
-        esc(g.n.label) + '<span>' + Math.round(g.share * 100) + " %</span></button>";
+      const per = g.period === "week" ? "semaine" : "jour";
+      return '<button type="button" class="gap-chip' + (g.over ? " is-over" : "") +
+        '" data-act="fill-gap" data-nut="' + esc(g.n.key) + '" data-period="' + g.period + '">' +
+        "<span class=\"gap-chip-name\">" + esc(g.n.label) + "</span>" +
+        '<span class="gap-chip-pct">' + (g.over ? "trop" : Math.round(g.share * 100) + " %") + "</span>" +
+        '<span class="gap-chip-per">/ ' + per + "</span></button>";
     }).join("") + "</div>" +
-    (gaps.length > 3 ? '<p class="hint">+ ' + (gaps.length - 3) + " autre" +
-      (gaps.length - 3 > 1 ? "s" : "") + " plus bas.</p>" : "") +
+    '<p class="hint">Le pourcentage est calculé sur la période propre à chaque ' +
+      "nutriment : certains se jugent à la journée, d'autres sur la semaine.</p>" +
     "</section>";
+}
+
+// Bloc repliable des micronutriments, séparé par période.
+function microFold(title, period, totals, foldKey, gapsCount) {
+  const list = nutrients().filter((n) => n.period === period && !n.main);
+  const met = list.filter((n) => isMet(n, totals[n.key])).length;
+  const open = !(state.settings.folded && state.settings.folded[foldKey]);
+  return '<details class="fold" data-fold="' + esc(foldKey) + '"' + (open ? " open" : "") + ">" +
+    '<summary class="fold-head">' +
+      '<span class="fold-caret" aria-hidden="true">›</span>' +
+      "<h2>" + esc(title) + "</h2>" +
+      '<span class="counter">' +
+        '<span class="when-open">' + met + " / " + list.length + "</span>" +
+        '<span class="when-closed' + (gapsCount ? "" : " is-done") + '">' +
+          (gapsCount ? gapsCount + " sous la cible" : "✓ tout tenu") + "</span>" +
+      "</span>" +
+    "</summary>" +
+    '<div class="fold-body"><div class="nuts">' +
+      list.map((n) => bar(n, totals[n.key], period)).join("") +
+    "</div></div></details>";
 }
 
 // ----------------------------------------------------------------- vue
@@ -241,14 +275,12 @@ export function viewNutrition() {
   }
   html += '<button type="button" class="btn btn-block btn-ghost" data-act="add-libre">+ Ajout libre (kcal / macros)</button>';
 
-  // ---- micronutriments
+  // ---- minéraux & vitamines, repliables et séparés par période
+  html += '<div class="block-head"><h2>Minéraux & vitamines</h2></div>';
   html += gapsBanner();
-  html += '<div class="block-head"><h2>Jour — minéraux & vitamines</h2></div><div class="nuts">';
-  for (const n of nuts) {
-    if (n.main || n.period !== "day") continue;
-    html += bar(n, day[n.key]);
-  }
-  html += "</div>";
+  const week = weekTotals();
+  html += microFold("Cibles du jour", "day", day, "nut:jour", gapsToday().length);
+  html += microFold("Cibles de la semaine", "week", week, "nut:semaine", gapsThisWeek().length);
 
   const logged = loggedDayKeys(weekDayKeys()).length;
   const dr = dietRate(weekDayKeys());

@@ -1006,7 +1006,20 @@ td.rate-none { color: var(--text-faint); }
   font-weight: 700;
   cursor: pointer;
 }
-.gap-chip span { font-variant-numeric: tabular-nums; opacity: .8; }
+.gap-chip { flex-direction: column; align-items: flex-start; min-height: 52px; padding: 6px 12px; gap: 0; }
+.gap-chip-name { font-size: 13.5px; }
+.gap-chip-pct { font-variant-numeric: tabular-nums; font-size: 16px; }
+.gap-chip-per { font-size: 11px; font-weight: 600; opacity: .75; text-transform: uppercase; letter-spacing: .04em; }
+.gap-chip.is-over { border-color: var(--critical); color: var(--critical); }
+
+.nut-period {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
 .gaps .hint { margin-top: 8px; color: var(--blocked); }
 
 .gap-left { color: var(--blocked); font-weight: 600; }

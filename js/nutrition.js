@@ -18,6 +18,12 @@ export const DEFAULT_TARGETS = { prot: 190, glu: 335, lip: 100, tolerance: 0.08 
 
 // Micronutriments : cibles fixes, non éditables depuis l'app pour l'instant.
 const MICROS = [
+  // Fibres et sucres : composantes des glucides, mais suivies à part —
+  // les fibres ont un plancher, les sucres un plafond.
+  { key: "fibres", label: "Fibres",     unit: "g",  target: 30, period: "day" },
+  { key: "sucres", label: "Sucres",     unit: "g",  target: 110, min: 0, ceil: 110, period: "day",
+    warn: "Au-delà de 110 g, c'est le piège du jus de fruits quotidien." },
+
   { key: "k",   label: "Potassium",     unit: "mg", target: 4250, min: 4000, period: "day" },
   { key: "na",  label: "Sodium",        unit: "mg", target: 3250, min: 3000, ceil: 3500, period: "day",
     warn: "Au-delà de 3 500 mg, tu dépasses ta cible haute." },
@@ -29,6 +35,10 @@ const MICROS = [
   { key: "b9",  label: "Folates (B9)",  unit: "µg", target: 330, period: "day" },
   { key: "e",   label: "Vitamine E",    unit: "mg", target: 13, period: "day" },
   { key: "vk",  label: "Vitamine K",    unit: "µg", target: 100, period: "day" },
+  { key: "vita", label: "Vitamine A",   unit: "µg", target: 900, period: "day" },
+  { key: "b6",  label: "Vitamine B6",   unit: "mg", target: 1.7, period: "day" },
+  { key: "iode", label: "Iode",         unit: "µg", target: 150, period: "day",
+    note: "À surveiller vu le bilan thyroïdien à venir (TSH, T4, T3, anti-TPO)." },
   { key: "d",   label: "Vitamine D",    unit: "µg", target: 105, period: "week",
     note: "15 µg/j — quasi impossible par l'alimentation seule : c'est ce que le dosage 25-OH-D doit trancher." },
   { key: "b12", label: "Vitamine B12",  unit: "µg", target: 28, period: "week" },
@@ -537,22 +547,43 @@ export function bestSourcesFor(key, gap) {
   return out.sort((a, b) => b.amount - a.amount);
 }
 
-// Nutriments du jour encore sous leur cible, du plus en retard au moins.
-export function gapsToday(key) {
-  const totals = totalsFor([key || dayKey()]);
+// Écarts aux cibles, quotidiennes ET hebdomadaires. La période compte :
+// rater la vitamine D un mardi ne veut rien dire, la rater sur la semaine si.
+export function gapsFor(period, key) {
+  const totals = period === "week"
+    ? totalsFor(weekDayKeys())
+    : totalsFor([key || dayKey()]);
+
   return nutrients()
-    .filter((n) => n.period === "day" && !n.main && !isMet(n, totals[n.key]))
+    .filter((n) => n.period === period && !n.main && !isMet(n, totals[n.key]))
     .map(function (n) {
       const min = n.min !== undefined ? n.min : n.target;
+      const over = !!(n.ceil && totals[n.key] > n.ceil);
       return {
         n: n,
+        period: period,
         value: totals[n.key],
-        gap: Math.max(0, min - totals[n.key]),
+        gap: over ? 0 : Math.max(0, min - totals[n.key]),
+        excess: over ? totals[n.key] - n.ceil : 0,
         share: min > 0 ? totals[n.key] / min : 1,
-        over: !!(n.ceil && totals[n.key] > n.ceil)
+        over: over
       };
     })
     .sort((a, b) => a.share - b.share);
+}
+
+export function gapsToday(key) { return gapsFor("day", key); }
+export function gapsThisWeek() { return gapsFor("week"); }
+
+// Les manques les plus criants, périodes confondues.
+export function topGaps(limit) {
+  return gapsToday().concat(gapsThisWeek())
+    .filter((g) => g.gap > 0 || g.over)
+    .sort(function (a, b) {
+      if (a.over !== b.over) return a.over ? 1 : -1;   // les manques d'abord
+      return a.share - b.share;
+    })
+    .slice(0, limit || 4);
 }
 
 // ------------------------------------------------- cibles atteintes
