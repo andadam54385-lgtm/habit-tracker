@@ -497,11 +497,13 @@ export function preview(food, qty) {
 
 // ------------------------------------------- que manger pour combler ?
 
-// Portion réaliste servant de référence dans les suggestions.
+// Portion réaliste servant de référence dans les suggestions. Sans `serv`
+// explicite, 100 g / 200 ml ; sinon on proposerait 200 ml d'huile, soit
+// 1 800 kcal, pour combler une vitamine E.
 function servingOf(f) {
+  if (f.serv) return f.serv;
   if (f.unit === "u" || f.unit === "portion") return 1;
-  if (f.unit === "ml") return 200;
-  return f.id === "sel" ? 1 : 100;
+  return f.unit === "ml" ? 200 : 100;
 }
 
 export function servingLabel(f) {

@@ -136,10 +136,10 @@ export const CATALOGUE = [
   f("amandes", "Amandes", "noix", "g", 100,
     { kcal: 579, prot: 21, glu: 22, lip: 50, k: 733, mg: 270, ca: 269, fe: 3.7, zn: 3.1, b9: 44, se: 4, na: 1, e: 25.6, vk: 0, fibres: 12.5, sucres: 4.4, b6: 0.14 }),
   f("puree-amande", "Purée d'amande", "noix", "g", 100,
-    { kcal: 614, prot: 21, glu: 19, lip: 56, k: 748, mg: 279, ca: 347, fe: 3.5, zn: 3.2, b9: 50, na: 7, e: 24, vk: 0, fibres: 10.5, sucres: 4.4, b6: 0.12 }),
+    { kcal: 614, prot: 21, glu: 19, lip: 56, k: 748, mg: 279, ca: 347, fe: 3.5, zn: 3.2, b9: 50, na: 7, e: 24, vk: 0, fibres: 10.5, sucres: 4.4, b6: 0.12 }, { serv: 20 }),
   f("noix-bresil", "Noix du Brésil", "noix", "g", 100,
     { kcal: 659, prot: 14, glu: 12, lip: 67, k: 659, mg: 376, ca: 160, fe: 2.4, zn: 4.1, se: 1917, na: 3, e: 5.7, vk: 0, fibres: 7.5, sucres: 2.3, b6: 0.1 },
-    { warnPer: 12, warnText: "Au-delà de ~12 g (2 noix), le sélénium dépasse la dose sûre." }),
+    { warnPer: 12, warnText: "Au-delà de ~12 g (2 noix), le sélénium dépasse la dose sûre.", serv: 10 }),
   f("noix", "Noix", "noix", "g", 100,
     { kcal: 654, prot: 15, glu: 14, lip: 65, k: 441, mg: 158, ca: 98, fe: 2.9, zn: 3.1, b9: 98, om3: 9000, na: 2, e: 0.7, vk: 2.7, fibres: 6.7, sucres: 2.6, b6: 0.54 }),
   f("cacahuete", "Beurre de cacahuète", "noix", "g", 100,
@@ -148,12 +148,20 @@ export const CATALOGUE = [
     { kcal: 559, prot: 30, glu: 11, lip: 49, k: 809, mg: 592, ca: 46, fe: 8.8, zn: 7.8, b9: 58, se: 9, na: 7, e: 2.2, vk: 4.5, fibres: 6, sucres: 1.4, b6: 0.14 }),
 
   // ------------------------------------------------- matières grasses
+  // Les huiles se ressemblent en calories (~900 kcal/100 ml) et se
+  // distinguent surtout par la vitamine E et la vitamine K.
   f("huile-olive", "Huile d'olive", "grasses", "ml", 100,
-    { kcal: 884, prot: 0, glu: 0, lip: 100, na: 2, k: 1, e: 14.4, vk: 60 }, { step: 10 }),
+    { kcal: 884, prot: 0, glu: 0, lip: 100, na: 2, k: 1, e: 14.4, vk: 60 }, { step: 10, serv: 15 }),
+  f("huile-tournesol", "Huile de tournesol", "grasses", "ml", 100,
+    { kcal: 884, prot: 0, glu: 0, lip: 100, na: 0, k: 0, e: 41.1, vk: 5.4 }, { step: 10, serv: 15 }),
+  f("huile-sesame", "Huile de sésame", "grasses", "ml", 100,
+    { kcal: 884, prot: 0, glu: 0, lip: 100, na: 0, k: 0, e: 1.4, vk: 13.6 }, { step: 10, serv: 15 }),
+  f("huile-coco", "Huile de coco", "grasses", "ml", 100,
+    { kcal: 862, prot: 0, glu: 0, lip: 100, na: 0, k: 0, e: 0.1, vk: 0.5 }, { step: 10, serv: 15 }),
   f("beurre", "Beurre", "grasses", "g", 100,
-    { kcal: 717, prot: 0.9, glu: 0.1, lip: 81, na: 11, ca: 24, d: 1.5, k: 24, e: 2.3, vk: 7, sucres: 0.1, vita: 684 }, { step: 5 }),
+    { kcal: 717, prot: 0.9, glu: 0.1, lip: 81, na: 11, ca: 24, d: 1.5, k: 24, e: 2.3, vk: 7, sucres: 0.1, vita: 684 }, { step: 5, serv: 10 }),
   f("creme", "Crème fraîche 30 %", "grasses", "g", 100,
-    { kcal: 290, prot: 2.4, glu: 3, lip: 30, k: 90, ca: 80, na: 35, e: 1, vk: 3.6, sucres: 3, vita: 300, iode: 8 }),
+    { kcal: 290, prot: 2.4, glu: 3, lip: 30, k: 90, ca: 80, na: 35, e: 1, vk: 3.6, sucres: 3, vita: 300, iode: 8 }, { serv: 30 }),
 
   // -------------------------------------------------------- boissons
   f("eau-coco", "Eau de coco", "boissons", "ml", 100,
@@ -163,7 +171,7 @@ export const CATALOGUE = [
   f("jus-orange", "Jus d'orange", "boissons", "ml", 100,
     { kcal: 45, prot: 0.7, glu: 10, lip: 0.2, k: 200, mg: 11, ca: 11, c: 50, b9: 30, na: 1, e: 0.1, vk: 0.1, fibres: 0.2, sucres: 8.4, b6: 0.04, vita: 10 }),
   f("jus-citron", "Jus de citron", "boissons", "ml", 100,
-    { kcal: 22, prot: 0.4, glu: 6.9, lip: 0.2, k: 103, mg: 6, ca: 6, c: 38, na: 1, e: 0.1, sucres: 2.5, b6: 0.05 }, { step: 10 }),
+    { kcal: 22, prot: 0.4, glu: 6.9, lip: 0.2, k: 103, mg: 6, ca: 6, c: 38, na: 1, e: 0.1, sucres: 2.5, b6: 0.05 }, { step: 10, serv: 15 }),
 
   // ---------------------------------------------------------- divers
   f("wrap", "Wrap / tortilla (1)", "divers", "u", 1,
@@ -171,21 +179,21 @@ export const CATALOGUE = [
   f("pain-mie", "Pain de mie", "divers", "g", 100,
     { kcal: 265, prot: 9, glu: 49, lip: 3.2, k: 120, na: 490, mg: 25, ca: 150, fe: 1.8, e: 0.3, vk: 1, fibres: 2.5, sucres: 5, b6: 0.05 }),
   f("miel", "Miel", "divers", "g", 100,
-    { kcal: 304, prot: 0.3, glu: 82, lip: 0, k: 52, na: 4, e: 0, fibres: 0.2, sucres: 82 }, { step: 5 }),
+    { kcal: 304, prot: 0.3, glu: 82, lip: 0, k: 52, na: 4, e: 0, fibres: 0.2, sucres: 82 }, { step: 5, serv: 20 }),
   f("chocolat-noir", "Chocolat noir 70 %", "divers", "g", 100,
     { kcal: 598, prot: 7.8, glu: 46, lip: 43, k: 715, mg: 228, ca: 73, fe: 11.9, zn: 3.3, na: 20, e: 0.5, vk: 7.3, fibres: 11, sucres: 24, b6: 0.04 }),
   f("sel", "Sel de table", "divers", "g", 1,
-    { na: 388, k: 8, iode: 19 }, { step: 1 }),
+    { na: 388, k: 8, iode: 19 }, { step: 1, serv: 1 }),
 
   // Condiments : sodium très élevé, utilisés par petites quantités.
   f("sauce-soja", "Sauce soja", "divers", "ml", 100,
-    { kcal: 53, prot: 8, glu: 4.9, lip: 0.6, sucres: 0.4, na: 5493, k: 435, mg: 40, ca: 20, fe: 1.4, zn: 0.5, b9: 14, b6: 0.15, se: 0.5, iode: 2 }, { step: 5 }),
+    { kcal: 53, prot: 8, glu: 4.9, lip: 0.6, sucres: 0.4, na: 5493, k: 435, mg: 40, ca: 20, fe: 1.4, zn: 0.5, b9: 14, b6: 0.15, se: 0.5, iode: 2 }, { step: 5, serv: 15 }),
   f("sauce-huitre", "Sauce d'huître", "divers", "ml", 100,
-    { kcal: 51, prot: 1.4, glu: 11, lip: 0.3, sucres: 8, na: 2733, k: 54, mg: 4, ca: 32, fe: 0.2, zn: 0.4, b9: 5, iode: 10 }, { step: 5 }),
+    { kcal: 51, prot: 1.4, glu: 11, lip: 0.3, sucres: 8, na: 2733, k: 54, mg: 4, ca: 32, fe: 0.2, zn: 0.4, b9: 5, iode: 10 }, { step: 5, serv: 15 }),
   f("sauce-sriracha", "Sauce sriracha", "divers", "ml", 100,
-    { kcal: 93, prot: 1.9, glu: 19, lip: 0.9, sucres: 15, fibres: 2.2, na: 2124, k: 250, mg: 12, ca: 18, fe: 0.9, c: 15, vita: 60, b6: 0.1 }, { step: 5 }),
+    { kcal: 93, prot: 1.9, glu: 19, lip: 0.9, sucres: 15, fibres: 2.2, na: 2124, k: 250, mg: 12, ca: 18, fe: 0.9, c: 15, vita: 60, b6: 0.1 }, { step: 5, serv: 10 }),
   f("nuoc-mam", "Nuoc-mâm (sauce de poisson)", "divers", "ml", 100,
-    { kcal: 35, prot: 5, glu: 3.6, lip: 0, sucres: 3.6, na: 7851, k: 288, mg: 175, ca: 43, fe: 0.8, zn: 0.2, b12: 1.2, se: 1, iode: 25 }, { step: 5 }),
+    { kcal: 35, prot: 5, glu: 3.6, lip: 0, sucres: 3.6, na: 7851, k: 288, mg: 175, ca: 43, fe: 0.8, zn: 0.2, b12: 1.2, se: 1, iode: 25 }, { step: 5, serv: 10 }),
 ];
 
 export const CAT_MAP = FOOD_CATS.reduce(function (a, c) { a[c.key] = c; return a; }, {});
