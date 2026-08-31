@@ -1,6 +1,7 @@
 // Feuilles d'action : ajout rapide (le « + ») et fiche d'un item.
 
 import { esc, escLines, openSheet, toast, confirmSheet } from "./ui.js";
+import { howtoFor } from "./howto.js";
 import { SECTIONS, SECTION_MAP, IMPORT_TAGS } from "./seed.js";
 import {
   byId, addItem, updateItem, removeItem,
@@ -119,9 +120,33 @@ const STATUSES = [
   { key: "rejected", label: "Écarté" }
 ];
 
+// Met en gras les segments **…** des modes d'emploi, sur du texte déjà échappé.
+function bold(s) {
+  return esc(s).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+}
+
+// Mode d'emploi d'une tâche : les gestes du cou, de la mâchoire ou du visage
+// ne se devinent pas à partir d'une ligne de titre.
+export function openHowto(id) {
+  const h = howtoFor(id);
+  if (!h) return;
+  const item = byId(id);
+
+  openSheet(item ? item.title : "Comment faire", function (body) {
+    body.innerHTML =
+      (h.intro ? '<p class="howto-intro">' + bold(h.intro) + "</p>" : "") +
+      '<ol class="howto-steps">' +
+        h.steps.map((s) => "<li>" + bold(s) + "</li>").join("") +
+      "</ol>" +
+      (h.tempo ? '<p class="howto-tempo"><strong>Durée et rythme</strong><br>' + bold(h.tempo) + "</p>" : "") +
+      (h.caution ? '<p class="sheet-warn">⚠️ ' + bold(h.caution) + "</p>" : "");
+  });
+}
+
 export function openItem(id) {
   const item = byId(id);
   if (!item) return;
+  const howto = howtoFor(id);
 
   openSheet(item.title, function (body, close) {
     const blocker = rootBlocker(item);
@@ -129,6 +154,10 @@ export function openItem(id) {
     const prog = isRecurring(item) ? weekProgress(item) : null;
 
     body.innerHTML =
+      (howto
+        ? '<button type="button" class="btn btn-block btn-primary" data-act="open-howto">' +
+          "📖 Comment faire — le détail des gestes</button>"
+        : "") +
       (item.warn ? '<p class="sheet-warn">⚠️ ' + escLines(item.warn) + "</p>" : "") +
       (blocker
         ? '<p class="sheet-blocked">🔒 Bloqué par <button type="button" class="linkish" data-act="goto" data-target="' +
@@ -175,6 +204,11 @@ export function openItem(id) {
         statusBox.querySelectorAll(".chip").forEach((c) => c.classList.remove("is-active"));
         chip.classList.add("is-active");
       });
+    }
+
+    const howtoBtn = body.querySelector('[data-act="open-howto"]');
+    if (howtoBtn) {
+      howtoBtn.addEventListener("click", function () { close(); openHowto(item.id); });
     }
 
     const gotoBtn = body.querySelector('[data-act="goto"]');

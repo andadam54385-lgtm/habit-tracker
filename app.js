@@ -3,7 +3,7 @@
 
 import { load, subscribe, toggle, setStatus, byId } from "./js/state.js";
 import { el, toast } from "./js/ui.js";
-import { openQuickAdd, openItem } from "./js/sheets.js";
+import { openQuickAdd, openItem, openHowto } from "./js/sheets.js";
 import { applyTheme, scheduleReminders } from "./js/notify.js";
 import {
   viewHome, viewToday, viewBlocked, viewSections, viewSection,
@@ -182,6 +182,14 @@ function onClick(e) {
   const libreDel = e.target.closest('[data-act="nut-del"]');
   if (libreDel) {
     removeLibre(parseInt(libreDel.dataset.idx, 10));
+    return;
+  }
+
+  const howtoBadge = e.target.closest('[data-act="howto"]');
+  if (howtoBadge) {
+    e.preventDefault();
+    e.stopPropagation();
+    openHowto(howtoBadge.dataset.target);
     return;
   }
 

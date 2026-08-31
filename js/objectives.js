@@ -183,6 +183,50 @@ export function pendingObjectives() {
   return { total: all.length, done: all.filter((o) => o.done).length };
 }
 
+// ----------------------------------------------------------- évolution
+
+/**
+ * Taux hebdomadaire d'une rubrique sur les N dernières semaines.
+ * Une semaine sans aucun jour écoulé (le futur) rend null : on ne trace
+ * pas un zéro pour une semaine qui n'a pas eu lieu.
+ */
+export function sectionTrend(sectionKey, weeks) {
+  const n = weeks || 8;
+  const out = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const start = weekStartAt(-i);
+    const dates = weekDates(start);
+    const items = trackedItems().filter((it) => it.section === sectionKey);
+    out.push({
+      start: start,
+      offset: -i,
+      rate: items.length ? computeTotalRate(items, dates) : null
+    });
+  }
+  return out;
+}
+
+export function allSectionTrends(weeks) {
+  const keys = [];
+  for (const item of trackedItems()) {
+    if (keys.indexOf(item.section) < 0) keys.push(item.section);
+  }
+  return keys.map(function (key) {
+    const trend = sectionTrend(key, weeks);
+    const known = trend.filter((t) => t.rate !== null);
+    const current = known.length ? known[known.length - 1].rate : null;
+    const previous = known.length > 1 ? known[known.length - 2].rate : null;
+    return {
+      key: key,
+      section: SECTION_MAP[key] || { icon: "•", label: key, short: key },
+      trend: trend,
+      current: current,
+      previous: previous,
+      delta: (current !== null && previous !== null) ? current - previous : null
+    };
+  });
+}
+
 // ------------------------------------------------------------------ vue
 
 function objectiveList(scope, periodKey, emptyText) {
@@ -216,6 +260,52 @@ function objectiveCard(scope, periodKey, title, period, placeholder, emptyText) 
     "</form>" +
     objectiveList(scope, periodKey, emptyText) +
   "</section>";
+}
+
+// Évolution : une colonne par semaine, une ligne par rubrique. Assez compact
+// pour tenir sur un écran de téléphone, ce qu'un graphique par rubrique
+// n'aurait pas permis.
+function trendBlock() {
+  const WEEKS = 8;
+  const rows = allSectionTrends(WEEKS);
+  if (!rows.length) return "";
+
+  const anyData = rows.some((r) => r.trend.some((t) => t.rate !== null && t.rate > 0));
+  if (!anyData) {
+    return '<div class="block-head"><h2>Évolution</h2></div>' +
+      '<p class="empty">Rien à comparer pour l\'instant. Les barres apparaîtront ' +
+      "au fil des semaines cochées.</p>";
+  }
+
+  let html = '<div class="block-head"><h2>Évolution</h2>' +
+    '<span class="counter">' + WEEKS + " semaines</span></div>";
+  html += '<p class="hint">Chaque colonne est une semaine, la dernière à droite. ' +
+    "Une colonne vide veut dire semaine sans rien de coché.</p>";
+
+  html += '<div class="trends">';
+  for (const r of rows) {
+    const arrow = r.delta === null ? ""
+      : r.delta > 0.02 ? '<span class="trend-up">▲ +' + Math.round(r.delta * 100) + "</span>"
+      : r.delta < -0.02 ? '<span class="trend-down">▼ ' + Math.round(r.delta * 100) + "</span>"
+      : '<span class="trend-flat">= stable</span>';
+
+    html += '<div class="trend">' +
+      '<div class="trend-head">' +
+        '<span class="trend-label">' + esc(r.section.icon + " " + (r.section.short || r.section.label)) + "</span>" +
+        '<span class="trend-now ' + rateClass(r.current) + '">' + formatPercent(r.current) + " " + arrow + "</span>" +
+      "</div>" +
+      '<div class="trend-bars">' + r.trend.map(function (t) {
+        const h = t.rate === null ? 0 : Math.max(4, Math.round(t.rate * 100));
+        const cls = t.rate === null ? "is-empty" : rateClass(t.rate);
+        const title = t.start.toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) +
+          " — " + (t.rate === null ? "pas de données" : Math.round(t.rate * 100) + " %");
+        return '<span class="trend-bar ' + cls + (t.offset === 0 ? " is-current" : "") +
+          '" style="height:' + h + '%" title="' + esc(title) + '"></span>';
+      }).join("") + "</div>" +
+    "</div>";
+  }
+  html += "</div>";
+  return html;
 }
 
 // Cibles du calculateur nutrition, comptées en jours tenus.
@@ -338,6 +428,9 @@ export function viewObjectives(offset) {
     }
     html += "</tbody></table></div>";
   }
+
+  // Évolution semaine après semaine, rubrique par rubrique.
+  html += trendBlock();
 
   // Cibles nutritionnelles — le calculateur diète enfin scoré.
   html += dietBlock(wDates, mDates);

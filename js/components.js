@@ -3,6 +3,7 @@
 
 import { esc, escLines } from "./ui.js";
 import { SECTION_MAP } from "./seed.js";
+import { hasHowto } from "./howto.js";
 import { isDone, isRecurring, weekProgress, rootBlocker, dayKey } from "./state.js";
 
 const STATE_LABEL = {
@@ -59,6 +60,11 @@ export function renderItem(item, opts) {
 
   if (item.source === "claude" || item.source === "partage" || item.source === "fichier") {
     badges.push('<span class="badge badge-src">importé depuis Claude</span>');
+  }
+
+  if (hasHowto(item.id)) {
+    badges.push('<span class="badge badge-howto" data-act="howto" data-target="' +
+      esc(item.id) + '">📖 Comment faire</span>');
   }
 
   if (o.showSectionName && SECTION_MAP[item.section]) {

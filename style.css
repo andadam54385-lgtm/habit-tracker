@@ -623,6 +623,66 @@ td.rate-none { color: var(--text-faint); }
 .rate-strip-main span { font-size: 14px; color: var(--text-soft); }
 .rate-strip-obj { font-size: 13.5px; font-weight: 600; color: var(--accent); text-align: right; }
 
+/* --- évolution par rubrique --- */
+
+.trends { display: grid; gap: 10px; }
+
+.trend {
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.trend-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.trend-label { font-weight: 700; font-size: 15px; }
+.trend-now { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 14px; white-space: nowrap; }
+.trend-up { color: var(--ok); font-size: 12.5px; }
+.trend-down { color: var(--critical); font-size: 12.5px; }
+.trend-flat { color: var(--text-faint); font-size: 12.5px; }
+
+.trend-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 46px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.trend-bar {
+  flex: 1;
+  min-width: 0;
+  border-radius: 3px 3px 0 0;
+  background: var(--accent);
+}
+
+.trend-bar.rate-good { background: var(--ok); }
+.trend-bar.rate-mid { background: var(--blocked); }
+.trend-bar.rate-bad { background: var(--critical); }
+.trend-bar.is-empty { background: var(--border); height: 3px !important; }
+.trend-bar.is-current { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* --- modes d'emploi --- */
+
+.howto-intro { margin: 0; color: var(--text-soft); }
+
+.howto-steps { margin: 0; padding-left: 22px; display: grid; gap: 12px; }
+.howto-steps li { line-height: 1.5; overflow-wrap: anywhere; }
+.howto-steps strong { color: var(--text); }
+
+.howto-tempo {
+  margin: 0;
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  font-size: 14.5px;
+  color: var(--text-soft);
+}
+.howto-tempo strong { color: var(--text); }
+
+.badge-howto { background: var(--accent-soft); color: var(--accent); border-color: transparent; cursor: pointer; }
+
 .target-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
 
 .target {

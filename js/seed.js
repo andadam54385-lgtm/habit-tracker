@@ -250,6 +250,13 @@ export const SEED_ITEMS = [
     recurrence: week(2)
   }),
   it({
+    id: "entr-machoire", section: "entrainement", group: "Cou",
+    title: "Mâchoire — position de repos et relâchement",
+    detail: "Langue au palais, dents décollées, respiration nasale. Massage des masséters + ouverture contrôlée.",
+    warn: "Ne jamais forcer l'ouverture. Claquement, blocage ou douleur devant l'oreille : avis médical.",
+    recurrence: daily
+  }),
+  it({
     id: "entr-cardio", section: "entrainement", group: "Cardio",
     title: "Cardio LISS — 2-3×/semaine",
     detail: "C'est la réponse au « cardio affreux », pas un peptide.",
