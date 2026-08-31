@@ -10,8 +10,10 @@ import {
   logFor, setQuantity, addQuantity, setSupplement, addSupplementUnits,
   addLibre, removeLibre, dayTotals, preview, isMet,
   loggedDayKeys, dietRate, FOOD_CATS, CAT_MAP, UNIT_LABEL,
-  microCompleteness, foodsNeedingMicros, buildCompletionRequest
+  microCompleteness, foodsNeedingMicros, buildCompletionRequest,
+  bestSourcesFor, gapsToday, recipes, recipePerPart, setQuantity as setQty
 } from "./nutrition.js";
+import { nutritionTabs } from "./recipes.js";
 
 function fmtN(v) {
   const r = v >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
@@ -46,7 +48,64 @@ function bar(n, value) {
     "</div>" +
     '<div class="bar"><div class="bar-fill" style="width:' + pct.toFixed(1) + '%"></div></div>' +
     (over && n.warn ? '<p class="nut-warn">⚠️ ' + esc(n.warn) + "</p>" : "") +
+    (!full && !over
+      ? '<button type="button" class="nut-fill" data-act="fill-gap" data-nut="' + esc(n.key) + '">' +
+        "Quoi manger pour combler ? →</button>"
+      : "") +
     "</div>";
+}
+
+// « Quel plat manger pour augmenter ce qui manque » : on classe aliments et
+// recettes par teneur pour une portion réaliste, et on dit combien il en faut.
+export function openGapFiller(nutKey) {
+  const nmap = nutrientMap();
+  const n = nmap[nutKey];
+  if (!n) return;
+  const value = dayTotals()[nutKey] || 0;
+  const min = n.min !== undefined ? n.min : n.target;
+  const gap = Math.max(0, min - value);
+
+  openSheet("Combler : " + n.label, function (body) {
+    const sources = bestSourcesFor(nutKey, gap).slice(0, 12);
+    body.innerHTML =
+      '<div class="q-preview"><div class="q-macros">' +
+        "<span><strong>" + fmtN(value) + "</strong> / " + fmtN(min) + " " + esc(n.unit) + "</span>" +
+        (gap > 0 ? '<span class="gap-left">il manque <strong>' + fmtN(gap) + " " + esc(n.unit) + "</strong></span>" : "") +
+      "</div></div>" +
+      (n.note ? '<p class="hint">' + esc(n.note) + "</p>" : "") +
+      (sources.length
+        ? '<ul class="food-results">' + sources.map(function (s) {
+            return '<li class="food-row' + (s.kind === "recipe" ? " is-recipe" : "") + '">' +
+              '<span class="food-row-main">' +
+                '<span class="food-row-label">' + (s.kind === "recipe" ? "🍲 " : "") + esc(s.label) + "</span>" +
+                '<span class="food-row-detail">' + fmtN(s.amount) + " " + esc(n.unit) +
+                  " pour " + esc(s.serving) + " · " + fmtN(s.kcal) + " kcal</span>" +
+                (gap > 0 && s.needed
+                  ? '<span class="food-row-need">il t\'en faudrait ' + fmtN(s.needed) + " " +
+                    esc(s.unit === "u" ? "pièce" + (s.needed > 1 ? "s" : "") : s.unit) + "</span>"
+                  : "") +
+              "</span></li>";
+          }).join("") + "</ul>"
+        : '<p class="empty">Aucune source connue dans le catalogue.</p>') +
+      '<p class="hint">Classement par teneur pour une portion réaliste. ' +
+        "Les recettes sont comptées à la part.</p>";
+  });
+}
+
+// Les manques du jour, résumés en tête d'écran.
+function gapsBanner() {
+  const gaps = gapsToday().filter((g) => g.gap > 0);
+  if (!gaps.length) return "";
+  const top = gaps.slice(0, 3);
+  return '<section class="gaps">' +
+    '<p class="gaps-title">Ce qui manque aujourd\'hui</p>' +
+    '<div class="gaps-row">' + top.map(function (g) {
+      return '<button type="button" class="gap-chip" data-act="fill-gap" data-nut="' + esc(g.n.key) + '">' +
+        esc(g.n.label) + '<span>' + Math.round(g.share * 100) + " %</span></button>";
+    }).join("") + "</div>" +
+    (gaps.length > 3 ? '<p class="hint">+ ' + (gaps.length - 3) + " autre" +
+      (gaps.length - 3 > 1 ? "s" : "") + " plus bas.</p>" : "") +
+    "</section>";
 }
 
 // ----------------------------------------------------------------- vue
@@ -62,6 +121,8 @@ export function viewNutrition() {
   html += '<header class="view-head"><h1>🍽️ Diète</h1><p class="sub">' +
     esc(new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })) +
     "</p></header>";
+
+  html += nutritionTabs("jour");
 
   html += '<div class="nut-tiles">' +
     macroTile(nmap.kcal, day.kcal) + macroTile(nmap.prot, day.prot) +
@@ -100,6 +161,31 @@ export function viewNutrition() {
             fmtN(qty) + " " + esc(unitOf(f)) + "</button>" +
           '<button type="button" class="qty-btn" data-act="qty-plus" data-food="' + esc(id) +
             '" aria-label="Augmenter">+</button>' +
+        "</div>" +
+      "</li>";
+    }
+    html += "</ul>";
+  }
+
+  // ---- recettes enregistrées dans la journée
+  const recEntries = Object.entries(log.recipes || {});
+  if (recEntries.length) {
+    html += '<h3 class="group-title">Recettes</h3><ul class="nut-foods">';
+    for (const [rid, parts] of recEntries) {
+      const r = recipes().find((x) => x.id === rid);
+      if (!r) continue;
+      const per = recipePerPart(r);
+      html += '<li class="nut-food has-qty">' +
+        '<div class="nut-food-main">' +
+          '<span class="nut-food-label">🍲 ' + esc(r.label) + "</span>" +
+          '<span class="nut-food-detail">' + fmtN((per.kcal || 0) * parts) + " kcal · " +
+            fmtN((per.prot || 0) * parts) + " P · " + fmtN((per.glu || 0) * parts) + " G · " +
+            fmtN((per.lip || 0) * parts) + " L</span>" +
+        "</div>" +
+        '<div class="qty-box">' +
+          '<button type="button" class="qty-btn" data-act="rec-minus" data-recipe="' + esc(rid) + '" aria-label="Retirer une part">−</button>' +
+          '<span class="qty-val is-static">' + fmtN(parts) + " p</span>" +
+          '<button type="button" class="qty-btn" data-act="rec-plus" data-recipe="' + esc(rid) + '" aria-label="Ajouter une part">+</button>' +
         "</div>" +
       "</li>";
     }
@@ -156,6 +242,7 @@ export function viewNutrition() {
   html += '<button type="button" class="btn btn-block btn-ghost" data-act="add-libre">+ Ajout libre (kcal / macros)</button>';
 
   // ---- micronutriments
+  html += gapsBanner();
   html += '<div class="block-head"><h2>Jour — minéraux & vitamines</h2></div><div class="nuts">';
   for (const n of nuts) {
     if (n.main || n.period !== "day") continue;

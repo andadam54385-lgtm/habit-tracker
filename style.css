@@ -967,6 +967,52 @@ td.rate-none { color: var(--text-faint); }
 .sup-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
 .sup-label { font-weight: 600; }
 .sup-detail { font-size: 12.5px; color: var(--text-faint); }
+.nut-tabs { margin-bottom: 4px; }
+
+.nut-fill {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.nut-fill:active { background: var(--accent-soft); }
+
+.gaps {
+  padding: 14px;
+  background: var(--blocked-soft);
+  border-radius: var(--radius);
+}
+.gaps-title { margin: 0 0 10px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--blocked); }
+.gaps-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.gap-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--blocked);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--blocked);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.gap-chip span { font-variant-numeric: tabular-nums; opacity: .8; }
+.gaps .hint { margin-top: 8px; color: var(--blocked); }
+
+.gap-left { color: var(--blocked); font-weight: 600; }
+.food-row.is-recipe { border-color: var(--accent); }
+.food-row-need { font-size: 12.5px; color: var(--accent); font-weight: 700; }
+
 .micro-ok { color: var(--ok); font-weight: 700; }
 .micro-hole { color: var(--blocked); font-weight: 700; }
 

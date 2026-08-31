@@ -21,6 +21,7 @@ function emptyState() {
     customFoods: [],     // aliments créés dans l'app
     foodOverrides: {},   // micros complétés par import : foodId -> { mg: 140, … }
     supplements: [],     // compléments calibrés par l'utilisateur
+    recipes: [],         // recettes : ingrédients + nombre de parts
     objectives: { weekly: {}, monthly: {} },  // periodKey -> [{id,text,done}]
     notes: {},           // sectionKey -> texte libre
     importedHashes: {},  // hash -> timestamp (idempotence des imports)
@@ -84,6 +85,7 @@ export function load() {
   if (!Array.isArray(state.customFoods)) state.customFoods = [];
   if (!state.foodOverrides || typeof state.foodOverrides !== "object") state.foodOverrides = {};
   if (!Array.isArray(state.supplements)) state.supplements = [];
+  if (!Array.isArray(state.recipes)) state.recipes = [];
   state.settings = Object.assign(base.settings, state.settings || {});
   state.settings.reminders = Object.assign(base.settings.reminders, state.settings.reminders || {});
   if (!state.settings.folded || typeof state.settings.folded !== "object") state.settings.folded = {};

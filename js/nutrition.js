@@ -27,6 +27,8 @@ const MICROS = [
   { key: "zn",  label: "Zinc",          unit: "mg", target: 11, period: "day" },
   { key: "c",   label: "Vitamine C",    unit: "mg", target: 110, period: "day" },
   { key: "b9",  label: "Folates (B9)",  unit: "µg", target: 330, period: "day" },
+  { key: "e",   label: "Vitamine E",    unit: "mg", target: 13, period: "day" },
+  { key: "vk",  label: "Vitamine K",    unit: "µg", target: 100, period: "day" },
   { key: "d",   label: "Vitamine D",    unit: "µg", target: 105, period: "week",
     note: "15 µg/j — quasi impossible par l'alimentation seule : c'est ce que le dosage 25-OH-D doit trancher." },
   { key: "b12", label: "Vitamine B12",  unit: "µg", target: 28, period: "week" },
@@ -263,9 +265,89 @@ export function removeSupplement(id) {
   save();
 }
 
+// -------------------------------------------------------------- recettes
+
+// Une recette est une liste d'ingrédients divisée en parts. On enregistre
+// ensuite un nombre de parts dans la journée, pas la liste des ingrédients.
+export function recipes() {
+  return state.recipes || [];
+}
+
+export function recipeById(id) {
+  return recipes().find((r) => r.id === id) || null;
+}
+
+export function upsertRecipe(rec) {
+  if (!state.recipes) state.recipes = [];
+  const label = String(rec.label || "").trim();
+  if (!label) return null;
+  const parts = Math.max(1, Math.round(parseFloat(String(rec.portions).replace(",", ".")) || 1));
+  const items = {};
+  for (const [id, qty] of Object.entries(rec.items || {})) {
+    const q = Math.max(0, Math.round(parseFloat(String(qty).replace(",", ".")) || 0));
+    if (q > 0 && foodById(id)) items[id] = q;
+  }
+  const existing = rec.id ? recipeById(rec.id) : null;
+  if (existing) {
+    existing.label = label.slice(0, 80);
+    existing.portions = parts;
+    existing.items = items;
+    save();
+    return existing;
+  }
+  const entry = {
+    id: "rec_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+    label: label.slice(0, 80),
+    portions: parts,
+    items: items
+  };
+  state.recipes.push(entry);
+  save();
+  return entry;
+}
+
+export function removeRecipe(id) {
+  if (!state.recipes) return;
+  state.recipes = state.recipes.filter((r) => r.id !== id);
+  for (const log of Object.values(state.nutrition || {})) {
+    if (log.recipes) delete log.recipes[id];
+  }
+  save();
+}
+
+// Apports d'UNE part.
+export function recipePerPart(rec) {
+  const out = {};
+  if (!rec) return out;
+  const parts = Math.max(1, rec.portions || 1);
+  for (const [id, qty] of Object.entries(rec.items || {})) {
+    const f = foodById(id);
+    if (!f) continue;
+    const factor = qty / f.base / parts;
+    for (const nk in f.n) out[nk] = (out[nk] || 0) + f.n[nk] * factor;
+  }
+  return out;
+}
+
+export function setRecipeParts(recId, parts, key) {
+  const k = key || dayKey();
+  const log = ensureLog(k);
+  const n = Math.max(0, parseFloat(String(parts).replace(",", ".")) || 0);
+  if (n <= 0) delete log.recipes[recId];
+  else log.recipes[recId] = n;
+  pruneLog(k);
+  save();
+}
+
+export function addRecipeParts(recId, delta, key) {
+  const k = key || dayKey();
+  const cur = (logFor(k).recipes || {})[recId] || 0;
+  setRecipeParts(recId, cur + delta, k);
+}
+
 // ------------------------------------------------------------- journal
 
-function emptyLog() { return { items: {}, supps: {}, libre: [] }; }
+function emptyLog() { return { items: {}, supps: {}, recipes: {}, libre: [] }; }
 
 export function logFor(key) {
   return state.nutrition[key || dayKey()] || emptyLog();
@@ -276,6 +358,7 @@ function ensureLog(k) {
   const log = state.nutrition[k];
   if (!log.items) log.items = {};
   if (!log.supps) log.supps = {};
+  if (!log.recipes) log.recipes = {};
   if (!log.libre) log.libre = [];
   return log;
 }
@@ -285,6 +368,7 @@ function pruneLog(k) {
   if (!log) return;
   if (!Object.keys(log.items || {}).length &&
       !Object.keys(log.supps || {}).length &&
+      !Object.keys(log.recipes || {}).length &&
       !(log.libre || []).length) {
     delete state.nutrition[k];
   }
@@ -375,6 +459,11 @@ export function totalsFor(keys) {
       for (const nk in s.n) if (t[nk] !== undefined) t[nk] += s.n[nk] * units;
     }
 
+    for (const [id, parts] of Object.entries(log.recipes || {})) {
+      const per = recipePerPart(recipeById(id));
+      for (const nk in per) if (t[nk] !== undefined) t[nk] += per[nk] * parts;
+    }
+
     for (const l of log.libre || []) {
       t.kcal += l.kcal || 0;
       t.prot += l.prot || 0;
@@ -396,6 +485,76 @@ export function preview(food, qty) {
   return out;
 }
 
+// ------------------------------------------- que manger pour combler ?
+
+// Portion réaliste servant de référence dans les suggestions.
+function servingOf(f) {
+  if (f.unit === "u" || f.unit === "portion") return 1;
+  if (f.unit === "ml") return 200;
+  return f.id === "sel" ? 1 : 100;
+}
+
+export function servingLabel(f) {
+  const s = servingOf(f);
+  if (f.unit === "u") return s + " pièce" + (s > 1 ? "s" : "");
+  if (f.unit === "portion") return s + " portion";
+  return s + " " + f.unit;
+}
+
+/**
+ * Meilleures sources pour un nutriment, aliments et recettes confondus.
+ * `gap` = ce qu'il reste à combler, pour dire combien il en faut.
+ */
+export function bestSourcesFor(key, gap) {
+  const out = [];
+
+  for (const f of allFoods()) {
+    const per = f.n[key];
+    if (!per) continue;
+    const serv = servingOf(f);
+    const amount = per * (serv / f.base);
+    if (amount <= 0) continue;
+    out.push({
+      kind: "food", id: f.id, label: f.label, cat: f.cat,
+      serving: servingLabel(f), amount: amount, unit: f.unit,
+      kcal: (f.n.kcal || 0) * (serv / f.base),
+      // Quantité nécessaire pour combler le manque, dans l'unité de l'aliment.
+      needed: gap > 0 ? Math.ceil(gap / (per / f.base)) : 0
+    });
+  }
+
+  for (const r of recipes()) {
+    const per = recipePerPart(r);
+    if (!per[key]) continue;
+    out.push({
+      kind: "recipe", id: r.id, label: r.label, cat: "recette",
+      serving: "1 part", amount: per[key], unit: "part",
+      kcal: per.kcal || 0,
+      needed: gap > 0 ? Math.ceil(gap / per[key]) : 0
+    });
+  }
+
+  return out.sort((a, b) => b.amount - a.amount);
+}
+
+// Nutriments du jour encore sous leur cible, du plus en retard au moins.
+export function gapsToday(key) {
+  const totals = totalsFor([key || dayKey()]);
+  return nutrients()
+    .filter((n) => n.period === "day" && !n.main && !isMet(n, totals[n.key]))
+    .map(function (n) {
+      const min = n.min !== undefined ? n.min : n.target;
+      return {
+        n: n,
+        value: totals[n.key],
+        gap: Math.max(0, min - totals[n.key]),
+        share: min > 0 ? totals[n.key] / min : 1,
+        over: !!(n.ceil && totals[n.key] > n.ceil)
+      };
+    })
+    .sort((a, b) => a.share - b.share);
+}
+
 // ------------------------------------------------- cibles atteintes
 
 // Un jour sans rien de saisi n'est pas un échec : c'est un jour non
@@ -404,7 +563,8 @@ export function loggedDayKeys(keys) {
   return keys.filter(function (k) {
     const log = state.nutrition[k];
     return !!log && (Object.keys(log.items || {}).length > 0 ||
-      Object.keys(log.supps || {}).length > 0 || (log.libre || []).length > 0);
+      Object.keys(log.supps || {}).length > 0 ||
+      Object.keys(log.recipes || {}).length > 0 || (log.libre || []).length > 0);
   });
 }
 
