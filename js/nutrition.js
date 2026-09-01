@@ -25,6 +25,9 @@ const MICROS = [
     warn: "Au-delà de 110 g, c'est le piège du jus de fruits quotidien." },
 
   { key: "k",   label: "Potassium",     unit: "mg", target: 4250, min: 4000, period: "day" },
+  { key: "phos", label: "Phosphore",    unit: "mg", target: 700, period: "day" },
+  { key: "cu",  label: "Cuivre",        unit: "mg", target: 1.3, period: "day" },
+  { key: "mn",  label: "Manganèse",     unit: "mg", target: 2, period: "day" },
   { key: "na",  label: "Sodium",        unit: "mg", target: 3250, min: 3000, ceil: 3500, period: "day",
     warn: "Au-delà de 3 500 mg, tu dépasses ta cible haute." },
   { key: "mg",  label: "Magnésium",     unit: "mg", target: 420, period: "day" },
@@ -32,6 +35,11 @@ const MICROS = [
   { key: "fe",  label: "Fer",           unit: "mg", target: 11, period: "day" },
   { key: "zn",  label: "Zinc",          unit: "mg", target: 11, period: "day" },
   { key: "c",   label: "Vitamine C",    unit: "mg", target: 110, period: "day" },
+  { key: "b1",  label: "Vitamine B1",   unit: "mg", target: 1.2, period: "day" },
+  { key: "b2",  label: "Vitamine B2",   unit: "mg", target: 1.6, period: "day" },
+  { key: "b3",  label: "Vitamine B3",   unit: "mg", target: 16, period: "day" },
+  { key: "b5",  label: "Vitamine B5",   unit: "mg", target: 5, period: "day" },
+  { key: "b8",  label: "Biotine (B8)",  unit: "µg", target: 40, period: "day" },
   { key: "b9",  label: "Folates (B9)",  unit: "µg", target: 330, period: "day" },
   { key: "e",   label: "Vitamine E",    unit: "mg", target: 13, period: "day" },
   { key: "vk",  label: "Vitamine K",    unit: "µg", target: 100, period: "day" },
@@ -39,6 +47,13 @@ const MICROS = [
   { key: "b6",  label: "Vitamine B6",   unit: "mg", target: 1.7, period: "day" },
   { key: "iode", label: "Iode",         unit: "µg", target: 150, period: "day",
     note: "À surveiller vu le bilan thyroïdien à venir (TSH, T4, T3, anti-TPO)." },
+  // Chrome et molybdène : les tables publiques les documentent mal. Le
+  // catalogue ne les porte que sur les aliments réellement mesurés, le total
+  // est donc sous-estimé — d'où le drapeau `sparse`.
+  { key: "chr", label: "Chrome",        unit: "µg", target: 35, period: "day", sparse: true,
+    note: "Donnée rare dans les tables : seuls les aliments documentés sont comptés, le total est sous-estimé." },
+  { key: "mo",  label: "Molybdène",     unit: "µg", target: 65, period: "day", sparse: true,
+    note: "Donnée rare dans les tables : seuls les aliments documentés sont comptés, le total est sous-estimé." },
   { key: "d",   label: "Vitamine D",    unit: "µg", target: 105, period: "week",
     note: "15 µg/j — quasi impossible par l'alimentation seule : c'est ce que le dosage 25-OH-D doit trancher." },
   { key: "b12", label: "Vitamine B12",  unit: "µg", target: 28, period: "week" },
@@ -596,6 +611,9 @@ export function gapsThisWeek() { return gapsFor("week"); }
 // Les manques les plus criants, périodes confondues.
 export function topGaps(limit) {
   return gapsToday().concat(gapsThisWeek())
+    // Un nutriment à donnée partielle affiche toujours un manque : le mettre
+    // en tête ferait passer un trou de catalogue pour un trou d'assiette.
+    .filter((g) => !g.n.sparse)
     .filter((g) => g.gap > 0 || g.over)
     .sort(function (a, b) {
       if (a.over !== b.over) return a.over ? 1 : -1;   // les manques d'abord

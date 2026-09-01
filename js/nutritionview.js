@@ -53,7 +53,7 @@ function bar(n, value, period) {
     '<div class="bar"><div class="bar-fill" style="width:' + pct.toFixed(1) + '%"></div></div>' +
     (over && n.warn ? '<p class="nut-warn">⚠️ ' + esc(n.warn) + "</p>" : "") +
     (n.note ? '<p class="nut-note">' + esc(n.note) + "</p>" : "") +
-    (!full && !over
+    (!full && !over && !n.sparse
       ? '<button type="button" class="nut-fill" data-act="fill-gap" data-nut="' + esc(n.key) +
         '" data-period="' + esc(period || n.period) + '">Quoi manger pour combler ? →</button>'
       : "") +
@@ -125,7 +125,7 @@ function gapsBanner() {
 // Bloc repliable des micronutriments, séparé par période.
 function microFold(title, period, totals, foldKey, gapsCount) {
   const list = nutrients().filter((n) => n.period === period && !n.main);
-  const met = list.filter((n) => isMet(n, totals[n.key])).length;
+  const met = list.filter((n) => !n.sparse && isMet(n, totals[n.key])).length;
   const open = !(state.settings.folded && state.settings.folded[foldKey]);
   return '<details class="fold" data-fold="' + esc(foldKey) + '"' + (open ? " open" : "") + ">" +
     '<summary class="fold-head">' +
