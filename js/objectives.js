@@ -245,6 +245,10 @@ function objectiveList(scope, periodKey, emptyText) {
   }).join("") + "</ul>";
 }
 
+// Texte en cours de saisie dans les formulaires d'ajout : cocher un objectif
+// re-rend la vue, il ne doit pas effacer ce qui était à moitié tapé.
+const addDrafts = {};
+
 function objectiveCard(scope, periodKey, title, period, placeholder, emptyText) {
   const list = readObjectives(scope, periodKey);
   const done = list.filter((o) => o.done).length;
@@ -255,7 +259,8 @@ function objectiveCard(scope, periodKey, title, period, placeholder, emptyText) 
     "</div>" +
     '<p class="sub objective-period">' + esc(period) + "</p>" +
     '<form class="objective-add" data-scope="' + scope + '" data-period="' + esc(periodKey) + '">' +
-      '<input type="text" placeholder="' + esc(placeholder) + '" maxlength="200" autocomplete="off">' +
+      '<input type="text" placeholder="' + esc(placeholder) + '" maxlength="200" autocomplete="off" ' +
+        'value="' + esc(addDrafts[scope + "|" + periodKey] || "") + '">' +
       '<button type="submit" class="btn btn-primary" aria-label="Ajouter">+</button>' +
     "</form>" +
     objectiveList(scope, periodKey, emptyText) +
@@ -373,7 +378,10 @@ export function viewObjectives(offset) {
   const start = weekStartAt(off);
   const wDates = weekDates(start);
   const wKey = weekKeyOf(start);
-  const anchor = wDates[0];
+  // Sur la semaine courante, le mois est celui d'AUJOURD'HUI — le lundi peut
+  // appartenir au mois précédent (un 1er septembre tombant un mardi), et
+  // l'accueil comme l'export comptent sur le mois du jour.
+  const anchor = off === 0 ? new Date() : wDates[0];
   const mKey = monthKeyOf(anchor);
   const mDates = monthDates(anchor);
   const items = trackedItems();
@@ -469,11 +477,17 @@ export function viewObjectives(offset) {
 
 export function mountObjectives() {
   document.querySelectorAll(".objective-add").forEach(function (form) {
+    const key = form.dataset.scope + "|" + form.dataset.period;
+    const input = form.querySelector("input");
+    input.addEventListener("input", function () { addDrafts[key] = input.value; });
     form.addEventListener("submit", function (e) {
       e.preventDefault();
-      const input = form.querySelector("input");
-      if (addObjective(form.dataset.scope, form.dataset.period, input.value)) input.value = "";
-      else input.focus();
+      if (addObjective(form.dataset.scope, form.dataset.period, input.value)) {
+        input.value = "";
+        delete addDrafts[key];
+      } else {
+        input.focus();
+      }
     });
   });
 }

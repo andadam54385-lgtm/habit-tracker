@@ -92,8 +92,10 @@ export function nutrientMap() {
 }
 
 export function fmtRange(n) {
-  if (n.ceil && n.min) return n.min + " – " + n.ceil;
-  if (n.min && n.min !== n.target) return "≥ " + n.min;
+  const hasMin = typeof n.min === "number" && n.min > 0;
+  if (n.ceil && hasMin) return n.min + " – " + n.ceil;
+  if (n.ceil) return "≤ " + n.ceil;          // plafond pur : les sucres
+  if (hasMin && n.min !== n.target) return "≥ " + n.min;
   return String(n.target);
 }
 
@@ -212,6 +214,15 @@ export function addCustomFood(food) {
 export function removeCustomFood(id) {
   if (!state.customFoods) return;
   state.customFoods = state.customFoods.filter((f) => f.id !== id);
+  // Purge des références : sans ça, un jour resterait « saisi » avec zéro
+  // apport et les recettes perdraient un ingrédient en silence.
+  for (const log of Object.values(state.nutrition || {})) {
+    if (log.items) delete log.items[id];
+  }
+  for (const rec of state.recipes || []) {
+    if (rec.items) delete rec.items[id];
+  }
+  delete (state.foodOverrides || {})[id];
   save();
 }
 
@@ -255,8 +266,12 @@ export function upsertSupplement(sup) {
     save();
     return existing;
   }
+  // Un id explicite (graine sup-*) est conservé s'il est libre : il reste
+  // ainsi référençable de façon stable.
+  const wantedId = typeof sup.id === "string" && sup.id &&
+    !state.supplements.some((x) => x.id === sup.id) ? sup.id : null;
   const entry = {
-    id: "sup_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+    id: wantedId || ("sup_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6)),
     label: label.slice(0, 80),
     unit: String(sup.unit || "unité").slice(0, 20),
     n: clean
@@ -439,7 +454,8 @@ export function addLibre(label, kcal, prot, glu, lip, key) {
 export function removeLibre(index, key) {
   const k = key || dayKey();
   const log = state.nutrition[k];
-  if (!log || !log.libre || index < 0 || index >= log.libre.length) return;
+  // Number.isInteger rejette NaN, que les deux comparaisons laisseraient passer.
+  if (!log || !log.libre || !Number.isInteger(index) || index < 0 || index >= log.libre.length) return;
   log.libre.splice(index, 1);
   pruneLog(k);
   save();
@@ -652,20 +668,23 @@ const LEGACY_COMPOSITES = {
   betterave: { label: "Jus betterave-carotte (pré-salle)", cat: "boissons", n: { kcal: 180, prot: 4, glu: 40, lip: 0.5, k: 900, na: 200, c: 15, b9: 250 } }
 };
 
+// Retourne le nombre de JOURNAUX modifiés : l'appelant sauvegarde dès qu'il
+// y en a un, même si aucune entrée n'a pu être convertie.
 export function migrateNutritionLogs() {
-  let touched = 0;
+  let changedLogs = 0;
   const madeCustom = {};
 
   for (const [dk, log] of Object.entries(state.nutrition || {})) {
     if (!log || !log.foods) continue;          // déjà au nouveau format
+    changedLogs++;
     const items = log.items || {};
+    const libre = log.libre || [];
 
     for (const [oldId, portions] of Object.entries(log.foods)) {
       if (!portions) continue;
       const map = LEGACY_PORTIONS[oldId];
       if (map) {
         items[map[0]] = (items[map[0]] || 0) + Math.round(portions * map[1]);
-        touched++;
         continue;
       }
       const comp = LEGACY_COMPOSITES[oldId];
@@ -676,16 +695,23 @@ export function migrateNutritionLogs() {
         }
         if (madeCustom[oldId]) {
           items[madeCustom[oldId]] = (items[madeCustom[oldId]] || 0) + portions;
-          touched++;
+          continue;
         }
       }
+      // Id inconnu : trace visible et supprimable, plutôt qu'une destruction
+      // silencieuse — « rien ne se perd » vaut aussi pour la migration.
+      libre.push({
+        label: "Ancien aliment non reconnu : " + oldId + " × " + portions,
+        kcal: 0, prot: 0, glu: 0, lip: 0
+      });
     }
 
     delete log.foods;
     log.items = items;
+    log.libre = libre;
     if (!log.supps) log.supps = {};
-    if (!log.libre) log.libre = [];
+    if (!log.recipes) log.recipes = {};
   }
 
-  return touched;
+  return changedLogs;
 }

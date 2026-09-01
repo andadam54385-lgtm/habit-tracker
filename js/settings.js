@@ -4,6 +4,7 @@ import { esc, toast, confirmSheet } from "./ui.js";
 import { state, save, replaceAll } from "./state.js";
 import { exportMarkdown, exportJSON, importJSON, download, stamp } from "./io.js";
 import { applyTheme, scheduleReminders } from "./notify.js";
+import { migrateNutritionLogs } from "./nutrition.js";
 
 function canNotify() {
   return typeof window !== "undefined" && "Notification" in window;
@@ -155,7 +156,14 @@ export function mountSettings() {
         "Les données actuelles seront remplacées par celles du fichier (" +
           parsed.items.length + " éléments).",
         "Restaurer",
-        function () { replaceAll(parsed); toast("Données restaurées"); location.hash = "#/"; }
+        function () {
+          replaceAll(parsed);
+          // Un backup à l'ancien format « portions » doit être converti tout
+          // de suite, pas au prochain rechargement complet.
+          if (migrateNutritionLogs() > 0) save();
+          toast("Données restaurées");
+          location.hash = "#/";
+        }
       );
     };
     reader.onerror = function () { toast("Lecture impossible", "error"); };

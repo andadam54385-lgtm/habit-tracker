@@ -386,7 +386,7 @@ export function openQuantity(foodId) {
     body.innerHTML =
       '<label class="field"><span>Quantité en ' + esc(unit) + "</span>" +
         '<input type="number" id="q-input" class="input input-lg" inputmode="decimal" min="0" ' +
-          'step="' + (f.unit === "u" || f.unit === "portion" ? 1 : 1) + '" value="' + (current || f.step) + '"></label>' +
+          'step="' + esc(f.step || 1) + '" value="' + esc(current || f.step) + '"></label>' +
       '<div class="chips">' + quick.map(function (v) {
         return '<button type="button" class="chip" data-add="' + v + '">+' + v + " " + esc(unit) + "</button>";
       }).join("") + "</div>" +
@@ -712,7 +712,7 @@ export function openSupplementEditor(id) {
         nutrients().map(function (nn) {
           return '<input type="number" inputmode="decimal" id="se-' + nn.key +
             '" placeholder="' + esc(nn.label + " (" + nn.unit + ")") + '" step="0.1" min="0" value="' +
-            (n[nn.key] !== undefined ? n[nn.key] : "") + '">';
+            esc(n[nn.key] !== undefined ? n[nn.key] : "") + '">';
         }).join("") +
       "</div>" +
       '<div class="sheet-actions">' +

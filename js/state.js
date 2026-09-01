@@ -86,6 +86,10 @@ export function load() {
   if (!state.foodOverrides || typeof state.foodOverrides !== "object") state.foodOverrides = {};
   if (!Array.isArray(state.supplements)) state.supplements = [];
   if (!Array.isArray(state.recipes)) state.recipes = [];
+  // Un élément null dans ces tableaux planterait chaque rendu suivant.
+  state.customFoods = state.customFoods.filter((f) => f && typeof f === "object");
+  state.supplements = state.supplements.filter((x) => x && typeof x === "object");
+  state.recipes = state.recipes.filter((r) => r && typeof r === "object");
   state.settings = Object.assign(base.settings, state.settings || {});
   state.settings.reminders = Object.assign(base.settings.reminders, state.settings.reminders || {});
   if (!state.settings.folded || typeof state.settings.folded !== "object") state.settings.folded = {};

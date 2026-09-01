@@ -91,6 +91,7 @@ function render() {
     mountSettings();
   } else if (route.name === "nutrition") {
     mountNutrition();
+    mount();   // persistance des blocs repliables (Cibles du jour / semaine)
   } else if (route.name === "objectives") {
     mountObjectives();
   } else if (route.name === "recipes") {

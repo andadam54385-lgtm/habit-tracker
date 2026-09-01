@@ -72,8 +72,11 @@ export function viewRecipes() {
 // d'ingrédient, il faut donc conserver l'état entre deux ouvertures.
 let draft = null;
 
-export function openRecipeEditor(id) {
+export function openRecipeEditor(id, resume) {
   const existing = id ? recipeById(id) : null;
+  // « Nouvelle recette » repart toujours de zéro : sans ce reset, un brouillon
+  // abandonné des jours plus tôt ressusciterait (resume = retour du picker).
+  if (!resume && !existing) draft = null;
   if (!draft || draft.id !== (existing ? existing.id : null)) {
     draft = existing
       ? { id: existing.id, label: existing.label, portions: existing.portions, items: Object.assign({}, existing.items) }
@@ -239,7 +242,7 @@ function openIngredientQuantity(foodId) {
     const quick = f.unit === "ml" ? [50, 100, 250, 500] : f.unit === "g" ? [50, 100, 200, 500] : [1, 2, 4, 6];
     body.innerHTML =
       '<label class="field"><span>Quantité dans la recette, en ' + esc(unit) + "</span>" +
-        '<input type="number" id="iq-input" class="input input-lg" inputmode="decimal" min="0" value="' + current + '"></label>' +
+        '<input type="number" id="iq-input" class="input input-lg" inputmode="decimal" min="0" value="' + esc(current) + '"></label>' +
       '<div class="chips">' + quick.map((v) => '<button type="button" class="chip" data-add="' + v + '">+' + v + "</button>").join("") + "</div>" +
       '<div class="sheet-actions">' +
         '<button type="button" class="btn btn-primary" data-act="iq-ok">Ajouter à la recette</button>' +
@@ -255,7 +258,7 @@ function openIngredientQuantity(foodId) {
       const q = Math.max(0, Math.round(parseFloat(String(input.value).replace(",", ".")) || 0));
       if (q > 0 && draft) draft.items[foodId] = q;
       close();
-      openRecipeEditor(draft ? draft.id : null);
+      openRecipeEditor(draft ? draft.id : null, true);
     });
     input.focus();
     input.select();

@@ -3,7 +3,7 @@
 
 import { state, save, addItem, setDaily, dayKey, isDone, isRecurring, weekProgress, rootBlocker, makeId } from "./state.js";
 import { SECTIONS, SECTION_MAP } from "./seed.js";
-import { totalsFor, applyFoodValues } from "./nutrition.js";
+import { totalsFor, applyFoodValues, CAT_MAP } from "./nutrition.js";
 import {
   trackedItems, weekDates, monthDates, weekStartAt,
   computeRate, computeTotalRate, formatPercent, frequencyOf
@@ -247,6 +247,34 @@ export function importJSON(text) {
 const VALID_STATUS = ["todo", "doing", "done", "blocked", "optional", "rejected", "queue"];
 const VALID_KIND = ["task", "info", "marqueur", "rejected", "queue"];
 
+function numOr(v, def) {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : def;
+}
+
+// { clé: nombre } — tout le reste est écarté.
+function cleanNutrientObj(src) {
+  const out = {};
+  if (!src || typeof src !== "object" || Array.isArray(src)) return out;
+  for (const [k, v] of Object.entries(src)) {
+    if (k.length > 20) continue;
+    const n = parseFloat(v);
+    if (Number.isFinite(n)) out[k] = n;
+  }
+  return out;
+}
+
+// { id: quantité positive }
+function cleanQtyMap(src) {
+  const out = {};
+  if (!src || typeof src !== "object" || Array.isArray(src)) return out;
+  for (const [k, v] of Object.entries(src)) {
+    const n = parseFloat(v);
+    if (Number.isFinite(n) && n > 0) out[k] = n;
+  }
+  return out;
+}
+
 function sanitizeState(parsed) {
   const out = Object.assign({}, parsed);
 
@@ -278,8 +306,95 @@ function sanitizeState(parsed) {
       { matin: "07:00", retour: "18:30", on: false },
       (s.reminders && typeof s.reminders === "object") ? s.reminders : {}
     ),
-    folded: (s.folded && typeof s.folded === "object" && !Array.isArray(s.folded)) ? s.folded : {}
+    folded: (s.folded && typeof s.folded === "object" && !Array.isArray(s.folded)) ? s.folded : {},
+    // Les cibles macros de l'utilisateur font partie de la sauvegarde :
+    // les jeter remettrait ses fourchettes aux défauts en silence.
+    targets: (function () {
+      const t = (s.targets && typeof s.targets === "object") ? s.targets : {};
+      const clean = {};
+      for (const k of ["prot", "glu", "lip"]) {
+        const v = parseFloat(t[k]);
+        if (Number.isFinite(v) && v >= 0 && v <= 2000) clean[k] = Math.round(v);
+      }
+      const tol = parseFloat(t.tolerance);
+      if (Number.isFinite(tol) && tol > 0 && tol <= 0.5) clean.tolerance = tol;
+      return clean;
+    })()
   };
+
+  // ---- nouvelles clés d'état : un JSON forgé ne doit ni planter l'app au
+  // prochain lancement, ni injecter des chaînes là où des nombres sont attendus.
+
+  const foodIds = new Set();
+  out.customFoods = (Array.isArray(parsed.customFoods) ? parsed.customFoods : [])
+    .filter((f) => f && typeof f === "object" && typeof f.label === "string" && f.label.trim())
+    .map(function (raw) {
+      const unit = ["g", "ml", "u", "portion"].indexOf(raw.unit) >= 0 ? raw.unit : "g";
+      let fid = typeof raw.id === "string" && raw.id ? raw.id : "";
+      if (!fid || foodIds.has(fid)) fid = makeId("cf");
+      foodIds.add(fid);
+      return {
+        id: fid,
+        label: raw.label.slice(0, 80),
+        cat: CAT_MAP[raw.cat] ? raw.cat : "divers",
+        unit: unit,
+        base: unit === "u" || unit === "portion" ? 1 : 100,
+        step: unit === "u" || unit === "portion" ? 1 : (unit === "ml" ? 50 : 10),
+        custom: true,
+        n: cleanNutrientObj(raw.n)
+      };
+    });
+
+  out.supplements = (Array.isArray(parsed.supplements) ? parsed.supplements : [])
+    .filter((x) => x && typeof x === "object" && typeof x.label === "string" && x.label.trim())
+    .map((raw) => ({
+      id: typeof raw.id === "string" && raw.id ? raw.id : makeId("sup"),
+      label: raw.label.slice(0, 80),
+      unit: typeof raw.unit === "string" ? raw.unit.slice(0, 20) : "unité",
+      n: cleanNutrientObj(raw.n)
+    }));
+
+  out.recipes = (Array.isArray(parsed.recipes) ? parsed.recipes : [])
+    .filter((r) => r && typeof r === "object" && typeof r.label === "string" && r.label.trim())
+    .map((raw) => ({
+      id: typeof raw.id === "string" && raw.id ? raw.id : makeId("rec"),
+      label: raw.label.slice(0, 80),
+      portions: Math.max(1, Math.round(numOr(raw.portions, 1))),
+      items: cleanQtyMap(raw.items)
+    }));
+
+  out.foodOverrides = {};
+  if (parsed.foodOverrides && typeof parsed.foodOverrides === "object" && !Array.isArray(parsed.foodOverrides)) {
+    for (const [fid, vals] of Object.entries(parsed.foodOverrides)) {
+      const clean = cleanNutrientObj(vals);
+      if (Object.keys(clean).length) out.foodOverrides[fid] = clean;
+    }
+  }
+
+  out.nutrition = {};
+  if (parsed.nutrition && typeof parsed.nutrition === "object" && !Array.isArray(parsed.nutrition)) {
+    for (const [dk, log] of Object.entries(parsed.nutrition)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dk) || !log || typeof log !== "object") continue;
+      const clean = {
+        items: cleanQtyMap(log.items),
+        supps: cleanQtyMap(log.supps),
+        recipes: cleanQtyMap(log.recipes),
+        libre: (Array.isArray(log.libre) ? log.libre : [])
+          .filter((l) => l && typeof l === "object")
+          .map((l) => ({
+            label: typeof l.label === "string" ? l.label.slice(0, 60) : "Ajout libre",
+            kcal: numOr(l.kcal, 0), prot: numOr(l.prot, 0),
+            glu: numOr(l.glu, 0), lip: numOr(l.lip, 0)
+          }))
+      };
+      // Ancien format « portions » : conservé pour que la migration le rejoue.
+      if (log.foods && typeof log.foods === "object") clean.foods = cleanQtyMap(log.foods);
+      if (Object.keys(clean.items).length || Object.keys(clean.supps).length ||
+          Object.keys(clean.recipes).length || clean.libre.length || clean.foods) {
+        out.nutrition[dk] = clean;
+      }
+    }
+  }
 
   const ids = new Set();
   out.items = parsed.items
