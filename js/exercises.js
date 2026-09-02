@@ -7,7 +7,8 @@ export const MUSCLE_GROUPS = [
   { key: "dos", label: "Dos", icon: "🔙" },
   { key: "epaules", label: "Épaules", icon: "🏹" },
   { key: "bras", label: "Bras", icon: "💪" },
-  { key: "gainage", label: "Gainage", icon: "🧱" }
+  { key: "gainage", label: "Gainage", icon: "🧱" },
+  { key: "cou", label: "Cou & nuque", icon: "🧍" }
 ];
 
 export const GROUP_MAP = MUSCLE_GROUPS.reduce(function (a, g) { a[g.key] = g; return a; }, {});
@@ -27,12 +28,30 @@ export const EXERCISES = [
   x("leg-curl", "Leg curl", "jambes", "Contrôle la descente, ne laisse pas la charge retomber."),
   x("leg-ext", "Leg extension", "jambes", "Tempo lent, sans à-coup sur le genou."),
   x("mollets", "Mollets debout", "jambes", "Amplitude complète, pause 1 s en haut."),
+  x("mollets-assis", "Mollets assis", "jambes", "Genoux à 90°, amplitude complète. Cible le soléaire, plus que le debout."),
+  x("front-squat", "Front squat", "jambes", "Barre sur les deltoïdes avant, coudes hauts. Buste plus vertical que le squat arrière."),
+  x("gobelet", "Squat gobelet", "jambes", "Haltère tenu contre la poitrine, coudes entre les genoux en bas. Bon pour apprendre la descente."),
+  x("hack-squat", "Hack squat machine", "jambes", "Dos plaqué, pieds légèrement avancés. Ne verrouille pas les genoux en haut."),
+  x("bulgare", "Squat bulgare", "jambes", "Pied arrière surélevé, poids sur la jambe avant. Descends à la verticale, sans avancer le genou."),
+  x("fentes-marchees", "Fentes marchées", "jambes", "Grand pas, genou arrière proche du sol, pousse sur le talon avant pour avancer."),
+  x("step-up", "Step-up", "jambes", "Monte en poussant sur la jambe du haut, sans t'aider de l'impulsion du pied au sol."),
+  x("sdt-sumo", "Soulevé de terre sumo", "jambes", "Pieds très écartés, pointes ouvertes, prise entre les jambes. Dos plat, pousse le sol."),
+  x("hip-thrust", "Hip thrust", "jambes", "Omoplates sur le banc, menton rentré. Pousse par les talons, pause 1 s en haut, ne cambre pas."),
+  x("good-morning", "Good morning", "jambes", "Barre sur le haut du dos, hanches en arrière, dos plat. Charge légère, amplitude modérée."),
+  x("adducteurs", "Adducteurs machine", "jambes", "Amplitude contrôlée, ne force pas l'ouverture en position d'étirement."),
+  x("abducteurs", "Abducteurs machine", "jambes", "Buste droit, pas de balancement, retour lent."),
   // poitrine
   x("dc", "Développé couché", "poitrine", "Omoplates serrées et plaquées, pieds au sol. Barre au niveau des mamelons, descente en 3 s."),
   x("dc-incline", "Développé incliné haltères", "poitrine", "Banc à 30°, coudes à 45° du buste, pas écartés à 90°."),
   x("ecarte", "Écarté", "poitrine", "Coudes légèrement fléchis et fixes, mouvement en arc."),
   x("pompes", "Pompes", "poitrine", "Corps aligné, coudes proches du buste.", { load: "corps" }),
   x("dips", "Dips", "poitrine", "Buste légèrement penché, descends jusqu'à 90° aux coudes, pas plus.", { load: "corps" }),
+  x("dc-halteres", "Développé haltères plat", "poitrine", "Amplitude plus grande qu'à la barre. Haltères qui se rejoignent sans se cogner en haut."),
+  x("dc-decline", "Développé décliné", "poitrine", "Banc à -15°, barre au bas des pectoraux. Moins de contrainte sur l'épaule."),
+  x("ecarte-poulie", "Écarté poulie", "poitrine", "Coudes fixes légèrement fléchis, croise légèrement les mains en fin de mouvement."),
+  x("pec-deck", "Pec-deck", "poitrine", "Dos plaqué, coudes à hauteur des épaules, fermeture contrôlée."),
+  x("pompes-inclinees", "Pompes inclinées", "poitrine", "Mains surélevées : version plus facile, utile en reprise.", { load: "corps" }),
+  x("pull-over", "Pull-over haltère", "poitrine", "Allongé, bras quasi tendus, descends derrière la tête sans cambrer. Amplitude modérée."),
   // dos
   x("rowing", "Rowing barre", "dos", "Buste à 45°, dos plat. Tire vers le nombril en serrant les omoplates, coudes le long du corps."),
   x("rowing-halt", "Rowing haltère", "dos", "Un genou et une main sur le banc, dos plat, coude vers la hanche."),
@@ -40,22 +59,54 @@ export const EXERCISES = [
   x("tractions", "Tractions", "dos", "Départ bras tendus, menton au-dessus de la barre, descente contrôlée.", { load: "corps" }),
   x("tirage-horizontal", "Tirage horizontal", "dos", "Buste fixe, tire vers le ventre, omoplates serrées en fin de mouvement."),
   x("sdt", "Soulevé de terre", "dos", "Barre contre les tibias, dos plat, pousse le sol avec les jambes. Zéro arrondi lombaire."),
+  x("rowing-tbar", "Rowing T-bar", "dos", "Buste à 45°, poitrine sur le support si la machine en a un. Tire vers le nombril."),
+  x("rowing-machine", "Rowing machine", "dos", "Poitrine calée, tire les coudes vers l'arrière, omoplates serrées en fin de course."),
+  x("tirage-neutre", "Tirage prise neutre", "dos", "Paumes face à face, tire vers la poitrine. Prise plus confortable pour l'épaule."),
+  x("tractions-supination", "Tractions supination", "dos", "Paumes vers toi, plus de biceps. Descente complète et contrôlée.", { load: "corps" }),
+  x("pull-over-poulie", "Pull-over poulie", "dos", "Bras tendus, tire la barre vers les cuisses sans plier les coudes. Isole le grand dorsal."),
+  x("hyperextension", "Hyperextension lombaire", "dos", "Monte jusqu'à l'alignement du corps, pas au-delà. Mouvement lent, jamais en balancier."),
   // épaules
   x("dm", "Développé militaire", "epaules", "Gainage serré, pas de cambrure lombaire. La barre passe près du visage."),
   x("elev-lat", "Élévations latérales", "epaules", "Coudes légèrement fléchis, monte jusqu'à l'horizontale, pas plus."),
   x("oiseau", "Oiseau", "epaules", "Buste penché, écarte en gardant les coudes fixes."),
   x("face-pull", "Face pull", "epaules", "Corde vers le visage, coudes hauts, rotation externe en fin de mouvement."),
   x("shrugs", "Shrugs", "epaules", "Mouvement vertical uniquement, pause 1 s en haut. Ne roule pas les épaules."),
+  x("dm-halteres", "Développé haltères épaules", "epaules", "Assis dossier haut, haltères à hauteur d'oreilles au départ. Ne verrouille pas les coudes."),
+  x("arnold", "Développé Arnold", "epaules", "Départ paumes vers toi, rotation pendant la montée. Charge légère, mouvement lent."),
+  x("elev-frontales", "Élévations frontales", "epaules", "Monte jusqu'à l'horizontale, bras quasi tendus, sans balancer le buste."),
+  x("rotation-externe", "Rotation externe poulie", "epaules", "Coude collé au corps à 90°, rotation vers l'extérieur. Charge légère : c'est de la coiffe des rotateurs."),
   // bras
   x("curl", "Curl biceps", "bras", "Coudes fixes le long du corps, pas d'élan du buste."),
   x("curl-marteau", "Curl marteau", "bras", "Prise neutre, même consigne : coudes fixes."),
   x("triceps-poulie", "Extension triceps poulie", "bras", "Coudes collés au buste, extension complète."),
   x("barre-front", "Barre au front", "bras", "Coudes fixes pointés au plafond, descends au front."),
+  x("curl-pupitre", "Curl pupitre", "bras", "Aisselles calées sur le pupitre, ne tends jamais complètement les coudes en bas."),
+  x("curl-incline", "Curl incliné", "bras", "Banc à 45°, bras qui pendent derrière le buste. Étirement maximal du biceps."),
+  x("curl-poulie", "Curl poulie basse", "bras", "Tension constante sur toute l'amplitude, coudes fixes."),
+  x("curl-inverse", "Curl inversé", "bras", "Prise pronation, travaille l'avant-bras. Charge plus légère qu'au curl classique."),
+  x("triceps-corde", "Extension triceps à la corde", "bras", "Écarte la corde en fin d'extension, coudes collés au buste."),
+  x("triceps-nuque", "Extension nuque haltère", "bras", "Un haltère à deux mains derrière la tête, coudes serrés et pointés au plafond."),
+  x("kickback", "Kickback triceps", "bras", "Buste penché, bras collé au corps, extension complète sans bouger l'épaule."),
+  x("dips-banc", "Dips sur banc", "bras", "Mains derrière soi sur un banc, descends jusqu'à 90° aux coudes. Épaules basses.", { load: "corps" }),
   // gainage
   x("planche", "Planche", "gainage", "Alignement tête-bassin-talons, fessiers serrés, respire.", { load: "temps" }),
   x("gainage-lat", "Gainage latéral", "gainage", "Hanche haute, corps en ligne, chaque côté.", { load: "temps" }),
   x("releve-jambes", "Relevé de jambes", "gainage", "Bas du dos plaqué, descente lente.", { load: "corps" }),
-  x("pallof", "Pallof press", "gainage", "Résiste à la rotation, bras tendus devant, sans bouger le bassin.")
+  x("pallof", "Pallof press", "gainage", "Résiste à la rotation, bras tendus devant, sans bouger le bassin."),
+  x("crunch", "Crunch", "gainage", "Décolle seulement les omoplates, menton non collé. Expire en montant.", { load: "corps" }),
+  x("crunch-poulie", "Crunch à la poulie", "gainage", "À genoux, enroule la colonne vers le sol. Ce sont les abdos qui tirent, pas les bras."),
+  x("hollow", "Hollow body hold", "gainage", "Bas du dos plaqué au sol, bras et jambes tendus, épaules décollées.", { load: "temps" }),
+  x("dead-bug", "Dead bug", "gainage", "Sur le dos, bras et jambe opposés qui descendent. Le bas du dos ne décolle jamais.", { load: "corps" }),
+  x("mountain-climbers", "Mountain climbers", "gainage", "Position de pompe, genoux ramenés en alternance. Bassin stable, pas de rebond.", { load: "temps" }),
+  x("russian-twist", "Russian twist", "gainage", "Assis, buste incliné, rotation contrôlée d'un côté à l'autre. Sans à-coup lombaire."),
+  x("roue-abdo", "Roue abdominale", "gainage", "Déroule en gardant le bassin rétroversé. Amplitude courte au début, jamais de cambrure.", { load: "corps" }),
+  x("releve-bassin", "Relevé de bassin", "gainage", "Allongé, jambes tendues vers le haut, décolle le bassin de quelques centimètres.", { load: "corps" }),
+
+  // cou & nuque — 4 premières semaines sans charge, main en résistance légère
+  x("cou-flexion", "Flexion du cou", "cou", "Paume sur le front, menton vers la poitrine contre la résistance. Tempo 2 s / 2 s.", { load: "corps" }),
+  x("cou-extension", "Extension du cou", "cou", "Mains derrière la tête, pousse vers l'arrière. Le regard s'arrête au plafond, pas plus loin.", { load: "corps" }),
+  x("cou-lateral", "Flexion latérale du cou", "cou", "Paume sur la tempe, oreille vers l'épaule. L'épaule ne monte pas.", { load: "corps" }),
+  x("cou-rotation", "Rotation du cou", "cou", "Main sur la joue, tourne la tête contre la résistance. Amplitude modérée, jamais forcée.", { load: "corps" })
 ];
 
 export const EXERCISE_MAP = EXERCISES.reduce(function (a, e) { a[e.id] = e; return a; }, {});
