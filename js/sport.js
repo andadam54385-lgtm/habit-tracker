@@ -5,7 +5,7 @@
 
 import { state, save, dayKey, weekDayKeys, byId, isDone, toggle, makeId } from "./state.js";
 import {
-  EXERCISES, EXERCISE_MAP, TEMPLATE_MAP, ROUTINE_MAP, GROUP_MAP
+  EXERCISES, EXERCISE_MAP, TEMPLATES, ROUTINE_MAP, GROUP_MAP
 } from "./exercises.js";
 
 // ------------------------------------------------------------- exercices
@@ -43,6 +43,59 @@ export function searchExercises(query, group) {
   });
 }
 
+// --------------------------------------------------------------- modèles
+
+// Un modèle = un nom, une liste d'exercices avec séries × reps visées, et
+// la case du jour qu'il valide. `link` vaut "auto" (première des séances
+// A/B pas encore faite), "none", ou l'id d'un item précis.
+export function customTemplates() {
+  return state.workoutTemplates || [];
+}
+
+export function allTemplates() {
+  return TEMPLATES.map((t) => ({ key: t.key, label: t.label, plan: t.plan, link: t.item || "auto", builtin: true }))
+    .concat(customTemplates().map((t) => ({ key: t.id, label: t.label, plan: t.plan, link: t.link || "auto", builtin: false })));
+}
+
+export function templateByKey(key) {
+  return allTemplates().find((t) => t.key === key) || null;
+}
+
+export function upsertTemplate(tpl) {
+  if (!state.workoutTemplates) state.workoutTemplates = [];
+  const label = String(tpl.label || "").trim();
+  if (!label) return null;
+  const plan = (tpl.plan || [])
+    .filter((p) => p && exerciseById(p.ex))
+    .map((p) => ({
+      ex: p.ex,
+      sets: Math.min(12, Math.max(1, Math.round(num(p.sets, 3)))),
+      reps: Math.min(300, Math.max(1, Math.round(num(p.reps, 8))))
+    }));
+  if (!plan.length) return null;
+  const link = (tpl.link === "auto" || tpl.link === "none") ? tpl.link
+    : (byId(tpl.link) ? tpl.link : "auto");
+
+  const existing = tpl.id ? customTemplates().find((t) => t.id === tpl.id) : null;
+  if (existing) {
+    existing.label = label.slice(0, 60);
+    existing.plan = plan;
+    existing.link = link;
+    save();
+    return existing;
+  }
+  const entry = { id: makeId("tpl"), label: label.slice(0, 60), plan: plan, link: link };
+  state.workoutTemplates.push(entry);
+  save();
+  return entry;
+}
+
+export function removeTemplate(id) {
+  if (!state.workoutTemplates) return;
+  state.workoutTemplates = state.workoutTemplates.filter((t) => t.id !== id);
+  save();
+}
+
 // --------------------------------------------------------------- séances
 
 function num(v, def) {
@@ -76,8 +129,8 @@ export function addWorkout(w) {
   };
 
   if (entry.type === "muscu") {
-    entry.template = TEMPLATE_MAP[w.template] ? w.template : "libre";
-    entry.label = String(w.label || TEMPLATE_MAP[entry.template].label).slice(0, 60);
+    entry.template = templateByKey(w.template) ? w.template : "libre";
+    entry.label = String(w.label || (templateByKey(entry.template) || {}).label || "Séance").slice(0, 60);
     entry.exercises = (w.exercises || [])
       .map(function (e) {
         const ex = exerciseById(e.ex);
@@ -126,9 +179,11 @@ export function removeWorkout(id) {
 // Quelle case du jour une séance valide-t-elle ?
 export function linkedItemFor(w) {
   if (w.type === "muscu") {
-    const t = TEMPLATE_MAP[w.template];
-    if (t && t.item) return t.item;
-    // Séance libre : la première des deux qui n'est pas encore faite.
+    const t = templateByKey(w.template);
+    const link = t ? t.link : "auto";
+    if (link === "none") return null;
+    if (link && link !== "auto") return link;
+    // Séance libre ou modèle en « auto » : la première des deux pas encore faite.
     const a = byId("entr-seance-a"), b = byId("entr-seance-b");
     if (a && !isDone(a, w.date)) return "entr-seance-a";
     if (b && !isDone(b, w.date)) return "entr-seance-b";

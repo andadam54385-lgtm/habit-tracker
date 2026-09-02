@@ -5,15 +5,17 @@
 import { esc, escLines, openSheet, toast, confirmSheet } from "./ui.js";
 import { dayKey } from "./state.js";
 import {
-  MUSCLE_GROUPS, GROUP_MAP, TEMPLATES, TEMPLATE_MAP, REST_DEFAULT,
+  MUSCLE_GROUPS, GROUP_MAP, REST_DEFAULT,
   RUN_PRESETS, RUN_MODES, ROUTINES, ROUTINE_MAP, routineSeconds
 } from "./exercises.js";
 import {
   allExercises, exerciseById, addCustomExercise, searchExercises,
   workouts, workoutById, addWorkout, removeWorkout,
   estimate1RM, setVolume, exerciseHistory, exercisesPracticed,
-  weeklySummary, runStats, fmtDuration, fmtClock
+  weeklySummary, runStats, fmtDuration, fmtClock,
+  allTemplates, templateByKey, upsertTemplate, removeTemplate
 } from "./sport.js";
+import { byId } from "./state.js";
 
 // ------------------------------------------------------------ utilitaires
 
@@ -171,13 +173,24 @@ export function viewSport(tab) {
 
 function tabMuscu() {
   let html = '<div class="block-head"><h2>Démarrer</h2></div><div class="start-grid">';
-  for (const tpl of TEMPLATES) {
-    const plan = tpl.plan.map((p) => (exerciseById(p.ex) || {}).label).filter(Boolean).join(" · ");
-    html += '<button type="button" class="start-card" data-act="start-muscu" data-template="' + tpl.key + '">' +
-      '<span class="start-title">' + esc(tpl.label) + "</span>" +
-      '<span class="start-detail">' + (plan ? esc(plan) : "Compose au fur et à mesure") + "</span>" +
-      "</button>";
+  for (const tpl of allTemplates()) {
+    const plan = tpl.plan.map(function (p) {
+      const ex = exerciseById(p.ex);
+      return ex ? ex.label + (p.sets ? " " + p.sets + "×" + p.reps : "") : null;
+    }).filter(Boolean).join(" · ");
+    html += '<div class="start-card-wrap">' +
+      '<button type="button" class="start-card" data-act="start-muscu" data-template="' + esc(tpl.key) + '">' +
+        '<span class="start-title">' + esc(tpl.label) + "</span>" +
+        '<span class="start-detail">' + (plan ? esc(plan) : "Compose au fur et à mesure") + "</span>" +
+      "</button>" +
+      (tpl.builtin ? "" :
+        '<button type="button" class="tpl-edit" data-act="edit-template" data-template="' + esc(tpl.key) +
+        '" aria-label="Modifier le modèle ' + esc(tpl.label) + '">✎</button>') +
+      "</div>";
   }
+  html += '<button type="button" class="start-card is-new" data-act="new-template">' +
+    '<span class="start-title">+ Nouveau modèle</span>' +
+    '<span class="start-detail">Ta propre séance, réutilisable</span></button>';
   html += "</div>";
   html += '<p class="hint">Reprise : RPE 6, charges à 50-60 %, 2 min de repos. Sortir en se sentant capable de refaire la séance.</p>';
 
@@ -271,7 +284,7 @@ export function mountSport() { /* délégation dans app.js */ }
 let session = null;   // séance en cours : survit à la fermeture de la feuille
 
 export function openMuscuSession(templateKey, resume) {
-  const tpl = TEMPLATE_MAP[templateKey] || TEMPLATE_MAP.libre;
+  const tpl = templateByKey(templateKey) || templateByKey("libre");
   if (!resume || !session) {
     session = {
       template: tpl.key, label: tpl.label, startedAt: Date.now(),
@@ -405,6 +418,11 @@ function openFinishMuscu() {
         session.exercises.reduce((a, e) => a + e.sets.length, 0) + " séries</p>" +
       '<div class="field"><span>Effort ressenti (RPE) — cible 6 en reprise</span>' + rpeChips(6) + "</div>" +
       '<label class="field"><span>Note</span><input type="text" id="sess-note" class="input" maxlength="300" placeholder="Douleur, forme, remarque…"></label>' +
+      // Une séance improvisée qui te plaît mérite d'être réutilisable.
+      (session.template === "libre"
+        ? '<label class="field"><span>Garder comme modèle (facultatif)</span>' +
+          '<input type="text" id="sess-tpl" class="input" maxlength="60" placeholder="Nom du modèle, ex : Haut du corps"></label>'
+        : "") +
       '<div class="sheet-actions">' +
         '<button type="button" class="btn btn-ghost" data-act="back">Retour</button>' +
         '<button type="button" class="btn btn-primary" data-act="save">Enregistrer</button>' +
@@ -412,15 +430,144 @@ function openFinishMuscu() {
     const getRpe = bindRpe(body);
     body.querySelector('[data-act="back"]').addEventListener("click", function () { close(); openMuscuSession(session.template, true); });
     body.querySelector('[data-act="save"]').addEventListener("click", function () {
+      const done = session.exercises.filter((e) => e.sets.length);
+      const tplName = body.querySelector("#sess-tpl") ? body.querySelector("#sess-tpl").value.trim() : "";
+      let tpl = null;
+      if (tplName) {
+        tpl = upsertTemplate({
+          label: tplName, link: "auto",
+          plan: done.map((e) => ({
+            ex: e.ex, sets: e.sets.length,
+            reps: Math.round(e.sets.reduce((a, s) => a + s.reps, 0) / e.sets.length)
+          }))
+        });
+      }
       const w = addWorkout({
-        type: "muscu", template: session.template, label: session.label,
+        type: "muscu", template: tpl ? tpl.id : session.template,
+        label: tpl ? tpl.label : session.label,
         exercises: session.exercises, duration: dur, rpe: getRpe(),
         note: body.querySelector("#sess-note").value
       });
       session = null;
       close();
-      if (w) toast("Séance enregistrée" + (w.linked ? " — case du jour cochée" : ""));
+      if (w) toast("Séance enregistrée" + (tpl ? " · modèle créé" : "") + (w.linked ? " — case cochée" : ""));
     });
+  });
+}
+
+// ------------------------------------------------------ éditeur de modèle
+
+// Brouillon conservé entre deux ouvertures : la feuille se ferme et se
+// rouvre à chaque ajout d'exercice, comme pour les recettes.
+let tplDraft = null;
+
+export function openTemplateEditor(key, resume) {
+  const existing = key ? templateByKey(key) : null;
+  if (existing && existing.builtin) { toast("Les séances A et B viennent de ta spec", "error"); return; }
+  if (!resume && !existing) tplDraft = null;
+  if (!tplDraft || tplDraft.id !== (existing ? existing.key : null)) {
+    tplDraft = existing
+      ? { id: existing.key, label: existing.label, link: existing.link, plan: existing.plan.map((p) => Object.assign({}, p)) }
+      : { id: null, label: "", link: "auto", plan: [] };
+  }
+
+  openSheet(existing ? "Modifier le modèle" : "Nouveau modèle", function (body, close) {
+    const links = [
+      { v: "auto", l: "Automatique — coche Séance A ou B" },
+      { v: "entr-seance-a", l: "Toujours Séance A" },
+      { v: "entr-seance-b", l: "Toujours Séance B" },
+      { v: "entr-cou", l: "Séance cou" },
+      { v: "none", l: "Ne rien cocher" }
+    ].filter((o) => o.v === "auto" || o.v === "none" || byId(o.v));
+
+    function render() {
+      body.innerHTML =
+        '<label class="field"><span>Nom de la séance</span>' +
+          '<input type="text" id="tpl-label" class="input" maxlength="60" placeholder="Ex : Haut du corps, Jambes lourdes" ' +
+            'value="' + esc(tplDraft.label) + '"></label>' +
+
+        '<div class="block-head" style="margin-top:14px"><h2>Exercices</h2>' +
+          '<button type="button" class="btn btn-small btn-primary" data-act="tpl-add">+ Ajouter</button></div>' +
+
+        (tplDraft.plan.length
+          ? '<ul class="nut-foods">' + tplDraft.plan.map(function (p, i) {
+              const ex = exerciseById(p.ex);
+              if (!ex) return "";
+              const isTime = ex.load === "temps";
+              return '<li class="nut-food has-qty">' +
+                '<div class="nut-food-main">' +
+                  '<span class="nut-food-label">' + esc(ex.label) + "</span>" +
+                  '<span class="nut-food-detail">' + esc((GROUP_MAP[ex.group] || {}).label || ex.group) + "</span>" +
+                  '<div class="tpl-target">' +
+                    '<label><span>Séries</span><input type="number" inputmode="numeric" min="1" max="12" data-sets="' + i + '" value="' + esc(p.sets) + '"></label>' +
+                    '<label><span>' + (isTime ? "Secondes" : "Reps") + '</span><input type="number" inputmode="numeric" min="1" max="300" data-reps="' + i + '" value="' + esc(p.reps) + '"></label>' +
+                  "</div>" +
+                "</div>" +
+                '<div class="tpl-move">' +
+                  '<button type="button" data-act="tpl-up" data-i="' + i + '" aria-label="Monter"' + (i === 0 ? " disabled" : "") + ">↑</button>" +
+                  '<button type="button" data-act="tpl-down" data-i="' + i + '" aria-label="Descendre"' + (i === tplDraft.plan.length - 1 ? " disabled" : "") + ">↓</button>" +
+                  '<button type="button" class="nut-del" data-act="tpl-del" data-i="' + i + '" aria-label="Retirer">✕</button>' +
+                "</div>" +
+              "</li>";
+            }).join("") + "</ul>"
+          : '<p class="empty">Aucun exercice. Ajoute-en au moins un.</p>') +
+
+        '<label class="field"><span>Case du jour à cocher</span><select id="tpl-link" class="input">' +
+          links.map((o) => '<option value="' + o.v + '"' + (tplDraft.link === o.v ? " selected" : "") + ">" + esc(o.l) + "</option>").join("") +
+        "</select></label>" +
+
+        '<div class="sheet-actions">' +
+          (existing ? '<button type="button" class="btn btn-danger-ghost" data-act="tpl-remove">Supprimer</button>' : "") +
+          '<button type="button" class="btn btn-primary" data-act="tpl-save">Enregistrer</button>' +
+        "</div>";
+
+      body.querySelector("#tpl-label").addEventListener("input", (e) => { tplDraft.label = e.target.value; });
+      body.querySelector("#tpl-link").addEventListener("change", (e) => { tplDraft.link = e.target.value; });
+      body.querySelectorAll("[data-sets]").forEach((el) => el.addEventListener("change", function () {
+        tplDraft.plan[parseInt(el.dataset.sets, 10)].sets = parseInt(el.value, 10) || 1;
+      }));
+      body.querySelectorAll("[data-reps]").forEach((el) => el.addEventListener("change", function () {
+        tplDraft.plan[parseInt(el.dataset.reps, 10)].reps = parseInt(el.value, 10) || 1;
+      }));
+      body.querySelectorAll('[data-act="tpl-del"]').forEach((b) => b.addEventListener("click", function () {
+        tplDraft.plan.splice(parseInt(b.dataset.i, 10), 1); render();
+      }));
+      body.querySelectorAll('[data-act="tpl-up"], [data-act="tpl-down"]').forEach((b) => b.addEventListener("click", function () {
+        const i = parseInt(b.dataset.i, 10);
+        const j = b.dataset.act === "tpl-up" ? i - 1 : i + 1;
+        if (j < 0 || j >= tplDraft.plan.length) return;
+        const tmp = tplDraft.plan[i]; tplDraft.plan[i] = tplDraft.plan[j]; tplDraft.plan[j] = tmp;
+        render();
+      }));
+
+      body.querySelector('[data-act="tpl-add"]').addEventListener("click", function () {
+        close();
+        openExercisePicker(function (ex) {
+          if (ex) tplDraft.plan.push({ ex: ex.id, sets: 3, reps: ex.load === "temps" ? 30 : 8 });
+          openTemplateEditor(tplDraft.id, true);
+        }, function () { openTemplateEditor(tplDraft.id, true); });
+      });
+
+      body.querySelector('[data-act="tpl-save"]').addEventListener("click", function () {
+        if (!tplDraft.label.trim()) { body.querySelector("#tpl-label").focus(); return; }
+        if (!tplDraft.plan.length) { toast("Ajoute au moins un exercice", "error"); return; }
+        const saved = upsertTemplate(tplDraft);
+        tplDraft = null;
+        close();
+        if (saved) toast(saved.label + " enregistré");
+      });
+
+      const rm = body.querySelector('[data-act="tpl-remove"]');
+      if (rm) rm.addEventListener("click", function () {
+        const id = tplDraft.id, label = tplDraft.label;
+        tplDraft = null;
+        close();
+        confirmSheet("Supprimer ce modèle ?", "« " + label + " » sera retiré. Les séances déjà enregistrées restent.",
+          "Supprimer", function () { removeTemplate(id); toast("Modèle supprimé"); });
+      });
+    }
+
+    render();
   });
 }
 

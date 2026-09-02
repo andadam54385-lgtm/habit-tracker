@@ -24,6 +24,7 @@ function emptyState() {
     recipes: [],         // recettes : ingrédients + nombre de parts
     workouts: [],        // séances : muscu (séries), course (LISS/HIIT/fractionné), mobilité
     customExercises: [], // exercices créés dans l'app
+    workoutTemplates: [], // modèles de séances personnels
     objectives: { weekly: {}, monthly: {} },  // periodKey -> [{id,text,done}]
     notes: {},           // sectionKey -> texte libre
     importedHashes: {},  // hash -> timestamp (idempotence des imports)
@@ -90,12 +91,14 @@ export function load() {
   if (!Array.isArray(state.recipes)) state.recipes = [];
   if (!Array.isArray(state.workouts)) state.workouts = [];
   if (!Array.isArray(state.customExercises)) state.customExercises = [];
+  if (!Array.isArray(state.workoutTemplates)) state.workoutTemplates = [];
   // Un élément null dans ces tableaux planterait chaque rendu suivant.
   state.customFoods = state.customFoods.filter((f) => f && typeof f === "object");
   state.supplements = state.supplements.filter((x) => x && typeof x === "object");
   state.recipes = state.recipes.filter((r) => r && typeof r === "object");
   state.workouts = state.workouts.filter((w) => w && typeof w === "object");
   state.customExercises = state.customExercises.filter((e) => e && typeof e === "object");
+  state.workoutTemplates = state.workoutTemplates.filter((t) => t && typeof t === "object" && Array.isArray(t.plan));
   state.settings = Object.assign(base.settings, state.settings || {});
   state.settings.reminders = Object.assign(base.settings.reminders, state.settings.reminders || {});
   if (!state.settings.folded || typeof state.settings.folded !== "object") state.settings.folded = {};

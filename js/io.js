@@ -406,6 +406,22 @@ function sanitizeState(parsed) {
       custom: true
     }));
 
+  out.workoutTemplates = (Array.isArray(parsed.workoutTemplates) ? parsed.workoutTemplates : [])
+    .filter((t) => t && typeof t === "object" && typeof t.label === "string" && t.label.trim() && Array.isArray(t.plan))
+    .map((raw) => ({
+      id: typeof raw.id === "string" && raw.id ? raw.id : makeId("tpl"),
+      label: raw.label.slice(0, 60),
+      link: typeof raw.link === "string" ? raw.link.slice(0, 40) : "auto",
+      plan: raw.plan
+        .filter((p) => p && typeof p === "object" && typeof p.ex === "string")
+        .map((p) => ({
+          ex: p.ex,
+          sets: Math.min(12, Math.max(1, Math.round(numOr(p.sets, 3)))),
+          reps: Math.min(300, Math.max(1, Math.round(numOr(p.reps, 8))))
+        }))
+    }))
+    .filter((t) => t.plan.length);
+
   out.workouts = (Array.isArray(parsed.workouts) ? parsed.workouts : [])
     .filter((w) => w && typeof w === "object" && ["muscu", "course", "mobilite"].indexOf(w.type) >= 0 &&
       /^\d{4}-\d{2}-\d{2}$/.test(w.date || ""))

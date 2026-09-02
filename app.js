@@ -18,7 +18,8 @@ import {
 import { viewRecipes, mountRecipes, openRecipeEditor } from "./js/recipes.js";
 import {
   viewSport, mountSport, openMuscuSession, openIntervalTimer, openRunForm,
-  openRoutine, openWorkout, openExerciseHistory, confirmDeleteWorkout
+  openRoutine, openWorkout, openExerciseHistory, confirmDeleteWorkout,
+  openTemplateEditor
 } from "./js/sportview.js";
 import { addRecipeParts } from "./js/nutrition.js";
 import {
@@ -149,9 +150,12 @@ function isEditing() {
 function onClick(e) {
   // ---- entraînement
   const sportAct = e.target.closest('[data-act="start-muscu"], [data-act="start-run"], [data-act="log-run"],' +
-    '[data-act="start-routine"], [data-act="open-workout"], [data-act="del-workout"], [data-act="open-exercise"]');
+    '[data-act="start-routine"], [data-act="open-workout"], [data-act="del-workout"], [data-act="open-exercise"],' +
+    '[data-act="new-template"], [data-act="edit-template"]');
   if (sportAct) {
     const act = sportAct.dataset.act;
+    if (act === "new-template") { openTemplateEditor(null); return; }
+    if (act === "edit-template") { openTemplateEditor(sportAct.dataset.template); return; }
     if (act === "start-muscu") openMuscuSession(sportAct.dataset.template);
     else if (act === "start-run") openIntervalTimer(sportAct.dataset.preset);
     else if (act === "log-run") openRunForm({ mode: "liss" });
