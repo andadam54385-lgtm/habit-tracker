@@ -8,7 +8,8 @@ export const MUSCLE_GROUPS = [
   { key: "epaules", label: "Épaules", icon: "🏹" },
   { key: "bras", label: "Bras", icon: "💪" },
   { key: "gainage", label: "Gainage", icon: "🧱" },
-  { key: "cou", label: "Cou & nuque", icon: "🧍" }
+  { key: "cou", label: "Cou & nuque", icon: "🧍" },
+  { key: "circuit", label: "Circuit & cardio", icon: "🔥" }
 ];
 
 export const GROUP_MAP = MUSCLE_GROUPS.reduce(function (a, g) { a[g.key] = g; return a; }, {});
@@ -106,7 +107,47 @@ export const EXERCISES = [
   x("cou-flexion", "Flexion du cou", "cou", "Paume sur le front, menton vers la poitrine contre la résistance. Tempo 2 s / 2 s.", { load: "corps" }),
   x("cou-extension", "Extension du cou", "cou", "Mains derrière la tête, pousse vers l'arrière. Le regard s'arrête au plafond, pas plus loin.", { load: "corps" }),
   x("cou-lateral", "Flexion latérale du cou", "cou", "Paume sur la tempe, oreille vers l'épaule. L'épaule ne monte pas.", { load: "corps" }),
-  x("cou-rotation", "Rotation du cou", "cou", "Main sur la joue, tourne la tête contre la résistance. Amplitude modérée, jamais forcée.", { load: "corps" })
+  x("cou-rotation", "Rotation du cou", "cou", "Main sur la joue, tourne la tête contre la résistance. Amplitude modérée, jamais forcée.", { load: "corps" }),
+
+  // circuit & cardio (CrossFit, Hyrox) : dans un circuit, chaque station se
+  // compte en reps, en secondes ou en mètres, au choix.
+  x("burpees", "Burpees", "circuit", "Poitrine au sol, saute et frappe dans les mains au-dessus de la tête.", { load: "corps" }),
+  x("air-squat", "Air squat", "circuit", "Squat au poids du corps, cuisses sous la parallèle, talons au sol.", { load: "corps" }),
+  x("wall-balls", "Wall balls", "circuit", "Squat complet puis lance la balle à la cible, réceptionne en redescendant."),
+  x("kb-swing", "Kettlebell swing", "circuit", "Hanches en arrière puis extension explosive : les bras ne tirent pas."),
+  x("thruster", "Thruster", "circuit", "Front squat enchaîné avec un développé au-dessus de la tête."),
+  x("box-jump", "Box jump", "circuit", "Réception pieds à plat, genoux alignés. Redescends en marchant.", { load: "corps" }),
+  x("corde", "Corde à sauter", "circuit", "Poignets souples, petits sauts, respire par le nez tant que possible.", { load: "temps" }),
+  x("jumping-jacks", "Jumping jacks", "circuit", "Rythme régulier, bras tendus.", { load: "corps" }),
+  x("course-circuit", "Course", "circuit", "Segment de course : en mètres ou en secondes selon le circuit.", { load: "temps" }),
+  x("rameur", "Rameur", "circuit", "Jambes, puis buste, puis bras. Retour dans l'ordre inverse.", { load: "temps" }),
+  x("ski-erg", "SkiErg", "circuit", "Tire avec le tronc et les dorsaux, pas seulement les bras.", { load: "temps" }),
+  x("sled-push", "Sled push", "circuit", "Bras tendus ou fléchis, corps incliné, petits pas rapides."),
+  x("sled-pull", "Sled pull", "circuit", "Tire à la corde main sur main, dos plat, hanches basses."),
+  x("farmer-carry", "Farmer carry", "circuit", "Épaules basses, gainage serré, pas courts et rapides."),
+  x("sandbag-lunges", "Fentes sandbag", "circuit", "Sac sur les épaules, genou arrière qui frôle le sol."),
+  x("sit-ups", "Sit-ups", "circuit", "Mains qui touchent le sol derrière puis les pieds devant.", { load: "corps" })
+];
+
+// ------------------------------------------------------------- circuits
+// Un circuit = des stations enchaînées, en tours fixes (« for time ») ou en
+// AMRAP (le plus de tours possible dans le temps imparti).
+export const CIRCUIT_UNITS = { reps: "reps", s: "s", m: "m" };
+export const CIRCUIT_MODES = {
+  rounds: { label: "Tours fixes", hint: "Fais tous les tours le plus vite possible. Le chrono tourne." },
+  amrap: { label: "AMRAP", hint: "Le plus de tours possible avant la fin du temps." }
+};
+export const CIRCUIT_PRESETS = [
+  { key: "circuit-corps", label: "Circuit poids du corps", mode: "rounds", rounds: 3, cap: 0,
+    plan: [{ ex: "air-squat", qty: 15, unit: "reps" }, { ex: "pompes", qty: 10, unit: "reps" },
+      { ex: "mountain-climbers", qty: 20, unit: "reps" }, { ex: "planche", qty: 30, unit: "s" }, { ex: "burpees", qty: 8, unit: "reps" }] },
+  { key: "amrap-12", label: "AMRAP 12 min", mode: "amrap", rounds: 0, cap: 720,
+    plan: [{ ex: "burpees", qty: 6, unit: "reps" }, { ex: "air-squat", qty: 12, unit: "reps" },
+      { ex: "pompes", qty: 8, unit: "reps" }, { ex: "kb-swing", qty: 12, unit: "reps" }] },
+  { key: "hyrox-light", label: "Hyrox light", mode: "rounds", rounds: 4, cap: 0,
+    plan: [{ ex: "course-circuit", qty: 400, unit: "m" }, { ex: "ski-erg", qty: 250, unit: "m" },
+      { ex: "sled-push", qty: 25, unit: "m" }, { ex: "burpees", qty: 10, unit: "reps" }, { ex: "rameur", qty: 250, unit: "m" },
+      { ex: "farmer-carry", qty: 50, unit: "m" }, { ex: "sandbag-lunges", qty: 20, unit: "reps" }, { ex: "wall-balls", qty: 15, unit: "reps" }] }
 ];
 
 export const EXERCISE_MAP = EXERCISES.reduce(function (a, e) { a[e.id] = e; return a; }, {});
@@ -114,9 +155,9 @@ export const EXERCISE_MAP = EXERCISES.reduce(function (a, e) { a[e.id] = e; retu
 // Modèles de séances (spec §D). Charges à 50-60 % au départ, RPE 6,
 // deux minutes de repos entre les séries.
 export const TEMPLATES = [
-  { key: "A", label: "Séance A", item: "entr-seance-a",
+  { key: "A", label: "Séance A", item: "auto",
     plan: [{ ex: "presse", sets: 3, reps: 8 }, { ex: "dc", sets: 3, reps: 8 }, { ex: "rowing", sets: 3, reps: 10 }] },
-  { key: "B", label: "Séance B", item: "entr-seance-b",
+  { key: "B", label: "Séance B", item: "auto",
     plan: [{ ex: "sdt-roumain", sets: 3, reps: 8 }, { ex: "dm", sets: 3, reps: 8 }, { ex: "tirage-vertical", sets: 3, reps: 10 }] },
   { key: "libre", label: "Séance libre", item: null, plan: [] }
 ];

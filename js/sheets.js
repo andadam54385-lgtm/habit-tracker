@@ -28,6 +28,41 @@ function destKey(d) { return d.section + "/" + (d.sub || ""); }
 
 // ------------------------------------------------------------ ajout rapide
 
+// Fréquence d'une habitude : ponctuelle, quotidienne ou N fois par semaine.
+// Même contrôle à l'ajout et dans la fiche, pour créer ou régler soi-même.
+function recurrenceField(rec) {
+  const type = !rec ? "none" : rec.type;
+  const per = rec && rec.type === "week" ? rec.perWeek : 3;
+  return '<div class="field"><span>Fréquence</span><div class="chips rec-chips" id="it-rec">' +
+    [["none", "Ponctuel"], ["daily", "Tous les jours"], ["week", "Par semaine"]].map(function (o) {
+      return '<button type="button" class="chip' + (type === o[0] ? " is-active" : "") + '" data-rec="' + o[0] + '">' + o[1] + "</button>";
+    }).join("") +
+    '<label class="rec-per' + (type === "week" ? "" : " is-hidden") + '">' +
+      '<input type="number" id="it-per" inputmode="numeric" min="1" max="6" value="' + per + '"> ×/semaine</label>' +
+    "</div></div>";
+}
+
+function bindRecurrence(body) {
+  const box = body.querySelector("#it-rec");
+  if (!box) return () => null;
+  const per = box.querySelector(".rec-per");
+  box.addEventListener("click", function (e) {
+    const c = e.target.closest(".chip");
+    if (!c) return;
+    box.querySelectorAll(".chip").forEach((x) => x.classList.toggle("is-active", x === c));
+    per.classList.toggle("is-hidden", c.dataset.rec !== "week");
+  });
+  return function () {
+    const a = box.querySelector(".chip.is-active");
+    const k = a ? a.dataset.rec : "none";
+    if (k === "daily") return { type: "daily" };
+    if (k === "week") {
+      return { type: "week", perWeek: Math.min(6, Math.max(1, parseInt(box.querySelector("#it-per").value, 10) || 3)) };
+    }
+    return null;
+  };
+}
+
 // La fonctionnalité la plus importante de l'app : elle doit tenir en 5 secondes.
 // Ouverture -> champ déjà actif -> une frappe -> Enregistrer. Destination par
 // défaut : la boîte de réception, pour ne jamais forcer un rangement.
@@ -45,6 +80,7 @@ export function openQuickAdd(prefill) {
             '" data-dest="' + esc(destKey(d)) + '">' + d.icon + " " + esc(d.label) + "</button>";
         }).join("") +
       "</div>" +
+      recurrenceField(null) +
       '<div class="sheet-actions">' +
         '<button type="button" class="btn btn-ghost" data-act="cancel">Annuler</button>' +
         '<button type="button" class="btn btn-primary" data-act="save">Enregistrer</button>' +
@@ -52,6 +88,7 @@ export function openQuickAdd(prefill) {
 
     const text = body.querySelector("#qa-text");
     const chips = body.querySelector("#qa-chips");
+    const getRec = bindRecurrence(body);
 
     function select(key) {
       selected = key;
@@ -88,6 +125,7 @@ export function openQuickAdd(prefill) {
         // intégralement en détail — rien ne se perd (spec §2.4).
         title: tooLong ? first.slice(0, 197) + "…" : first,
         detail: tooLong ? value : lines.slice(1).join("\n").trim(),
+        recurrence: getRec(),
         source: "manual"
       });
       close();
@@ -179,6 +217,8 @@ export function openItem(id) {
           }).join("") +
         "</div></div>") +
 
+      recurrenceField(item.recurrence) +
+
       '<label class="field"><span>Rubrique</span>' +
         '<select id="it-dest" class="input">' +
           DESTINATIONS.map(function (d) {
@@ -197,6 +237,7 @@ export function openItem(id) {
       "</div>";
 
     const statusBox = body.querySelector("#it-status");
+    const getRec = bindRecurrence(body);
     if (statusBox) {
       statusBox.addEventListener("click", function (e) {
         const chip = e.target.closest(".chip");
@@ -225,13 +266,16 @@ export function openItem(id) {
         title: body.querySelector("#it-title").value.trim() || item.title,
         detail: body.querySelector("#it-detail").value.trim(),
         section: dest[0],
-        sub: dest[1] || null
+        sub: dest[1] || null,
+        recurrence: getRec()
       };
       const active = statusBox && statusBox.querySelector(".chip.is-active");
       if (active) {
         fields.status = active.dataset.status;
         fields.doneAt = active.dataset.status === "done" ? Date.now() : null;
       }
+      // Une tâche « faite » qui devient une habitude repart à faire.
+      if (fields.recurrence && (fields.status || item.status) === "done") { fields.status = "todo"; fields.doneAt = null; }
       updateItem(item.id, fields);
       close();
       toast("Enregistré");

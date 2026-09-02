@@ -146,26 +146,19 @@ export const HOWTO = {
   },
 
   // ----------------------------------------------------------- musculation
-  "entr-seance-a": {
-    intro: "Full body, 3 exercices, 3 séries. RPE 6 les deux premières semaines : il doit rester 4 répétitions en réserve à la fin de chaque série.",
+  "entr-muscu": {
+    intro: "Full body, 3 exercices, 3 séries, en alternant deux séances. RPE 6 les deux premières semaines : il doit rester 4 répétitions en réserve à la fin de chaque série.",
     steps: [
-      "**Presse ou squat — 3 × 8.** Pieds largeur d'épaules. Descends jusqu'à ce que les cuisses soient parallèles au sol, pas plus bas au début. Dos plaqué au dossier sur la presse, poitrine haute sur le squat.",
-      "**Développé couché — 3 × 8.** Omoplates serrées et plaquées au banc, pieds au sol. Descends la barre au niveau des mamelons en 3 secondes, remonte sans verrouiller les coudes.",
-      "**Rowing — 3 × 10.** Buste penché à 45°, dos plat. Tire vers le nombril en serrant les omoplates, coudes le long du corps. Contrôle la descente."
+      "**Séance A — Presse ou squat 3 × 8.** Pieds largeur d'épaules. Descends jusqu'à ce que les cuisses soient parallèles au sol, pas plus bas au début. Dos plaqué au dossier sur la presse, poitrine haute sur le squat.",
+      "**Séance A — Développé couché 3 × 8.** Omoplates serrées et plaquées au banc, pieds au sol. Descends la barre au niveau des mamelons en 3 secondes, remonte sans verrouiller les coudes.",
+      "**Séance A — Rowing 3 × 10.** Buste penché à 45°, dos plat. Tire vers le nombril en serrant les omoplates, coudes le long du corps. Contrôle la descente.",
+      "**Séance B — Soulevé de terre roumain 3 × 8.** Jambes quasi tendues, genoux légèrement déverrouillés. Pousse les hanches vers l'arrière en gardant le dos plat, la barre frôle les cuisses. Descends jusqu'à sentir l'étirement des ischios, pas plus bas.",
+      "**Séance B — Développé militaire 3 × 8.** Debout ou assis, gainage abdominal serré. Pousse au-dessus de la tête sans cambrer le bas du dos. La barre passe près du visage.",
+      "**Séance B — Tirage vertical 3 × 10.** Poitrine haute, tire la barre vers le haut de la poitrine, pas derrière la nuque. Serre les omoplates en bas du mouvement.",
+      "**Un circuit ou un modèle perso compte aussi** : n'importe quelle séance enregistrée dans Sport coche cette case."
     ],
-    tempo: "40 minutes en tout. 2 minutes de récupération entre les séries. Charges à 50-60 % de ce que tu faisais avant l'arrêt.",
+    tempo: "40 minutes par séance. 2 minutes de récupération entre les séries. Charges à 50-60 % de ce que tu faisais avant l'arrêt. Zéro échec musculaire pendant les 8 premières semaines.",
     caution: "Règle absolue : sortir de séance en se sentant capable de la refaire. Et si une aggravation nette survient 24 à 48 h après — un épuisement, pas des courbatures — c'est à noter et à dire au médecin."
-  },
-
-  "entr-seance-b": {
-    intro: "Deuxième séance full body, en alternance avec la A. Mêmes règles de RPE et de récupération.",
-    steps: [
-      "**Soulevé de terre roumain — 3 × 8.** Jambes quasi tendues, genoux légèrement déverrouillés. Pousse les hanches vers l'arrière en gardant le dos plat, la barre frôle les cuisses. Descends jusqu'à sentir l'étirement des ischios, pas plus bas.",
-      "**Développé militaire — 3 × 8.** Debout ou assis, gainage abdominal serré. Pousse au-dessus de la tête sans cambrer le bas du dos. La barre passe près du visage.",
-      "**Tirage vertical — 3 × 10.** Poitrine haute, tire la barre vers le haut de la poitrine, pas derrière la nuque. Serre les omoplates en bas du mouvement."
-    ],
-    tempo: "40 minutes. 2 minutes entre les séries.",
-    caution: "Zéro échec musculaire pendant les 8 premières semaines."
   },
 
   "entr-cardio": {

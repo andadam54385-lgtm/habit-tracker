@@ -410,23 +410,39 @@ function sanitizeState(parsed) {
 
   out.workoutTemplates = (Array.isArray(parsed.workoutTemplates) ? parsed.workoutTemplates : [])
     .filter((t) => t && typeof t === "object" && typeof t.label === "string" && t.label.trim() && Array.isArray(t.plan))
-    .map((raw) => ({
-      id: typeof raw.id === "string" && raw.id ? raw.id : makeId("tpl"),
-      label: raw.label.slice(0, 60),
-      link: typeof raw.link === "string" ? raw.link.slice(0, 40) : "auto",
-      plan: raw.plan
-        .filter((p) => p && typeof p === "object" && typeof p.ex === "string")
-        .map((p) => ({
+    .map(function (raw) {
+      const base = {
+        id: typeof raw.id === "string" && raw.id ? raw.id : makeId("tpl"),
+        label: raw.label.slice(0, 60),
+        link: typeof raw.link === "string" ? raw.link.slice(0, 40) : "auto"
+      };
+      const entries = raw.plan.filter((p) => p && typeof p === "object" && typeof p.ex === "string");
+      if (raw.kind === "circuit") {
+        return Object.assign(base, {
+          kind: "circuit",
+          mode: raw.mode === "amrap" ? "amrap" : "rounds",
+          rounds: Math.min(30, Math.max(0, Math.round(numOr(raw.rounds, 3)))),
+          cap: Math.min(7200, Math.max(0, Math.round(numOr(raw.cap, 0)))),
+          plan: entries.map((p) => ({
+            ex: p.ex,
+            qty: Math.min(10000, Math.max(1, Math.round(numOr(p.qty, 10)))),
+            unit: ["reps", "s", "m"].indexOf(p.unit) >= 0 ? p.unit : "reps"
+          }))
+        });
+      }
+      return Object.assign(base, {
+        plan: entries.map((p) => ({
           ex: p.ex,
           sets: Math.min(12, Math.max(1, Math.round(numOr(p.sets, 3)))),
           reps: Math.min(300, Math.max(1, Math.round(numOr(p.reps, 8)))),
           tempo: String(p.tempo || "").toUpperCase().replace(/[^0-9X]/g, "").slice(0, 4)
         }))
-    }))
+      });
+    })
     .filter((t) => t.plan.length);
 
   out.workouts = (Array.isArray(parsed.workouts) ? parsed.workouts : [])
-    .filter((w) => w && typeof w === "object" && ["muscu", "course", "mobilite"].indexOf(w.type) >= 0 &&
+    .filter((w) => w && typeof w === "object" && ["muscu", "course", "mobilite", "circuit"].indexOf(w.type) >= 0 &&
       /^\d{4}-\d{2}-\d{2}$/.test(w.date || ""))
     .map(function (raw) {
       const w = {
@@ -462,6 +478,19 @@ function sanitizeState(parsed) {
         w.work = Math.max(0, Math.round(numOr(raw.work, 0)));
         w.rest = Math.max(0, Math.round(numOr(raw.rest, 0)));
         w.rounds = Math.max(0, Math.round(numOr(raw.rounds, 0)));
+      } else if (w.type === "circuit") {
+        w.template = typeof raw.template === "string" ? raw.template : null;
+        w.label = typeof raw.label === "string" ? raw.label.slice(0, 60) : "Circuit";
+        w.mode = raw.mode === "amrap" ? "amrap" : "rounds";
+        w.rounds = Math.max(0, Math.round(numOr(raw.rounds, 0)));
+        w.stationsDone = Math.max(0, Math.round(numOr(raw.stationsDone, 0)));
+        w.stations = (Array.isArray(raw.stations) ? raw.stations : [])
+          .filter((p) => p && typeof p === "object" && typeof p.ex === "string")
+          .map((p) => ({
+            ex: p.ex,
+            qty: Math.min(10000, Math.max(1, Math.round(numOr(p.qty, 10)))),
+            unit: ["reps", "s", "m"].indexOf(p.unit) >= 0 ? p.unit : "reps"
+          }));
       } else {
         w.routine = typeof raw.routine === "string" ? raw.routine : "";
         w.completed = raw.completed !== false;

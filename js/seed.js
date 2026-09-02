@@ -224,17 +224,12 @@ export const SEED_ITEMS = [
     detail: "Semaines 1-2 : 2 séances, full body, 3 exercices, 3 séries, RPE 6, 40 min, charges à 50-60 %\nSemaines 3-4 : 3 séances, 4 exercices, RPE 7\nSemaines 5-8 : montée progressive, zéro échec musculaire",
     warn: "Règle absolue : sortir de séance en se sentant capable de la refaire."
   }),
+  // Une seule case, à fréquence réglable : n'importe quelle séance la coche.
   it({
-    id: "entr-seance-a", section: "entrainement", group: "Musculation",
-    title: "Séance A",
-    detail: "Presse ou squat 3×8 · Développé couché 3×8 · Rowing 3×10",
-    recurrence: week(1)
-  }),
-  it({
-    id: "entr-seance-b", section: "entrainement", group: "Musculation",
-    title: "Séance B",
-    detail: "Soulevé de terre roumain 3×8 · Développé militaire 3×8 · Tirage vertical 3×10",
-    recurrence: week(1)
+    id: "entr-muscu", section: "entrainement", group: "Musculation",
+    title: "Musculation",
+    detail: "N'importe quelle séance compte : A, B, un modèle perso ou un circuit. La fréquence se règle dans la fiche.",
+    recurrence: week(3)
   }),
   it({
     id: "entr-alerte", section: "entrainement", group: "Musculation", kind: "info",
@@ -244,7 +239,7 @@ export const SEED_ITEMS = [
   }),
   it({
     id: "entr-cou", section: "entrainement", group: "Cou",
-    title: "Séance cou — 2-3×/semaine",
+    title: "Séance cou",
     detail: "Flexion 3×15 · Extension 3×15 · Flexion latérale 2×12 · Shrugs 3×12\n4 premières semaines sans charge.",
     warn: "Arrêt immédiat si douleur cervicale, vertige ou fourmillements.",
     recurrence: week(2)
@@ -258,8 +253,8 @@ export const SEED_ITEMS = [
   }),
   it({
     id: "entr-cardio", section: "entrainement", group: "Cardio",
-    title: "Cardio LISS — 2-3×/semaine",
-    detail: "C'est la réponse au « cardio affreux », pas un peptide.",
+    title: "Cardio",
+    detail: "Course, LISS, HIIT ou fractionné : chaque sortie enregistrée coche la case. Fréquence réglable dans la fiche.",
     recurrence: week(2)
   }),
 

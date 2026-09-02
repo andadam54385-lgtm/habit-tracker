@@ -5,7 +5,8 @@
 
 import { state, save, dayKey, weekDayKeys, byId, isDone, toggle, makeId } from "./state.js";
 import {
-  EXERCISES, EXERCISE_MAP, TEMPLATES, ROUTINE_MAP, GROUP_MAP
+  EXERCISES, EXERCISE_MAP, TEMPLATES, ROUTINE_MAP, GROUP_MAP,
+  CIRCUIT_PRESETS, CIRCUIT_MODES, CIRCUIT_UNITS
 } from "./exercises.js";
 
 // ------------------------------------------------------------- exercices
@@ -54,11 +55,63 @@ export function customTemplates() {
 
 export function allTemplates() {
   return TEMPLATES.map((t) => ({ key: t.key, label: t.label, plan: t.plan, link: t.item || "auto", builtin: true }))
-    .concat(customTemplates().map((t) => ({ key: t.id, label: t.label, plan: t.plan, link: t.link || "auto", builtin: false })));
+    .concat(customTemplates().filter((t) => (t.kind || "muscu") === "muscu")
+      .map((t) => ({ key: t.id, label: t.label, plan: t.plan, link: t.link || "auto", builtin: false })));
 }
 
 export function templateByKey(key) {
   return allTemplates().find((t) => t.key === key) || null;
+}
+
+// ---- circuits (CrossFit / Hyrox) : mêmes rangements, plan par stations.
+export function circuitTemplates() {
+  return CIRCUIT_PRESETS.map((t) => Object.assign({}, t, { key: t.key, link: "auto", builtin: true }))
+    .concat(customTemplates().filter((t) => t.kind === "circuit")
+      .map((t) => Object.assign({}, t, { key: t.id, link: t.link || "auto", builtin: false })));
+}
+
+export function visibleCircuits() {
+  const hidden = hiddenTemplates();
+  return circuitTemplates().filter((t) => hidden.indexOf(t.key) < 0);
+}
+
+export function circuitByKey(key) {
+  return circuitTemplates().find((t) => t.key === key) || null;
+}
+
+export function anyTemplateByKey(key) {
+  return templateByKey(key) || circuitByKey(key);
+}
+
+export function cleanStations(plan) {
+  return (plan || [])
+    .filter((p) => p && exerciseById(p.ex))
+    .map((p) => ({
+      ex: p.ex,
+      qty: Math.min(10000, Math.max(1, Math.round(num(p.qty, 10)))),
+      unit: CIRCUIT_UNITS[p.unit] ? p.unit : "reps"
+    }));
+}
+
+export function upsertCircuit(tpl) {
+  if (!state.workoutTemplates) state.workoutTemplates = [];
+  const label = String(tpl.label || "").trim();
+  if (!label) return null;
+  const plan = cleanStations(tpl.plan);
+  if (!plan.length) return null;
+  const mode = CIRCUIT_MODES[tpl.mode] ? tpl.mode : "rounds";
+  const rounds = mode === "amrap" ? 0 : Math.min(30, Math.max(1, Math.round(num(tpl.rounds, 3))));
+  const cap = Math.min(7200, Math.max(0, Math.round(num(tpl.cap, 0))));
+  if (mode === "amrap" && !cap) return null;
+  const link = (tpl.link === "auto" || tpl.link === "none") ? tpl.link
+    : (byId(tpl.link) ? tpl.link : "auto");
+  const fields = { label: label.slice(0, 60), kind: "circuit", mode: mode, rounds: rounds, cap: cap, plan: plan, link: link };
+  const existing = tpl.id ? customTemplates().find((t) => t.id === tpl.id && t.kind === "circuit") : null;
+  if (existing) { Object.assign(existing, fields); save(); return existing; }
+  const entry = Object.assign({ id: makeId("tpl") }, fields);
+  state.workoutTemplates.push(entry);
+  save();
+  return entry;
 }
 
 export function upsertTemplate(tpl) {
@@ -117,7 +170,7 @@ export function unhideTemplates() {
 // Les N dernières séances faites avec ce modèle, la plus récente d'abord.
 export function lastWorkoutsForTemplate(key, n) {
   return workouts()
-    .filter((w) => w.type === "muscu" && w.template === key)
+    .filter((w) => w.template === key)
     .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.at - a.at))
     .slice(0, n || 2);
 }
@@ -227,7 +280,7 @@ export function addWorkout(w) {
   if (!state.workouts) state.workouts = [];
   const entry = {
     id: makeId("w"),
-    type: ["muscu", "course", "mobilite"].indexOf(w.type) >= 0 ? w.type : "muscu",
+    type: ["muscu", "course", "mobilite", "circuit"].indexOf(w.type) >= 0 ? w.type : "muscu",
     date: /^\d{4}-\d{2}-\d{2}$/.test(w.date || "") ? w.date : dayKey(),
     at: Date.now(),
     duration: Math.max(0, Math.round(num(w.duration))),   // secondes
@@ -273,6 +326,17 @@ export function addWorkout(w) {
     entry.completed = w.completed !== false;
   }
 
+  if (entry.type === "circuit") {
+    const t = circuitByKey(w.template);
+    entry.template = t ? w.template : null;
+    entry.label = String(w.label || (t ? t.label : "Circuit")).slice(0, 60);
+    entry.mode = CIRCUIT_MODES[w.mode] ? w.mode : (t ? t.mode : "rounds");
+    entry.rounds = Math.max(0, Math.round(num(w.rounds)));          // tours complets
+    entry.stationsDone = Math.max(0, Math.round(num(w.stationsDone))); // stations du tour entamé
+    entry.stations = cleanStations(w.stations || (t ? t.plan : []));
+    if (!entry.duration && !entry.rounds) return null;
+  }
+
   state.workouts.push(entry);
   const linked = markLinkedItem(entry);
   entry.linked = linked;
@@ -290,18 +354,15 @@ export function removeWorkout(id) {
 
 // Quelle case du jour une séance valide-t-elle ?
 export function linkedItemFor(w) {
-  if (w.type === "muscu") {
-    const t = templateByKey(w.template);
+  if (w.type === "muscu" || w.type === "circuit") {
+    const t = w.type === "muscu" ? templateByKey(w.template) : circuitByKey(w.template);
     const link = t ? t.link : "auto";
     if (link === "none") return null;
-    if (link && link !== "auto") return link;
-    // Séance libre ou modèle en « auto » : la première des deux pas encore faite.
-    const a = byId("entr-seance-a"), b = byId("entr-seance-b");
-    if (a && !isDone(a, w.date)) return "entr-seance-a";
-    if (b && !isDone(b, w.date)) return "entr-seance-b";
-    return "entr-seance-a";
+    if (link && link !== "auto") return byId(link) ? link : null;
+    // « auto » : n'importe quelle séance compte pour la case Musculation.
+    return byId("entr-muscu") ? "entr-muscu" : null;
   }
-  if (w.type === "course") return "entr-cardio";
+  if (w.type === "course") return byId("entr-cardio") ? "entr-cardio" : null;
   if (w.type === "mobilite") {
     const r = ROUTINE_MAP[w.routine];
     if (!r) return null;
@@ -405,10 +466,11 @@ export function weeklySummary() {
     muscu: ws.filter((w) => w.type === "muscu").length,
     course: ws.filter((w) => w.type === "course").length,
     mobilite: ws.filter((w) => w.type === "mobilite").length,
+    circuit: ws.filter((w) => w.type === "circuit").length,
     minutes: Math.round(ws.reduce((a, w) => a + (w.duration || 0), 0) / 60),
     km: Math.round(ws.filter((w) => w.type === "course").reduce((a, w) => a + (w.distance || 0), 0) * 10) / 10
   };
-  out.total = out.muscu + out.course + out.mobilite;
+  out.total = out.muscu + out.course + out.mobilite + out.circuit;
   return out;
 }
 

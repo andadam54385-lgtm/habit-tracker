@@ -3,10 +3,11 @@
 // enregistrement re-rend la vue principale sans les interrompre.
 
 import { esc, escLines, openSheet, toast, confirmSheet } from "./ui.js";
-import { dayKey } from "./state.js";
+import { dayKey, byId, weekProgress } from "./state.js";
 import {
   MUSCLE_GROUPS, GROUP_MAP, REST_DEFAULT,
-  RUN_PRESETS, RUN_MODES, ROUTINES, ROUTINE_MAP, routineSeconds
+  RUN_PRESETS, RUN_MODES, ROUTINES, ROUTINE_MAP, routineSeconds,
+  CIRCUIT_MODES, CIRCUIT_UNITS
 } from "./exercises.js";
 import {
   allExercises, exerciseById, addCustomExercise, searchExercises,
@@ -16,7 +17,8 @@ import {
   allTemplates, templateByKey, upsertTemplate, removeTemplate,
   sortedTemplates, templateSort, setTemplateSort, TEMPLATE_SORTS,
   hiddenTemplates, hideTemplate, unhideTemplates,
-  lastWorkoutsForTemplate, lastSetsFor, tempoLabel, cleanTempo
+  lastWorkoutsForTemplate, lastSetsFor, tempoLabel, cleanTempo,
+  circuitTemplates, visibleCircuits, circuitByKey, upsertCircuit, anyTemplateByKey
 } from "./sport.js";
 
 function fmtSet(s, ex) {
@@ -24,7 +26,6 @@ function fmtSet(s, ex) {
   return (load === "temps" ? s.reps + " s" : s.reps) + (load === "kg" ? "×" + s.weight : "") +
     (s.rpe ? "@" + s.rpe : "");
 }
-import { byId } from "./state.js";
 
 // ------------------------------------------------------------ utilitaires
 
@@ -113,9 +114,23 @@ function bindRpe(body) {
 function sportTabs(active) {
   return '<nav class="tabs nut-tabs">' +
     '<a class="tab' + (active === "muscu" ? " is-active" : "") + '" href="#/sport?t=muscu">🏋️ Muscu</a>' +
+    '<a class="tab' + (active === "circuit" ? " is-active" : "") + '" href="#/sport?t=circuit">🔥 Circuit</a>' +
     '<a class="tab' + (active === "course" ? " is-active" : "") + '" href="#/sport?t=course">🏃 Course</a>' +
     '<a class="tab' + (active === "mobilite" ? " is-active" : "") + '" href="#/sport?t=mobilite">🌬️ Mobilité</a>' +
     "</nav>";
+}
+
+// Objectifs de la semaine : les cases d'entraînement à fréquence réglable.
+// Un tap ouvre la fiche, où la fréquence se change.
+function goalsStrip() {
+  const short = { "entr-muscu": "Muscu", "entr-cardio": "Cardio", "entr-cou": "Cou", "entr-machoire": "Mâchoire" };
+  const chips = Object.keys(short).map(byId).filter((i) => i && i.recurrence).map(function (i) {
+    const p = weekProgress(i);
+    return '<button type="button" class="goal-chip' + (p.done >= p.target ? " is-done" : "") +
+      '" data-act="open-item" data-target="' + esc(i.id) + '">' +
+      "<strong>" + p.done + "/" + p.target + "</strong> " + esc(short[i.id]) + "</button>";
+  });
+  return chips.length ? '<div class="goal-strip">' + chips.join("") + "</div>" : "";
 }
 
 function workoutRow(w) {
@@ -134,6 +149,11 @@ function workoutRow(w) {
     detail = fmtDuration(w.duration) +
       (w.distance ? " · " + w.distance + " km" : "") +
       (w.rounds ? " · " + w.rounds + " × " + w.work + "/" + w.rest + " s" : "");
+  } else if (w.type === "circuit") {
+    title = "🔥 " + w.label;
+    detail = w.rounds + " tour" + (w.rounds > 1 ? "s" : "") +
+      (w.stationsDone ? " + " + w.stationsDone + " station" + (w.stationsDone > 1 ? "s" : "") : "") +
+      " · " + fmtDuration(w.duration) + (w.mode === "amrap" ? " · AMRAP" : "");
   } else {
     const r = ROUTINE_MAP[w.routine];
     title = (r ? r.icon + " " + r.label : "Routine");
@@ -160,7 +180,7 @@ function recentList(type, limit) {
 // ------------------------------------------------------------------ vue
 
 export function viewSport(tab) {
-  const t = ["muscu", "course", "mobilite"].indexOf(tab) >= 0 ? tab : "muscu";
+  const t = ["muscu", "circuit", "course", "mobilite"].indexOf(tab) >= 0 ? tab : "muscu";
   const s = weeklySummary();
 
   let html = '<div class="view">';
@@ -170,9 +190,11 @@ export function viewSport(tab) {
         (s.km ? " · " + s.km + " km" : "")
       : "Rien d'enregistré cette semaine.") +
     "</p></header>";
+  html += goalsStrip();
   html += sportTabs(t);
 
   if (t === "muscu") html += tabMuscu();
+  else if (t === "circuit") html += tabCircuit();
   else if (t === "course") html += tabCourse();
   else html += tabMobilite();
 
@@ -554,10 +576,9 @@ export function openTemplateEditor(key, resume) {
 
   openSheet(existing ? "Modifier le modèle" : "Nouveau modèle", function (body, close) {
     const links = [
-      { v: "auto", l: "Automatique — coche Séance A ou B" },
-      { v: "entr-seance-a", l: "Toujours Séance A" },
-      { v: "entr-seance-b", l: "Toujours Séance B" },
-      { v: "entr-cou", l: "Séance cou" },
+      { v: "auto", l: "Compte comme une séance de musculation" },
+      { v: "entr-cardio", l: "Compte comme du cardio" },
+      { v: "entr-cou", l: "Compte comme une séance cou" },
       { v: "none", l: "Ne rien cocher" }
     ].filter((o) => o.v === "auto" || o.v === "none" || byId(o.v));
 
@@ -927,6 +948,288 @@ export function openRoutine(key) {
   });
 }
 
+// --------------------------------------------------------------- circuits
+// Type CrossFit / Hyrox : des stations enchaînées, un chrono, un tap par
+// station. Tours fixes (« for time ») ou AMRAP.
+
+function stationLabel(p) {
+  const ex = exerciseById(p.ex);
+  return (ex ? ex.label : p.ex) + " · " + p.qty + " " + (p.unit === "reps" ? "reps" : p.unit);
+}
+
+function tabCircuit() {
+  const list = visibleCircuits();
+  const hiddenCount = hiddenTemplates().filter((k) => circuitTemplates().some((t) => t.key === k)).length;
+  let html = '<div class="block-head"><h2>Circuits</h2></div>';
+  html += '<ul class="start-list">' + list.map(function (t) {
+    const names = t.plan.map((p) => (exerciseById(p.ex) || {}).label).filter(Boolean);
+    const head = t.mode === "amrap"
+      ? "AMRAP " + Math.round(t.cap / 60) + " min"
+      : t.rounds + " tours" + (t.cap ? " · limite " + Math.round(t.cap / 60) + " min" : "");
+    const last = workouts().filter((w) => w.template === t.key).map((w) => w.date).sort().pop() || null;
+    return '<li class="start-row">' +
+      '<button type="button" class="start-row-main" data-act="start-circuit" data-template="' + esc(t.key) + '">' +
+        '<span class="start-title">' + esc(t.label) + "</span>" +
+        '<span class="start-detail">' + esc(head + " · " + names.slice(0, 3).join(" · ") + (names.length > 3 ? " · +" + (names.length - 3) : "")) + "</span>" +
+        '<span class="start-last">' + esc(fmtLastUsed(last)) + "</span>" +
+      "</button>" +
+      '<span class="start-row-actions">' +
+        (t.builtin ? "" :
+          '<button type="button" class="row-act" data-act="edit-circuit" data-template="' + esc(t.key) + '" aria-label="Modifier ' + esc(t.label) + '">✎</button>') +
+        '<button type="button" class="row-act is-danger" data-act="del-template" data-template="' + esc(t.key) +
+          '" aria-label="' + (t.builtin ? "Masquer" : "Supprimer") + " " + esc(t.label) + '">✕</button>' +
+      "</span></li>";
+  }).join("") + "</ul>";
+  html += '<button type="button" class="btn btn-block btn-ghost" data-act="new-circuit">+ Nouveau circuit</button>';
+  if (hiddenCount) {
+    html += '<button type="button" class="linkish start-unhide" data-act="unhide-templates">Réafficher ' +
+      hiddenCount + " circuit" + (hiddenCount > 1 ? "s masqués" : " masqué") + "</button>";
+  }
+  html += '<p class="hint">Les stations s\'enchaînent, chaque station validée d\'un tap, le chrono tourne. ' +
+    "Un circuit compte comme une séance de musculation, sauf réglage contraire dans le circuit.</p>";
+  html += '<div class="block-head"><h2>Derniers circuits</h2></div>' + recentList("circuit");
+  return html;
+}
+
+let circDraft = null;
+
+export function openCircuitEditor(key, resume) {
+  const existing = key ? circuitByKey(key) : null;
+  if (existing && existing.builtin) { toast("Les circuits de départ ne se modifient pas — crée le tien", "error"); return; }
+  if (!resume && !existing) circDraft = null;
+  if (!circDraft || circDraft.id !== (existing ? existing.key : null)) {
+    circDraft = existing
+      ? { id: existing.key, label: existing.label, mode: existing.mode, rounds: existing.rounds || 3, cap: existing.cap || 0,
+          link: existing.link, plan: existing.plan.map((p) => Object.assign({}, p)) }
+      : { id: null, label: "", mode: "rounds", rounds: 3, cap: 0, link: "auto", plan: [] };
+  }
+
+  openSheet(existing ? "Modifier le circuit" : "Nouveau circuit", function (body, close) {
+    const links = [
+      { v: "auto", l: "Compte comme une séance de musculation" },
+      { v: "entr-cardio", l: "Compte comme du cardio" },
+      { v: "none", l: "Ne rien cocher" }
+    ].filter((o) => o.v === "auto" || o.v === "none" || byId(o.v));
+
+    function render() {
+      const amrap = circDraft.mode === "amrap";
+      body.innerHTML =
+        '<label class="field"><span>Nom du circuit</span>' +
+          '<input type="text" id="ci-label" class="input" maxlength="60" placeholder="Ex : WOD du samedi, Hyrox 4 stations" value="' + esc(circDraft.label) + '"></label>' +
+        '<div class="field"><span>Format</span><div class="chips" id="ci-mode">' +
+          Object.keys(CIRCUIT_MODES).map((k) =>
+            '<button type="button" class="chip' + (circDraft.mode === k ? " is-active" : "") + '" data-mode="' + k + '">' + esc(CIRCUIT_MODES[k].label) + "</button>").join("") +
+        "</div></div>" +
+        '<p class="hint">' + esc(CIRCUIT_MODES[circDraft.mode].hint) + "</p>" +
+        '<div class="nf-grid">' +
+          (amrap ? "" : '<label class="field"><span>Tours</span><input type="number" id="ci-rounds" class="input" inputmode="numeric" min="1" max="30" value="' + circDraft.rounds + '"></label>') +
+          '<label class="field"><span>' + (amrap ? "Durée (min)" : "Limite (min, optionnel)") + '</span>' +
+            '<input type="number" id="ci-cap" class="input" inputmode="numeric" min="0" max="120" value="' + (circDraft.cap ? Math.round(circDraft.cap / 60) : "") + '"></label>' +
+        "</div>" +
+        '<div class="block-head" style="margin-top:14px"><h2>Stations</h2>' +
+          '<button type="button" class="btn btn-small btn-primary" data-act="ci-add">+ Ajouter</button></div>' +
+        (circDraft.plan.length
+          ? '<ul class="nut-foods">' + circDraft.plan.map(function (p, i) {
+              const ex = exerciseById(p.ex);
+              if (!ex) return "";
+              return '<li class="nut-food has-qty"><div class="nut-food-main">' +
+                '<span class="nut-food-label">' + esc(ex.label) + "</span>" +
+                '<div class="tpl-target">' +
+                  '<label><span>Quantité</span><input type="number" inputmode="numeric" min="1" max="10000" data-qty="' + i + '" value="' + p.qty + '"></label>' +
+                  '<label><span>Unité</span><select data-unit="' + i + '">' +
+                    Object.keys(CIRCUIT_UNITS).map((u) => '<option value="' + u + '"' + (p.unit === u ? " selected" : "") + ">" +
+                      (u === "reps" ? "reps" : u === "s" ? "secondes" : "mètres") + "</option>").join("") +
+                  "</select></label>" +
+                "</div></div>" +
+                '<div class="tpl-move">' +
+                  '<button type="button" data-act="ci-up" data-i="' + i + '" aria-label="Monter"' + (i === 0 ? " disabled" : "") + ">↑</button>" +
+                  '<button type="button" data-act="ci-down" data-i="' + i + '" aria-label="Descendre"' + (i === circDraft.plan.length - 1 ? " disabled" : "") + ">↓</button>" +
+                  '<button type="button" class="nut-del" data-act="ci-del" data-i="' + i + '" aria-label="Retirer">✕</button>' +
+                "</div></li>";
+            }).join("") + "</ul>"
+          : '<p class="empty">Aucune station. Ajoute-en au moins une.</p>') +
+        '<label class="field"><span>Case du jour</span><select id="ci-link" class="input">' +
+          links.map((o) => '<option value="' + o.v + '"' + (circDraft.link === o.v ? " selected" : "") + ">" + esc(o.l) + "</option>").join("") +
+        "</select></label>" +
+        '<div class="sheet-actions">' +
+          (existing ? '<button type="button" class="btn btn-danger-ghost" data-act="ci-remove">Supprimer</button>' : "") +
+          '<button type="button" class="btn btn-primary" data-act="ci-save">Enregistrer</button>' +
+        "</div>";
+
+      body.querySelector("#ci-label").addEventListener("input", (e) => { circDraft.label = e.target.value; });
+      body.querySelector("#ci-link").addEventListener("change", (e) => { circDraft.link = e.target.value; });
+      body.querySelector("#ci-mode").addEventListener("click", function (e) {
+        const c = e.target.closest(".chip");
+        if (!c) return;
+        circDraft.mode = c.dataset.mode;
+        if (circDraft.mode === "amrap" && !circDraft.cap) circDraft.cap = 600;
+        render();
+      });
+      const rounds = body.querySelector("#ci-rounds");
+      if (rounds) rounds.addEventListener("change", () => { circDraft.rounds = parseInt(rounds.value, 10) || 1; });
+      body.querySelector("#ci-cap").addEventListener("change", (e) => {
+        circDraft.cap = Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 60));
+      });
+      body.querySelectorAll("[data-qty]").forEach((el) => el.addEventListener("change", function () {
+        circDraft.plan[parseInt(el.dataset.qty, 10)].qty = parseInt(el.value, 10) || 1;
+      }));
+      body.querySelectorAll("[data-unit]").forEach((el) => el.addEventListener("change", function () {
+        circDraft.plan[parseInt(el.dataset.unit, 10)].unit = el.value;
+      }));
+      body.querySelectorAll('[data-act="ci-del"]').forEach((b) => b.addEventListener("click", function () {
+        circDraft.plan.splice(parseInt(b.dataset.i, 10), 1); render();
+      }));
+      body.querySelectorAll('[data-act="ci-up"], [data-act="ci-down"]').forEach((b) => b.addEventListener("click", function () {
+        const i = parseInt(b.dataset.i, 10);
+        const j = b.dataset.act === "ci-up" ? i - 1 : i + 1;
+        if (j < 0 || j >= circDraft.plan.length) return;
+        const tmp = circDraft.plan[i]; circDraft.plan[i] = circDraft.plan[j]; circDraft.plan[j] = tmp;
+        render();
+      }));
+      body.querySelector('[data-act="ci-add"]').addEventListener("click", function () {
+        close();
+        openExercisePicker(function (ex) {
+          if (ex) circDraft.plan.push({ ex: ex.id, qty: ex.load === "temps" ? 30 : 10, unit: ex.load === "temps" ? "s" : "reps" });
+          openCircuitEditor(circDraft.id, true);
+        }, function () { openCircuitEditor(circDraft.id, true); });
+      });
+      body.querySelector('[data-act="ci-save"]').addEventListener("click", function () {
+        if (!circDraft.label.trim()) { body.querySelector("#ci-label").focus(); return; }
+        if (!circDraft.plan.length) { toast("Ajoute au moins une station", "error"); return; }
+        if (circDraft.mode === "amrap" && !circDraft.cap) { toast("Indique la durée de l'AMRAP", "error"); return; }
+        const saved = upsertCircuit(circDraft);
+        circDraft = null;
+        close();
+        if (saved) toast(saved.label + " enregistré");
+      });
+      const rm = body.querySelector('[data-act="ci-remove"]');
+      if (rm) rm.addEventListener("click", function () {
+        const id = circDraft.id, label = circDraft.label;
+        circDraft = null;
+        close();
+        confirmSheet("Supprimer ce circuit ?", "« " + label + " » sera retiré. Les circuits déjà faits restent.",
+          "Supprimer", function () { removeTemplate(id); toast("Circuit supprimé"); });
+      });
+    }
+
+    render();
+  });
+}
+
+export function openCircuitRun(key) {
+  const t = circuitByKey(key);
+  if (!t) return;
+  const amrap = t.mode === "amrap";
+  let startedAt = 0, pausedAt = 0, pausedTotal = 0, timer = null, finished = false;
+  let round = 0, station = 0, roundsDone = 0;
+
+  function elapsed() {
+    if (!startedAt) return 0;
+    return Math.max(0, Math.round(((pausedAt || Date.now()) - startedAt - pausedTotal) / 1000));
+  }
+
+  openSheet("🔥 " + t.label, function (body, close) {
+    function finish(completed) {
+      if (finished) return;
+      finished = true;
+      clearInterval(timer);
+      releaseAwake();
+      if (completed) cueDone();
+      const dur = elapsed();
+      close();
+      openFinishCircuit(t, dur, roundsDone, station, completed);
+    }
+    function tick() {
+      const el = body.querySelector("#ci-clock");
+      if (!el || pausedAt) return;
+      const e = elapsed();
+      if (amrap) {
+        const left = Math.max(0, t.cap - e);
+        el.textContent = fmtClock(left);
+        if (left <= 0) finish(true);
+      } else {
+        el.textContent = fmtClock(e);
+        if (t.cap && e >= t.cap) finish(false);
+      }
+    }
+    function start() {
+      startedAt = Date.now(); round = 1; station = 0;
+      keepAwake(); cueStart();
+      clearInterval(timer); timer = setInterval(tick, 250);
+      render();
+    }
+    function nextStation() {
+      station++;
+      if (station >= t.plan.length) {
+        station = 0; roundsDone++;
+        if (!amrap && roundsDone >= t.rounds) { finish(true); return; }
+        round++; cueRest();
+      } else cueStart();
+      render();
+    }
+    function togglePause() {
+      if (pausedAt) { pausedTotal += Date.now() - pausedAt; pausedAt = 0; } else pausedAt = Date.now();
+      render();
+    }
+    function render() {
+      const started = round > 0;
+      body.innerHTML =
+        '<p class="sub" style="margin:0">' + esc(amrap ? "AMRAP " + Math.round(t.cap / 60) + " min"
+          : t.rounds + " tours" + (t.cap ? " · limite " + Math.round(t.cap / 60) + " min" : "")) + "</p>" +
+        '<div class="circ-card' + (pausedAt ? " is-paused" : "") + '">' +
+          '<span class="circ-round">' + (started ? "Tour " + round + (amrap ? "" : " / " + t.rounds) : "Prêt ?") + "</span>" +
+          '<span class="circ-clock" id="ci-clock">' + fmtClock(amrap ? Math.max(0, t.cap - elapsed()) : elapsed()) + "</span>" +
+          (started ? '<span class="circ-now">' + esc(stationLabel(t.plan[station])) + "</span>" : "") +
+        "</div>" +
+        '<ol class="circ-stations">' + t.plan.map((p, i) =>
+          '<li class="' + (started && i < station ? "is-done" : started && i === station ? "is-current" : "") + '">' + esc(stationLabel(p)) + "</li>").join("") + "</ol>" +
+        '<div class="sheet-actions">' +
+          (!started
+            ? '<button type="button" class="btn btn-primary btn-block" data-act="start">▶ Démarrer</button>'
+            : '<button type="button" class="btn btn-danger-ghost" data-act="stop">Terminer</button>' +
+              '<button type="button" class="btn btn-ghost" data-act="pause">' + (pausedAt ? "▶ Reprendre" : "⏸ Pause") + "</button>" +
+              '<button type="button" class="btn btn-primary" data-act="next">✓ Station faite</button>') +
+        "</div>";
+      const s = body.querySelector('[data-act="start"]'); if (s) s.addEventListener("click", start);
+      const n = body.querySelector('[data-act="next"]'); if (n) n.addEventListener("click", function () { if (!pausedAt) nextStation(); });
+      const p = body.querySelector('[data-act="pause"]'); if (p) p.addEventListener("click", togglePause);
+      const st = body.querySelector('[data-act="stop"]'); if (st) st.addEventListener("click", function () { finish(false); });
+    }
+    render();
+  }, { onClose: function () {
+    // Fermé d'un ✕ en plein effort : on propose quand même d'enregistrer.
+    if (finished) return;
+    finished = true;
+    clearInterval(timer); releaseAwake();
+    if (startedAt) openFinishCircuit(t, elapsed(), roundsDone, station, false);
+  } });
+}
+
+function openFinishCircuit(t, duration, roundsDone, stationsDone, completed) {
+  openSheet("Terminer le circuit", function (body, close) {
+    const summary = roundsDone + " tour" + (roundsDone > 1 ? "s" : "") +
+      (stationsDone ? " + " + stationsDone + " station" + (stationsDone > 1 ? "s" : "") : "") + " en " + fmtDuration(duration);
+    body.innerHTML =
+      '<p class="sheet-text">' + esc(t.label) + " · " + esc(summary) + (completed ? "" : " · arrêté avant la fin") + "</p>" +
+      '<div class="field"><span>Effort ressenti (RPE)</span>' + rpeChips(8) + "</div>" +
+      '<label class="field"><span>Note</span><input type="text" id="cf-note" class="input" maxlength="300" placeholder="Charges, sensations…"></label>' +
+      '<div class="sheet-actions"><button type="button" class="btn btn-ghost" data-act="c">Ne pas enregistrer</button>' +
+      '<button type="button" class="btn btn-primary" data-act="ok">Enregistrer</button></div>';
+    const getRpe = bindRpe(body);
+    body.querySelector('[data-act="c"]').addEventListener("click", close);
+    body.querySelector('[data-act="ok"]').addEventListener("click", function () {
+      const w = addWorkout({
+        type: "circuit", template: t.key, label: t.label, mode: t.mode,
+        rounds: roundsDone, stationsDone: stationsDone, stations: t.plan,
+        duration: duration, rpe: getRpe(), note: body.querySelector("#cf-note").value
+      });
+      close();
+      if (w) toast("Circuit enregistré" + (w.linked ? " — case du jour cochée" : ""));
+      else toast("Rien à enregistrer", "error");
+    });
+  });
+}
+
 // ------------------------------------------------------------ détail
 
 export function openWorkout(id) {
@@ -944,6 +1247,11 @@ export function openWorkout(id) {
       inner = "<p>" + esc(RUN_MODES[w.mode].label) + " · " + fmtDuration(w.duration) +
         (w.distance ? " · " + w.distance + " km" : "") +
         (w.rounds ? "<br>" + w.rounds + " tours de " + w.work + " s / " + w.rest + " s" : "") + "</p>";
+    } else if (w.type === "circuit") {
+      inner = "<p><strong>" + esc(w.label) + "</strong> · " + (w.mode === "amrap" ? "AMRAP · " : "") +
+        w.rounds + " tour" + (w.rounds > 1 ? "s" : "") + (w.stationsDone ? " + " + w.stationsDone + " station" + (w.stationsDone > 1 ? "s" : "") : "") +
+        " · " + fmtDuration(w.duration) + "</p>" +
+        "<p>" + (w.stations || []).map((p) => esc(stationLabel(p))).join(" · ") + "</p>";
     } else {
       const r = ROUTINE_MAP[w.routine];
       inner = "<p>" + esc(r ? r.label : w.routine) + " · " + fmtDuration(w.duration) + (w.completed === false ? " · interrompue" : "") + "</p>";
@@ -969,11 +1277,11 @@ export function confirmDeleteWorkout(id) {
 
 // ✕ sur une séance : suppression pour un modèle perso, masquage pour A et B.
 export function confirmDeleteTemplate(key) {
-  const t = templateByKey(key);
+  const t = anyTemplateByKey(key);
   if (!t) return;
   if (t.builtin) {
     confirmSheet("Masquer « " + t.label + " » ?",
-      "Elle vient de ta spec : elle est masquée, pas supprimée. Un lien en bas de la liste permet de la réafficher.",
+      "Contenu de départ : masqué, pas supprimé. Un lien en bas de la liste permet de le réafficher.",
       "Masquer", function () { hideTemplate(key); toast(t.label + " masquée"); });
   } else {
     confirmSheet("Supprimer « " + t.label + " » ?",

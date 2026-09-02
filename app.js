@@ -19,7 +19,8 @@ import { viewRecipes, mountRecipes, openRecipeEditor } from "./js/recipes.js";
 import {
   viewSport, mountSport, openMuscuSession, openIntervalTimer, openRunForm,
   openRoutine, openWorkout, openExerciseHistory, confirmDeleteWorkout,
-  openTemplateEditor, confirmDeleteTemplate, changeTemplateSort, restoreHiddenTemplates
+  openTemplateEditor, confirmDeleteTemplate, changeTemplateSort, restoreHiddenTemplates,
+  openCircuitEditor, openCircuitRun
 } from "./js/sportview.js";
 import { addRecipeParts } from "./js/nutrition.js";
 import {
@@ -152,10 +153,14 @@ function onClick(e) {
   const sportAct = e.target.closest('[data-act="start-muscu"], [data-act="start-run"], [data-act="log-run"],' +
     '[data-act="start-routine"], [data-act="open-workout"], [data-act="del-workout"], [data-act="open-exercise"],' +
     '[data-act="new-template"], [data-act="edit-template"], [data-act="del-template"],' +
-    '[data-act="tpl-sort"], [data-act="unhide-templates"]');
+    '[data-act="tpl-sort"], [data-act="unhide-templates"],' +
+    '[data-act="start-circuit"], [data-act="new-circuit"], [data-act="edit-circuit"]');
   if (sportAct) {
     const act = sportAct.dataset.act;
     if (act === "new-template") { openTemplateEditor(null); return; }
+    if (act === "new-circuit") { openCircuitEditor(null); return; }
+    if (act === "edit-circuit") { openCircuitEditor(sportAct.dataset.template); return; }
+    if (act === "start-circuit") { openCircuitRun(sportAct.dataset.template); return; }
     if (act === "edit-template") { openTemplateEditor(sportAct.dataset.template); return; }
     if (act === "del-template") { confirmDeleteTemplate(sportAct.dataset.template); return; }
     if (act === "tpl-sort") { changeTemplateSort(sportAct.dataset.sort); return; }

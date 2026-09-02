@@ -925,3 +925,36 @@ td.rate-none { color: var(--text-faint); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* ------------------------------------------ objectifs d'entraînement */
+.goal-strip { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.goal-chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px;
+  border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface);
+  color: var(--text-soft); font-size: 13px; font-weight: 600;
+}
+.goal-chip strong { color: var(--accent); font-variant-numeric: tabular-nums; }
+.goal-chip.is-done { border-color: var(--ok); background: var(--ok-soft); }
+.goal-chip.is-done strong { color: var(--ok); }
+
+/* ------------------------------------------------ fréquence des fiches */
+.rec-per { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-soft); }
+.rec-per input {
+  width: 56px; min-height: 36px; text-align: center; padding: 0 6px;
+  background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 16px;
+}
+.rec-per.is-hidden { display: none; }
+
+/* ------------------------------------------------------------ circuits */
+.circ-card {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 20px 16px; margin: 10px 0;
+  text-align: center; border: 2px solid var(--accent); border-radius: var(--radius-sm); background: var(--accent-soft);
+}
+.circ-card.is-paused { border-style: dashed; opacity: .8; }
+.circ-round { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-soft); }
+.circ-clock { font-size: 48px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+.circ-now { font-size: 16px; font-weight: 700; }
+.circ-stations { margin: 8px 0 0; padding-left: 22px; display: grid; gap: 4px; font-size: 14px; color: var(--text-soft); }
+.circ-stations li.is-done { text-decoration: line-through; color: var(--text-faint); }
+.circ-stations li.is-current { color: var(--text); font-weight: 700; }
+.tpl-target select { min-height: 36px; padding: 0 6px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 14px; }

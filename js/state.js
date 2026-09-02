@@ -115,6 +115,25 @@ export function load() {
   for (const i of state.items) {
     if (i.section === "diete" && i.recurrence && String(i.id).startsWith("diete-")) i.recurrence = null;
   }
+  // Les séances A et B ne sont plus deux cases : une seule case « Musculation »
+  // à fréquence réglable. Les coches déjà faites sont reportées dessus.
+  for (const old of ["entr-seance-a", "entr-seance-b"]) {
+    const idx = state.items.findIndex((i) => i.id === old);
+    if (idx < 0) continue;
+    if (byId("entr-muscu")) {
+      if (!state.checks["entr-muscu"]) state.checks["entr-muscu"] = {};
+      for (const k of Object.keys(state.checks[old] || {})) {
+        if (state.checks[old][k] && !state.checks["entr-muscu"][k]) state.checks["entr-muscu"][k] = state.checks[old][k];
+      }
+    }
+    state.items.splice(idx, 1);
+    delete state.checks[old];
+  }
+  const RENAMED = { "entr-cardio": ["Cardio LISS — 2-3×/semaine", "Cardio"], "entr-cou": ["Séance cou — 2-3×/semaine", "Séance cou"] };
+  for (const id of Object.keys(RENAMED)) {
+    const it = byId(id);
+    if (it && it.title === RENAMED[id][0]) it.title = RENAMED[id][1];
+  }
   refreshBlockedStatuses();
   return state;
 }
