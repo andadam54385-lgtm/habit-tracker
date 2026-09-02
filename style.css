@@ -719,6 +719,35 @@ td.rate-none { color: var(--text-faint); }
 .start-title { font-weight: 700; }
 .start-detail { font-size: 12.5px; color: var(--text-faint); line-height: 1.35; }
 .start-card.is-new { border-left-color: var(--border-strong); border-style: dashed; box-shadow: none; }
+/* Muscu : une séance par ligne, pleine largeur, actions à droite. */
+.sort-row { display: flex; gap: 4px; padding: 3px; background: var(--surface-2); border-radius: 999px; }
+.sort-btn {
+  min-height: 30px; padding: 0 11px; border: 0; border-radius: 999px;
+  background: transparent; color: var(--text-faint); font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.sort-btn.is-active { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+
+.start-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.start-row {
+  display: flex; align-items: stretch;
+  background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
+}
+.start-row.is-libre { border-left-color: var(--border-strong); border-style: dashed; box-shadow: none; }
+.start-row-main {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;
+  padding: 12px 14px; text-align: left; background: transparent; border: 0; color: var(--text); cursor: pointer;
+}
+.start-row-main:active { background: var(--accent-soft); }
+.start-last { font-size: 12px; font-weight: 600; color: var(--accent); margin-top: 2px; }
+.start-row-actions { display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 8px; border-left: 1px solid var(--border); }
+.row-act {
+  width: 38px; height: 38px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface-2); color: var(--text-soft); font-size: 14px; cursor: pointer;
+}
+.row-act.is-danger { color: var(--critical); }
+.start-unhide { display: block; width: 100%; margin-top: 12px; text-align: center; font-size: 14px; }
+
 .start-card-wrap { position: relative; display: flex; }
 .start-card-wrap .start-card { flex: 1; padding-right: 44px; }
 .tpl-edit {

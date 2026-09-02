@@ -96,6 +96,73 @@ export function removeTemplate(id) {
   save();
 }
 
+// Les séances A et B viennent de la spec : on ne les supprime pas, on les
+// masque. Elles restent restaurables d'un tap.
+export function hiddenTemplates() {
+  return (state.settings && Array.isArray(state.settings.hiddenTemplates)) ? state.settings.hiddenTemplates : [];
+}
+
+export function hideTemplate(key) {
+  if (!state.settings.hiddenTemplates) state.settings.hiddenTemplates = [];
+  if (state.settings.hiddenTemplates.indexOf(key) < 0) state.settings.hiddenTemplates.push(key);
+  save();
+}
+
+export function unhideTemplates() {
+  state.settings.hiddenTemplates = [];
+  save();
+}
+
+// Date de la dernière séance faite avec ce modèle, ou null.
+export function templateLastUsed(key) {
+  let last = null;
+  for (const w of workouts()) {
+    if (w.type !== "muscu" || w.template !== key) continue;
+    if (!last || w.date > last) last = w.date;
+  }
+  return last;
+}
+
+export const TEMPLATE_SORTS = [
+  { key: "recent", label: "Récentes" },
+  { key: "name", label: "A → Z" },
+  { key: "order", label: "Ordre" }
+];
+
+export function templateSort() {
+  const s = state.settings && state.settings.templateSort;
+  return TEMPLATE_SORTS.some((x) => x.key === s) ? s : "order";
+}
+
+export function setTemplateSort(key) {
+  if (!TEMPLATE_SORTS.some((x) => x.key === key)) return;
+  state.settings.templateSort = key;
+  save();
+}
+
+// Modèles visibles, triés selon la préférence. « libre » reste toujours en
+// dernier : ce n'est pas une séance, c'est une porte de sortie.
+export function sortedTemplates() {
+  const hidden = hiddenTemplates();
+  const list = allTemplates()
+    .filter((t) => hidden.indexOf(t.key) < 0)
+    .map((t) => Object.assign({}, t, { lastUsed: templateLastUsed(t.key) }));
+  const libre = list.filter((t) => t.key === "libre");
+  const rest = list.filter((t) => t.key !== "libre");
+  const sort = templateSort();
+  if (sort === "name") {
+    rest.sort((a, b) => a.label.localeCompare(b.label, "fr"));
+  } else if (sort === "recent") {
+    rest.sort(function (a, b) {
+      if (a.lastUsed && b.lastUsed) return a.lastUsed < b.lastUsed ? 1 : a.lastUsed > b.lastUsed ? -1 : 0;
+      if (a.lastUsed) return -1;
+      if (b.lastUsed) return 1;
+      return 0;
+    });
+  }
+  return rest.concat(libre);
+}
+
 // --------------------------------------------------------------- séances
 
 function num(v, def) {

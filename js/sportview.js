@@ -13,7 +13,9 @@ import {
   workouts, workoutById, addWorkout, removeWorkout,
   estimate1RM, setVolume, exerciseHistory, exercisesPracticed,
   weeklySummary, runStats, fmtDuration, fmtClock,
-  allTemplates, templateByKey, upsertTemplate, removeTemplate
+  allTemplates, templateByKey, upsertTemplate, removeTemplate,
+  sortedTemplates, templateSort, setTemplateSort, TEMPLATE_SORTS,
+  hiddenTemplates, hideTemplate, unhideTemplates
 } from "./sport.js";
 import { byId } from "./state.js";
 
@@ -171,27 +173,60 @@ export function viewSport(tab) {
   return html;
 }
 
+function fmtLastUsed(dateKey) {
+  if (!dateKey) return "jamais faite";
+  const d = new Date(dateKey + "T12:00:00");
+  const today = new Date(); today.setHours(12, 0, 0, 0);
+  const days = Math.round((today - d) / 86400000);
+  if (days === 0) return "aujourd'hui";
+  if (days === 1) return "hier";
+  if (days < 7) return "il y a " + days + " jours";
+  return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+}
+
 function tabMuscu() {
-  let html = '<div class="block-head"><h2>Démarrer</h2></div><div class="start-grid">';
-  for (const tpl of allTemplates()) {
+  const sort = templateSort();
+  const hidden = hiddenTemplates();
+
+  let html = '<div class="block-head"><h2>Séances</h2>' +
+    '<div class="sort-row" role="group" aria-label="Trier">' +
+      TEMPLATE_SORTS.map((s) =>
+        '<button type="button" class="sort-btn' + (sort === s.key ? " is-active" : "") +
+        '" data-act="tpl-sort" data-sort="' + s.key + '">' + esc(s.label) + "</button>").join("") +
+    "</div></div>";
+
+  // Une ligne par séance, pleine largeur : le nom, le contenu, quand elle a
+  // été faite en dernier, et les actions à droite.
+  html += '<ul class="start-list">';
+  for (const tpl of sortedTemplates()) {
     const plan = tpl.plan.map(function (p) {
       const ex = exerciseById(p.ex);
       return ex ? ex.label + (p.sets ? " " + p.sets + "×" + p.reps : "") : null;
     }).filter(Boolean).join(" · ");
-    html += '<div class="start-card-wrap">' +
-      '<button type="button" class="start-card" data-act="start-muscu" data-template="' + esc(tpl.key) + '">' +
+    const isLibre = tpl.key === "libre";
+    html += '<li class="start-row' + (isLibre ? " is-libre" : "") + '">' +
+      '<button type="button" class="start-row-main" data-act="start-muscu" data-template="' + esc(tpl.key) + '">' +
         '<span class="start-title">' + esc(tpl.label) + "</span>" +
         '<span class="start-detail">' + (plan ? esc(plan) : "Compose au fur et à mesure") + "</span>" +
+        (isLibre ? "" : '<span class="start-last">' + esc(fmtLastUsed(tpl.lastUsed)) + "</span>") +
       "</button>" +
-      (tpl.builtin ? "" :
-        '<button type="button" class="tpl-edit" data-act="edit-template" data-template="' + esc(tpl.key) +
-        '" aria-label="Modifier le modèle ' + esc(tpl.label) + '">✎</button>') +
-      "</div>";
+      (isLibre ? "" :
+        '<span class="start-row-actions">' +
+          (tpl.builtin ? "" :
+            '<button type="button" class="row-act" data-act="edit-template" data-template="' + esc(tpl.key) +
+            '" aria-label="Modifier ' + esc(tpl.label) + '">✎</button>') +
+          '<button type="button" class="row-act is-danger" data-act="del-template" data-template="' + esc(tpl.key) +
+          '" aria-label="' + (tpl.builtin ? "Masquer" : "Supprimer") + " " + esc(tpl.label) + '">✕</button>' +
+        "</span>") +
+    "</li>";
   }
-  html += '<button type="button" class="start-card is-new" data-act="new-template">' +
-    '<span class="start-title">+ Nouveau modèle</span>' +
-    '<span class="start-detail">Ta propre séance, réutilisable</span></button>';
-  html += "</div>";
+  html += "</ul>";
+
+  html += '<button type="button" class="btn btn-block btn-ghost" data-act="new-template">+ Nouveau modèle</button>';
+  if (hidden.length) {
+    html += '<button type="button" class="linkish start-unhide" data-act="unhide-templates">' +
+      "Réafficher " + hidden.length + " séance" + (hidden.length > 1 ? "s masquées" : " masquée") + "</button>";
+  }
   html += '<p class="hint">Reprise : RPE 6, charges à 50-60 %, 2 min de repos. Sortir en se sentant capable de refaire la séance.</p>';
 
   const practiced = exercisesPracticed();
@@ -876,6 +911,24 @@ export function confirmDeleteWorkout(id) {
   confirmSheet("Supprimer cette séance ?", "La case du jour qu'elle a cochée reste cochée.", "Supprimer",
     function () { removeWorkout(id); toast("Supprimée"); });
 }
+
+// ✕ sur une séance : suppression pour un modèle perso, masquage pour A et B.
+export function confirmDeleteTemplate(key) {
+  const t = templateByKey(key);
+  if (!t) return;
+  if (t.builtin) {
+    confirmSheet("Masquer « " + t.label + " » ?",
+      "Elle vient de ta spec : elle est masquée, pas supprimée. Un lien en bas de la liste permet de la réafficher.",
+      "Masquer", function () { hideTemplate(key); toast(t.label + " masquée"); });
+  } else {
+    confirmSheet("Supprimer « " + t.label + " » ?",
+      "Le modèle sera retiré. Les séances déjà enregistrées avec restent dans l'historique.",
+      "Supprimer", function () { removeTemplate(key); toast(t.label + " supprimée"); });
+  }
+}
+
+export function changeTemplateSort(key) { setTemplateSort(key); }
+export function restoreHiddenTemplates() { unhideTemplates(); toast("Séances réaffichées"); }
 
 export function hasSessionInProgress() { return !!session; }
 export function resumeSession() { if (session) openMuscuSession(session.template, true); }

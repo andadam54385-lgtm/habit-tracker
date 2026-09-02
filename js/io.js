@@ -331,6 +331,8 @@ function sanitizeState(parsed) {
       (s.reminders && typeof s.reminders === "object") ? s.reminders : {}
     ),
     folded: (s.folded && typeof s.folded === "object" && !Array.isArray(s.folded)) ? s.folded : {},
+    templateSort: ["recent", "name", "order"].indexOf(s.templateSort) >= 0 ? s.templateSort : "order",
+    hiddenTemplates: (Array.isArray(s.hiddenTemplates) ? s.hiddenTemplates : []).filter((x) => typeof x === "string"),
     // Les cibles macros de l'utilisateur font partie de la sauvegarde :
     // les jeter remettrait ses fourchettes aux défauts en silence.
     targets: (function () {
