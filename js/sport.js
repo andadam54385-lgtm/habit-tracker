@@ -70,7 +70,8 @@ export function upsertTemplate(tpl) {
     .map((p) => ({
       ex: p.ex,
       sets: Math.min(12, Math.max(1, Math.round(num(p.sets, 3)))),
-      reps: Math.min(300, Math.max(1, Math.round(num(p.reps, 8))))
+      reps: Math.min(300, Math.max(1, Math.round(num(p.reps, 8)))),
+      tempo: cleanTempo(p.tempo)
     }));
   if (!plan.length) return null;
   const link = (tpl.link === "auto" || tpl.link === "none") ? tpl.link
@@ -111,6 +112,24 @@ export function hideTemplate(key) {
 export function unhideTemplates() {
   state.settings.hiddenTemplates = [];
   save();
+}
+
+// Les N dernières séances faites avec ce modèle, la plus récente d'abord.
+export function lastWorkoutsForTemplate(key, n) {
+  return workouts()
+    .filter((w) => w.type === "muscu" && w.template === key)
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.at - a.at))
+    .slice(0, n || 2);
+}
+
+// Dernière performance sur un exercice : ses séries telles quelles.
+export function lastSetsFor(exId) {
+  const hist = exerciseHistory(exId);
+  if (!hist.length) return null;
+  const last = hist[hist.length - 1];
+  const w = workoutById(last.workoutId);
+  const e = w && (w.exercises || []).find((x) => x.ex === exId);
+  return e ? { date: last.date, sets: e.sets } : null;
 }
 
 // Date de la dernière séance faite avec ce modèle, ou null.
@@ -170,6 +189,27 @@ function num(v, def) {
   return Number.isFinite(n) ? n : (def === undefined ? 0 : def);
 }
 
+// Tempo sur 4 positions, convention de l'utilisateur :
+// début de mouvement · concentrique · fin de mouvement · excentrique.
+// Chiffres en secondes, X = explosif. "0101" par défaut si on en veut un.
+export function cleanTempo(v) {
+  return String(v === undefined || v === null ? "" : v).toUpperCase().replace(/[^0-9X]/g, "").slice(0, 4);
+}
+
+export function tempoLabel(t) {
+  const c = cleanTempo(t);
+  if (c.length !== 4) return "";
+  const s = (ch) => (ch === "X" ? "explosif" : ch + " s");
+  return "début " + s(c[0]) + " · montée " + s(c[1]) + " · fin " + s(c[2]) + " · descente " + s(c[3]);
+}
+
+// RPE optionnel, borné 1-10 ; null si absent.
+function cleanRpe(v) {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Math.round(num(v));
+  return n >= 1 && n <= 10 ? n : null;
+}
+
 export function workouts() {
   return state.workouts || [];
 }
@@ -203,12 +243,17 @@ export function addWorkout(w) {
         const ex = exerciseById(e.ex);
         if (!ex) return null;
         const sets = (e.sets || []).map(function (s) {
-          return { reps: Math.max(0, Math.round(num(s.reps))), weight: Math.max(0, num(s.weight)) };
+          return { reps: Math.max(0, Math.round(num(s.reps))), weight: Math.max(0, num(s.weight)), rpe: cleanRpe(s.rpe) };
         }).filter((s) => s.reps > 0);
-        return sets.length ? { ex: ex.id, sets: sets } : null;
+        return sets.length ? { ex: ex.id, sets: sets, tempo: cleanTempo(e.tempo) } : null;
       })
       .filter(Boolean);
     if (!entry.exercises.length) return null;
+    // RPE de séance : saisi, sinon moyenne des RPE de séries s'il y en a.
+    if (entry.rpe === null) {
+      const rpes = entry.exercises.flatMap((e) => e.sets.map((s) => s.rpe)).filter((r) => r !== null);
+      if (rpes.length) entry.rpe = Math.round(rpes.reduce((a, r) => a + r, 0) / rpes.length);
+    }
   }
 
   if (entry.type === "course") {
@@ -302,7 +347,7 @@ export function exerciseHistory(exId, limit) {
     for (const s of e.sets) {
       const rm = estimate1RM(s.weight, s.reps);
       if (!best || rm > best.rm || (rm === best.rm && s.reps > best.reps)) {
-        best = { rm: rm, weight: s.weight, reps: s.reps };
+        best = { rm: rm, weight: s.weight, reps: s.reps, rpe: s.rpe === undefined ? null : s.rpe };
       }
     }
     out.push({

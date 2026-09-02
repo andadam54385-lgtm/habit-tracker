@@ -15,8 +15,15 @@ import {
   weeklySummary, runStats, fmtDuration, fmtClock,
   allTemplates, templateByKey, upsertTemplate, removeTemplate,
   sortedTemplates, templateSort, setTemplateSort, TEMPLATE_SORTS,
-  hiddenTemplates, hideTemplate, unhideTemplates
+  hiddenTemplates, hideTemplate, unhideTemplates,
+  lastWorkoutsForTemplate, lastSetsFor, tempoLabel, cleanTempo
 } from "./sport.js";
+
+function fmtSet(s, ex) {
+  const load = ex ? ex.load : "kg";
+  return (load === "temps" ? s.reps + " s" : s.reps) + (load === "kg" ? "×" + s.weight : "") +
+    (s.rpe ? "@" + s.rpe : "");
+}
 import { byId } from "./state.js";
 
 // ------------------------------------------------------------ utilitaires
@@ -199,10 +206,9 @@ function tabMuscu() {
   // été faite en dernier, et les actions à droite.
   html += '<ul class="start-list">';
   for (const tpl of sortedTemplates()) {
-    const plan = tpl.plan.map(function (p) {
-      const ex = exerciseById(p.ex);
-      return ex ? ex.label + (p.sets ? " " + p.sets + "×" + p.reps : "") : null;
-    }).filter(Boolean).join(" · ");
+    // Trois noms au plus : au-delà, la ligne dit « +N » plutôt que tout lister.
+    const names = tpl.plan.map((p) => (exerciseById(p.ex) || {}).label).filter(Boolean);
+    const plan = names.slice(0, 3).join(" · ") + (names.length > 3 ? " · +" + (names.length - 3) : "");
     const isLibre = tpl.key === "libre";
     html += '<li class="start-row' + (isLibre ? " is-libre" : "") + '">' +
       '<button type="button" class="start-row-main" data-act="start-muscu" data-template="' + esc(tpl.key) + '">' +
@@ -323,9 +329,29 @@ export function openMuscuSession(templateKey, resume) {
   if (!resume || !session) {
     session = {
       template: tpl.key, label: tpl.label, startedAt: Date.now(),
-      exercises: tpl.plan.map((p) => ({ ex: p.ex, target: p.sets + " × " + p.reps, sets: [] })),
+      exercises: tpl.plan.map((p) => ({ ex: p.ex, target: p.sets + " × " + p.reps, tempo: p.tempo || "", sets: [] })),
       restSeconds: REST_DEFAULT
     };
+  }
+
+  // Les deux dernières fois avec ce modèle : ce qu'on a fait, pour savoir
+  // quoi viser aujourd'hui.
+  function lastSessionsBlock() {
+    const last = lastWorkoutsForTemplate(session.template, 2);
+    if (!last.length) return "";
+    return '<details class="fold last-sessions" open><summary class="fold-head">' +
+      '<span class="fold-caret" aria-hidden="true">›</span><h2>Les 2 dernières fois</h2></summary>' +
+      '<div class="fold-body">' + last.map(function (w) {
+        return '<div class="last-session">' +
+          '<span class="last-session-date">' + esc(fmtLastUsed(w.date)) +
+            (w.rpe ? " · RPE " + w.rpe : "") + (w.duration ? " · " + fmtDuration(w.duration) : "") + "</span>" +
+          w.exercises.map(function (e) {
+            const ex = exerciseById(e.ex);
+            return '<span class="last-session-ex"><strong>' + esc(ex ? ex.label : e.ex) + "</strong> " +
+              esc(e.sets.map((s) => fmtSet(s, ex)).join("  ")) + "</span>";
+          }).join("") +
+        "</div>";
+      }).join("") + "</div></details>";
   }
 
   openSheet(session.label, function (body, close) {
@@ -344,11 +370,13 @@ export function openMuscuSession(templateKey, resume) {
           '<button type="button" class="btn btn-small btn-ghost" data-act="rest-cfg">' + session.restSeconds + " s</button>" +
         "</div>" +
         '<p class="hint">Séance démarrée il y a ' + fmtDuration(elapsed) + ".</p>" +
+        lastSessionsBlock() +
 
         session.exercises.map(function (e, ei) {
           const ex = exerciseById(e.ex) || { label: e.ex, load: "kg", cue: "" };
           const isTime = ex.load === "temps";
           const noLoad = ex.load !== "kg";
+          const prev = lastSetsFor(e.ex);
           // Pré-remplissage : la dernière série de la séance, sinon la
           // meilleure série de la séance précédente — pas 0 kg.
           const prevBest = (function () {
@@ -360,20 +388,30 @@ export function openMuscuSession(templateKey, resume) {
           return '<section class="ex-block">' +
             '<div class="block-head" style="margin-top:0"><h2>' + esc(ex.label) + "</h2>" +
               (e.target ? '<span class="counter">objectif ' + esc(e.target) + "</span>" : "") + "</div>" +
+            (e.tempo && cleanTempo(e.tempo).length === 4
+              ? '<p class="tempo-line"><span class="tempo-badge">tempo ' + esc(cleanTempo(e.tempo)) + "</span> " +
+                '<span class="tempo-legend">' + esc(tempoLabel(e.tempo)) + "</span></p>"
+              : "") +
             (ex.cue ? '<p class="ex-cue">' + esc(ex.cue) + "</p>" : "") +
+            (prev
+              ? '<p class="prev-line">Dernière fois (' + esc(fmtLastUsed(prev.date)) + ') : ' +
+                esc(prev.sets.map((s) => fmtSet(s, ex)).join("  ")) + "</p>"
+              : "") +
             (e.sets.length
               ? '<ol class="set-list">' + e.sets.map(function (s, si) {
                   return "<li><span>" + (isTime ? s.reps + " s" : s.reps + " reps") +
                     (noLoad ? "" : " × " + s.weight + " kg") +
+                    (s.rpe ? ' <span class="set-rpe">RPE ' + s.rpe + "</span>" : "") +
                     (noLoad ? "" : ' <span class="set-rm">1RM ≈ ' + estimate1RM(s.weight, s.reps) + "</span>") +
                     '</span><button type="button" class="set-del" data-act="set-del" data-ei="' + ei + '" data-si="' + si + '" aria-label="Retirer">✕</button></li>';
                 }).join("") + "</ol>"
               : "") +
-            '<div class="set-form">' +
+            '<div class="set-form' + (noLoad ? " no-load" : "") + '">' +
               '<label><span>' + (isTime ? "Secondes" : "Reps") + "</span>" +
                 '<input type="number" inputmode="numeric" min="1" max="500" data-reps="' + ei + '" value="' + esc(last.reps) + '"></label>' +
               (noLoad ? "" :
                 '<label><span>kg</span><input type="number" inputmode="decimal" min="0" max="500" step="0.5" data-weight="' + ei + '" value="' + esc(last.weight) + '"></label>') +
+              '<label><span>RPE</span><input type="number" inputmode="numeric" min="1" max="10" placeholder="–" data-rpe="' + ei + '" value="' + esc(last.rpe || "") + '"></label>' +
               '<button type="button" class="btn btn-primary" data-act="set-add" data-ei="' + ei + '">Valider la série</button>' +
             "</div>" +
           "</section>";
@@ -401,8 +439,10 @@ export function openMuscuSession(templateKey, resume) {
           const reps = parseInt(body.querySelector('[data-reps="' + ei + '"]').value, 10) || 0;
           const wEl = body.querySelector('[data-weight="' + ei + '"]');
           const weight = wEl ? (parseFloat(String(wEl.value).replace(",", ".")) || 0) : 0;
+          const rEl = body.querySelector('[data-rpe="' + ei + '"]');
+          const rpe = rEl && rEl.value !== "" ? parseInt(rEl.value, 10) : null;
           if (reps <= 0) return;
-          session.exercises[ei].sets.push({ reps: reps, weight: weight });
+          session.exercises[ei].sets.push({ reps: reps, weight: weight, rpe: rpe });
           render();
           // Le repos démarre tout seul après une série validée.
           body.querySelector("#rest-bar").classList.remove("is-over");
@@ -447,11 +487,16 @@ export function openMuscuSession(templateKey, resume) {
 function openFinishMuscu() {
   openSheet("Terminer la séance", function (body, close) {
     const dur = Math.round((Date.now() - session.startedAt) / 1000);
+    // RPE de séance proposé = moyenne des RPE de séries, sinon 6 (reprise).
+    const rpes = session.exercises.flatMap((e) => e.sets.map((s) => s.rpe)).filter((r) => r);
+    const suggested = rpes.length ? Math.round(rpes.reduce((a, r) => a + r, 0) / rpes.length) : 6;
     body.innerHTML =
       '<p class="sheet-text">' + fmtDuration(dur) + " · " +
         session.exercises.filter((e) => e.sets.length).length + " exercices · " +
         session.exercises.reduce((a, e) => a + e.sets.length, 0) + " séries</p>" +
-      '<div class="field"><span>Effort ressenti (RPE) — cible 6 en reprise</span>' + rpeChips(6) + "</div>" +
+      '<div class="field"><span>RPE de la séance' +
+        (rpes.length ? " — moyenne de tes séries : " + suggested : " — cible 6 en reprise") + "</span>" +
+        rpeChips(suggested) + "</div>" +
       '<label class="field"><span>Note</span><input type="text" id="sess-note" class="input" maxlength="300" placeholder="Douleur, forme, remarque…"></label>' +
       // Une séance improvisée qui te plaît mérite d'être réutilisable.
       (session.template === "libre"
@@ -536,6 +581,7 @@ export function openTemplateEditor(key, resume) {
                   '<div class="tpl-target">' +
                     '<label><span>Séries</span><input type="number" inputmode="numeric" min="1" max="12" data-sets="' + i + '" value="' + esc(p.sets) + '"></label>' +
                     '<label><span>' + (isTime ? "Secondes" : "Reps") + '</span><input type="number" inputmode="numeric" min="1" max="300" data-reps="' + i + '" value="' + esc(p.reps) + '"></label>' +
+                    '<label><span>Tempo</span><input type="text" inputmode="numeric" maxlength="4" placeholder="0101" data-tempo="' + i + '" value="' + esc(p.tempo || "") + '"></label>' +
                   "</div>" +
                 "</div>" +
                 '<div class="tpl-move">' +
@@ -546,6 +592,10 @@ export function openTemplateEditor(key, resume) {
               "</li>";
             }).join("") + "</ul>"
           : '<p class="empty">Aucun exercice. Ajoute-en au moins un.</p>') +
+
+        '<p class="hint">Tempo, 4 chiffres : <strong>début du mouvement · montée · fin · descente</strong>, ' +
+          "en secondes, X pour explosif. Ex : 0101 = pas de pause, 1 s de montée, 1 s de descente ; " +
+          "3010 = 3 s de descente contrôlée.</p>" +
 
         '<label class="field"><span>Case du jour à cocher</span><select id="tpl-link" class="input">' +
           links.map((o) => '<option value="' + o.v + '"' + (tplDraft.link === o.v ? " selected" : "") + ">" + esc(o.l) + "</option>").join("") +
@@ -563,6 +613,10 @@ export function openTemplateEditor(key, resume) {
       }));
       body.querySelectorAll("[data-reps]").forEach((el) => el.addEventListener("change", function () {
         tplDraft.plan[parseInt(el.dataset.reps, 10)].reps = parseInt(el.value, 10) || 1;
+      }));
+      body.querySelectorAll("[data-tempo]").forEach((el) => el.addEventListener("input", function () {
+        tplDraft.plan[parseInt(el.dataset.tempo, 10)].tempo = cleanTempo(el.value);
+        el.value = tplDraft.plan[parseInt(el.dataset.tempo, 10)].tempo;
       }));
       body.querySelectorAll('[data-act="tpl-del"]').forEach((b) => b.addEventListener("click", function () {
         tplDraft.plan.splice(parseInt(b.dataset.i, 10), 1); render();
@@ -686,7 +740,8 @@ export function openExerciseHistory(exId) {
         ? '<ul class="hist-list">' + hist.map((h) =>
             "<li><strong>" + esc(new Date(h.date + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short" })) + "</strong> · " +
             h.sets + " séries" +
-            (h.best ? " · meilleure " + (ex.load === "kg" ? h.best.weight + " kg × " + h.best.reps + " (1RM ≈ " + h.best.rm + ")" : h.best.reps + (ex.load === "temps" ? " s" : " reps")) : "") +
+            (h.best ? " · meilleure " + (ex.load === "kg" ? h.best.weight + " kg × " + h.best.reps + " (1RM ≈ " + h.best.rm + ")" : h.best.reps + (ex.load === "temps" ? " s" : " reps")) +
+              (h.best.rpe ? " @RPE " + h.best.rpe : "") : "") +
             (h.volume ? " · " + Math.round(h.volume) + " kg" : "") + "</li>").join("") + "</ul>"
         : '<p class="empty">Jamais pratiqué.</p>') +
       '<p class="hint">1RM estimé par la formule d\'Epley — pour comparer des séries à reps différentes, pas pour tenter un max.</p>';

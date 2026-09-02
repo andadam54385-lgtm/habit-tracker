@@ -779,7 +779,27 @@ td.rate-none { color: var(--text-faint); }
 .set-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .set-rm { font-size: 12px; color: var(--text-faint); }
 .set-del { width: 34px; height: 34px; }
-.set-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; }
+/* Reps · kg · RPE sur une ligne, le bouton en dessous sur toute la largeur. */
+.set-form { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; align-items: end; }
+.set-form.no-load { grid-template-columns: 1fr 1fr; }
+.set-form .btn { grid-column: 1 / -1; }
+.set-rpe { font-size: 12px; font-weight: 700; color: var(--accent); }
+
+.tempo-line { margin: 4px 0 8px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
+.tempo-badge { font-size: 12px; font-weight: 800; letter-spacing: .12em; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.tempo-legend { font-size: 12px; color: var(--text-faint); }
+.prev-line { margin: 0 0 10px; font-size: 13px; color: var(--text-soft); font-variant-numeric: tabular-nums; }
+
+.last-sessions { margin: 12px 0 0; }
+.last-sessions .fold-head { min-height: 44px; padding: 8px 14px; }
+.last-sessions .fold-head h2 { font-size: 14.5px; }
+.last-session { display: flex; flex-direction: column; gap: 3px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.last-session:first-child { border-top: 0; padding-top: 0; }
+.last-session-date { font-weight: 700; color: var(--accent); font-size: 12.5px; }
+.last-session-ex { color: var(--text-soft); font-variant-numeric: tabular-nums; }
+.last-session-ex strong { color: var(--text); font-weight: 600; }
+
+.tpl-target input[data-tempo] { width: 72px; letter-spacing: .1em; text-align: center; }
 .set-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--text-soft); }
 .set-form input { min-height: var(--tap); padding: 0 10px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 17px; min-width: 0; }
 .set-form .btn { min-height: var(--tap); }

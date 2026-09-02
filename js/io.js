@@ -419,7 +419,8 @@ function sanitizeState(parsed) {
         .map((p) => ({
           ex: p.ex,
           sets: Math.min(12, Math.max(1, Math.round(numOr(p.sets, 3)))),
-          reps: Math.min(300, Math.max(1, Math.round(numOr(p.reps, 8))))
+          reps: Math.min(300, Math.max(1, Math.round(numOr(p.reps, 8)))),
+          tempo: String(p.tempo || "").toUpperCase().replace(/[^0-9X]/g, "").slice(0, 4)
         }))
     }))
     .filter((t) => t.plan.length);
@@ -444,9 +445,14 @@ function sanitizeState(parsed) {
           .filter((e) => e && typeof e === "object" && typeof e.ex === "string")
           .map((e) => ({
             ex: e.ex,
+            tempo: String(e.tempo || "").toUpperCase().replace(/[^0-9X]/g, "").slice(0, 4),
             sets: (Array.isArray(e.sets) ? e.sets : [])
               .filter((s) => s && typeof s === "object")
-              .map((s) => ({ reps: Math.max(0, Math.round(numOr(s.reps, 0))), weight: Math.max(0, numOr(s.weight, 0)) }))
+              .map((s) => ({
+                reps: Math.max(0, Math.round(numOr(s.reps, 0))),
+                weight: Math.max(0, numOr(s.weight, 0)),
+                rpe: (function () { const r = Math.round(numOr(s.rpe, 0)); return r >= 1 && r <= 10 ? r : null; })()
+              }))
               .filter((s) => s.reps > 0)
           }))
           .filter((e) => e.sets.length);
