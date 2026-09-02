@@ -354,8 +354,10 @@ export function openMuscuSession(templateKey, resume) {
       }).join("") + "</div></details>";
   }
 
+  // Déclaré hors du rendu : onClose (ci-dessous) doit pouvoir l'arrêter.
+  let rest = null;
   openSheet(session.label, function (body, close) {
-    const rest = makeCountdown(
+    rest = makeCountdown(
       (left) => { const el = body.querySelector("#rest-left"); if (el) el.textContent = fmtClock(left); },
       () => { cueStart(); const bar = body.querySelector("#rest-bar"); if (bar) bar.classList.add("is-over"); }
     );
@@ -481,7 +483,7 @@ export function openMuscuSession(templateKey, resume) {
     }
 
     render();
-  }, { onClose: function () { rest.stop(); releaseAwake(); } });
+  }, { onClose: function () { if (rest) rest.stop(); releaseAwake(); } });
 }
 
 function openFinishMuscu() {
