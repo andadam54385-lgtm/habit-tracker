@@ -311,6 +311,7 @@ export function viewSections() {
   html += "</nav>";
   html += '<div class="section-links">' +
     '<a class="row-link" href="#/objectifs">🎯 Objectifs & réussite</a>' +
+    '<a class="row-link" href="#/sport">🏋️ Entraînement — séances & minuteurs</a>' +
     '<a class="row-link" href="#/nutrition">🧮 Calculateur nutrition</a>' +
     '<a class="row-link" href="#/recherche">🔍 Recherche</a>' +
     '<a class="row-link" href="#/import">📥 Importer depuis Claude</a>' +
@@ -333,6 +334,11 @@ export function viewSection(key, subKey) {
   if (key === "diete") {
     html += '<a class="callout" href="#/nutrition">' +
       "<strong>🧮 Calculateur calories · minéraux · vitamines</strong>" +
+      "<span>Ouvrir →</span></a>";
+  }
+  if (key === "entrainement") {
+    html += '<a class="callout" href="#/sport">' +
+      "<strong>🏋️ Séances muscu · minuteurs course · routines guidées</strong>" +
       "<span>Ouvrir →</span></a>";
   }
 

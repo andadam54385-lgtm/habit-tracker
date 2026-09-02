@@ -16,6 +16,10 @@ import {
   openTargets, openSupplements, openLibre, openGapFiller
 } from "./js/nutritionview.js";
 import { viewRecipes, mountRecipes, openRecipeEditor } from "./js/recipes.js";
+import {
+  viewSport, mountSport, openMuscuSession, openIntervalTimer, openRunForm,
+  openRoutine, openWorkout, openExerciseHistory, confirmDeleteWorkout
+} from "./js/sportview.js";
 import { addRecipeParts } from "./js/nutrition.js";
 import {
   removeLibre, addQuantity, addSupplementUnits, foodById,
@@ -30,7 +34,7 @@ const NAV = [
   { href: "#/jour", label: "Jour", icon: "✅", match: (r) => r.name === "today" },
   { href: "#/nutrition", label: "Diète", icon: "🍽️", match: (r) => r.name === "nutrition" || r.name === "recipes" },
   { href: "#/bloque", label: "Bloqué", icon: "🔒", match: (r) => r.name === "blocked" },
-  { href: "#/rubriques", label: "Rubriques", icon: "☰", match: (r) => ["sections", "section", "daily", "search", "import", "settings", "objectives"].includes(r.name) }
+  { href: "#/rubriques", label: "Rubriques", icon: "☰", match: (r) => ["sections", "section", "daily", "search", "import", "settings", "objectives", "sport"].includes(r.name) }
 ];
 
 // ------------------------------------------------------------- routage
@@ -51,6 +55,7 @@ function parseRoute() {
     case "nutrition": return { name: "nutrition", params };
     case "objectifs": return { name: "objectives", params };
     case "recettes": return { name: "recipes", params };
+    case "sport": return { name: "sport", params };
     case "recherche": return { name: "search", params };
     case "import": return { name: "import", params };
     case "reglages": return { name: "settings", params };
@@ -70,6 +75,7 @@ function renderRoute(route) {
     case "nutrition": return viewNutrition();
     case "objectives": return viewObjectives(route.params.get("w") || 0);
     case "recipes": return viewRecipes();
+    case "sport": return viewSport(route.params.get("t") || "muscu");
     case "search": return viewSearch(route.params.get("q") || "");
     case "import": return viewImport();
     case "settings": return viewSettings();
@@ -96,6 +102,8 @@ function render() {
     mountObjectives();
   } else if (route.name === "recipes") {
     mountRecipes();
+  } else if (route.name === "sport") {
+    mountSport();
   } else {
     mount();
   }
@@ -139,6 +147,21 @@ function isEditing() {
 // -------------------------------------------------------- délégation
 
 function onClick(e) {
+  // ---- entraînement
+  const sportAct = e.target.closest('[data-act="start-muscu"], [data-act="start-run"], [data-act="log-run"],' +
+    '[data-act="start-routine"], [data-act="open-workout"], [data-act="del-workout"], [data-act="open-exercise"]');
+  if (sportAct) {
+    const act = sportAct.dataset.act;
+    if (act === "start-muscu") openMuscuSession(sportAct.dataset.template);
+    else if (act === "start-run") openIntervalTimer(sportAct.dataset.preset);
+    else if (act === "log-run") openRunForm({ mode: "liss" });
+    else if (act === "start-routine") openRoutine(sportAct.dataset.routine);
+    else if (act === "open-workout") openWorkout(sportAct.dataset.workout);
+    else if (act === "del-workout") confirmDeleteWorkout(sportAct.dataset.workout);
+    else if (act === "open-exercise") openExerciseHistory(sportAct.dataset.ex);
+    return;
+  }
+
   // ---- diète
   const nutAct = e.target.closest('[data-act^="qty-"], [data-act^="sup-"], [data-act^="rec-"], [data-act="edit-qty"],' +
     '[data-act="open-search"], [data-act="edit-targets"], [data-act="manage-supps"], [data-act="add-libre"],' +

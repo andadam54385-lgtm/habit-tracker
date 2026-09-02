@@ -94,6 +94,7 @@ export function exportMarkdown() {
   out.push("");
 
   out.push(...exportObjectivesSection());
+  out.push(...exportWorkoutsSection());
 
   for (const section of SECTIONS) {
     const items = state.items.filter((i) => i.section === section.key);
@@ -208,6 +209,29 @@ function exportObjectivesSection() {
     }
   }
 
+  return out;
+}
+
+function exportWorkoutsSection() {
+  const list = (state.workouts || []).slice().sort((a, b) => b.at - a.at).slice(0, 30);
+  if (!list.length) return [];
+  const out = ["## Entraînement — séances", "", "| Date | Type | Détail | RPE |", "|---|---|---|---|"];
+  for (const w of list) {
+    let type = "", detail = "";
+    if (w.type === "muscu") {
+      type = "Muscu · " + w.label;
+      detail = w.exercises.map((e) => e.ex + " " + e.sets.map((s) => s.reps + "×" + s.weight).join("/")).join(" ; ");
+    } else if (w.type === "course") {
+      type = "Course · " + w.mode;
+      detail = Math.round(w.duration / 60) + " min" + (w.distance ? ", " + w.distance + " km" : "") +
+        (w.rounds ? ", " + w.rounds + "×" + w.work + "/" + w.rest + " s" : "");
+    } else {
+      type = "Mobilité · " + w.routine;
+      detail = Math.round(w.duration / 60) + " min" + (w.completed === false ? " (interrompue)" : "");
+    }
+    out.push("| " + w.date + " | " + type + " | " + detail.replace(/\|/g, "/") + " | " + (w.rpe || "—") + " |");
+  }
+  out.push("");
   return out;
 }
 
@@ -370,6 +394,57 @@ function sanitizeState(parsed) {
       if (Object.keys(clean).length) out.foodOverrides[fid] = clean;
     }
   }
+
+  out.customExercises = (Array.isArray(parsed.customExercises) ? parsed.customExercises : [])
+    .filter((e) => e && typeof e === "object" && typeof e.label === "string" && e.label.trim())
+    .map((raw) => ({
+      id: typeof raw.id === "string" && raw.id ? raw.id : makeId("ex"),
+      label: raw.label.slice(0, 60),
+      group: typeof raw.group === "string" ? raw.group.slice(0, 20) : "gainage",
+      cue: typeof raw.cue === "string" ? raw.cue.slice(0, 200) : "",
+      load: ["kg", "corps", "temps"].indexOf(raw.load) >= 0 ? raw.load : "kg",
+      custom: true
+    }));
+
+  out.workouts = (Array.isArray(parsed.workouts) ? parsed.workouts : [])
+    .filter((w) => w && typeof w === "object" && ["muscu", "course", "mobilite"].indexOf(w.type) >= 0 &&
+      /^\d{4}-\d{2}-\d{2}$/.test(w.date || ""))
+    .map(function (raw) {
+      const w = {
+        id: typeof raw.id === "string" && raw.id ? raw.id : makeId("w"),
+        type: raw.type, date: raw.date,
+        at: Number.isFinite(parseFloat(raw.at)) ? parseFloat(raw.at) : Date.now(),
+        duration: Math.max(0, Math.round(numOr(raw.duration, 0))),
+        rpe: Number.isFinite(parseFloat(raw.rpe)) ? Math.min(10, Math.max(1, Math.round(parseFloat(raw.rpe)))) : null,
+        note: typeof raw.note === "string" ? raw.note.slice(0, 300) : "",
+        linked: typeof raw.linked === "string" ? raw.linked : null
+      };
+      if (w.type === "muscu") {
+        w.template = typeof raw.template === "string" ? raw.template : "libre";
+        w.label = typeof raw.label === "string" ? raw.label.slice(0, 60) : "Séance";
+        w.exercises = (Array.isArray(raw.exercises) ? raw.exercises : [])
+          .filter((e) => e && typeof e === "object" && typeof e.ex === "string")
+          .map((e) => ({
+            ex: e.ex,
+            sets: (Array.isArray(e.sets) ? e.sets : [])
+              .filter((s) => s && typeof s === "object")
+              .map((s) => ({ reps: Math.max(0, Math.round(numOr(s.reps, 0))), weight: Math.max(0, numOr(s.weight, 0)) }))
+              .filter((s) => s.reps > 0)
+          }))
+          .filter((e) => e.sets.length);
+      } else if (w.type === "course") {
+        w.mode = ["liss", "hiit", "fractionne"].indexOf(raw.mode) >= 0 ? raw.mode : "liss";
+        w.distance = Number.isFinite(parseFloat(raw.distance)) ? Math.max(0, parseFloat(raw.distance)) : null;
+        w.work = Math.max(0, Math.round(numOr(raw.work, 0)));
+        w.rest = Math.max(0, Math.round(numOr(raw.rest, 0)));
+        w.rounds = Math.max(0, Math.round(numOr(raw.rounds, 0)));
+      } else {
+        w.routine = typeof raw.routine === "string" ? raw.routine : "";
+        w.completed = raw.completed !== false;
+      }
+      return w;
+    })
+    .filter((w) => w.type !== "muscu" || w.exercises.length);
 
   out.nutrition = {};
   if (parsed.nutrition && typeof parsed.nutrition === "object" && !Array.isArray(parsed.nutrition)) {

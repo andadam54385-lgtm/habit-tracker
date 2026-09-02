@@ -22,6 +22,8 @@ function emptyState() {
     foodOverrides: {},   // micros complétés par import : foodId -> { mg: 140, … }
     supplements: [],     // compléments calibrés par l'utilisateur
     recipes: [],         // recettes : ingrédients + nombre de parts
+    workouts: [],        // séances : muscu (séries), course (LISS/HIIT/fractionné), mobilité
+    customExercises: [], // exercices créés dans l'app
     objectives: { weekly: {}, monthly: {} },  // periodKey -> [{id,text,done}]
     notes: {},           // sectionKey -> texte libre
     importedHashes: {},  // hash -> timestamp (idempotence des imports)
@@ -86,10 +88,14 @@ export function load() {
   if (!state.foodOverrides || typeof state.foodOverrides !== "object") state.foodOverrides = {};
   if (!Array.isArray(state.supplements)) state.supplements = [];
   if (!Array.isArray(state.recipes)) state.recipes = [];
+  if (!Array.isArray(state.workouts)) state.workouts = [];
+  if (!Array.isArray(state.customExercises)) state.customExercises = [];
   // Un élément null dans ces tableaux planterait chaque rendu suivant.
   state.customFoods = state.customFoods.filter((f) => f && typeof f === "object");
   state.supplements = state.supplements.filter((x) => x && typeof x === "object");
   state.recipes = state.recipes.filter((r) => r && typeof r === "object");
+  state.workouts = state.workouts.filter((w) => w && typeof w === "object");
+  state.customExercises = state.customExercises.filter((e) => e && typeof e === "object");
   state.settings = Object.assign(base.settings, state.settings || {});
   state.settings.reminders = Object.assign(base.settings.reminders, state.settings.reminders || {});
   if (!state.settings.folded || typeof state.settings.folded !== "object") state.settings.folded = {};
