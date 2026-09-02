@@ -387,34 +387,33 @@ export function openMuscuSession(templateKey, resume) {
           })();
           const last = e.sets[e.sets.length - 1] ||
             (prevBest ? { reps: prevBest.reps, weight: prevBest.weight } : { reps: isTime ? 30 : 8, weight: 0 });
+          // Bloc compact : titre + objectif, une ligne tempo/dernière fois,
+          // les séries faites, puis reps · kg · RPE · ✓ sur une seule ligne.
+          const hasTempo = e.tempo && cleanTempo(e.tempo).length === 4;
           return '<section class="ex-block">' +
-            '<div class="block-head" style="margin-top:0"><h2>' + esc(ex.label) + "</h2>" +
-              (e.target ? '<span class="counter">objectif ' + esc(e.target) + "</span>" : "") + "</div>" +
-            (e.tempo && cleanTempo(e.tempo).length === 4
-              ? '<p class="tempo-line"><span class="tempo-badge">tempo ' + esc(cleanTempo(e.tempo)) + "</span> " +
-                '<span class="tempo-legend">' + esc(tempoLabel(e.tempo)) + "</span></p>"
-              : "") +
-            (ex.cue ? '<p class="ex-cue">' + esc(ex.cue) + "</p>" : "") +
+            '<div class="ex-head"><h2>' + esc(ex.label) + "</h2>" +
+              (e.target ? '<span class="ex-target">' + esc(e.target) + "</span>" : "") +
+              (hasTempo ? '<span class="tempo-badge" title="' + esc(tempoLabel(e.tempo)) + '">' + esc(cleanTempo(e.tempo)) + "</span>" : "") +
+            "</div>" +
             (prev
-              ? '<p class="prev-line">Dernière fois (' + esc(fmtLastUsed(prev.date)) + ') : ' +
+              ? '<p class="prev-line">' + esc(fmtLastUsed(prev.date)) + ' : ' +
                 esc(prev.sets.map((s) => fmtSet(s, ex)).join("  ")) + "</p>"
               : "") +
             (e.sets.length
               ? '<ol class="set-list">' + e.sets.map(function (s, si) {
-                  return "<li><span>" + (isTime ? s.reps + " s" : s.reps + " reps") +
+                  return "<li><span>" + (isTime ? s.reps + " s" : s.reps) +
                     (noLoad ? "" : " × " + s.weight + " kg") +
                     (s.rpe ? ' <span class="set-rpe">RPE ' + s.rpe + "</span>" : "") +
-                    (noLoad ? "" : ' <span class="set-rm">1RM ≈ ' + estimate1RM(s.weight, s.reps) + "</span>") +
+                    (noLoad ? "" : ' <span class="set-rm">1RM ' + estimate1RM(s.weight, s.reps) + "</span>") +
                     '</span><button type="button" class="set-del" data-act="set-del" data-ei="' + ei + '" data-si="' + si + '" aria-label="Retirer">✕</button></li>';
                 }).join("") + "</ol>"
               : "") +
             '<div class="set-form' + (noLoad ? " no-load" : "") + '">' +
-              '<label><span>' + (isTime ? "Secondes" : "Reps") + "</span>" +
-                '<input type="number" inputmode="numeric" min="1" max="500" data-reps="' + ei + '" value="' + esc(last.reps) + '"></label>' +
+              '<input type="number" inputmode="numeric" min="1" max="500" placeholder="' + (isTime ? "sec" : "reps") + '" aria-label="' + (isTime ? "Secondes" : "Reps") + '" data-reps="' + ei + '" value="' + esc(last.reps) + '">' +
               (noLoad ? "" :
-                '<label><span>kg</span><input type="number" inputmode="decimal" min="0" max="500" step="0.5" data-weight="' + ei + '" value="' + esc(last.weight) + '"></label>') +
-              '<label><span>RPE</span><input type="number" inputmode="numeric" min="1" max="10" placeholder="–" data-rpe="' + ei + '" value="' + esc(last.rpe || "") + '"></label>' +
-              '<button type="button" class="btn btn-primary" data-act="set-add" data-ei="' + ei + '">Valider la série</button>' +
+                '<input type="number" inputmode="decimal" min="0" max="500" step="0.5" placeholder="kg" aria-label="kg" data-weight="' + ei + '" value="' + esc(last.weight) + '">') +
+              '<input type="number" inputmode="numeric" min="1" max="10" placeholder="RPE" aria-label="RPE" data-rpe="' + ei + '" value="' + esc(last.rpe || "") + '">' +
+              '<button type="button" class="btn btn-primary" data-act="set-add" data-ei="' + ei + '" aria-label="Valider la série">✓</button>' +
             "</div>" +
           "</section>";
         }).join("") +
@@ -737,7 +736,6 @@ export function openExerciseHistory(exId) {
   const hist = exerciseHistory(exId).slice().reverse();
   openSheet(ex.label, function (body) {
     body.innerHTML =
-      (ex.cue ? '<p class="ex-cue">' + esc(ex.cue) + "</p>" : "") +
       (hist.length
         ? '<ul class="hist-list">' + hist.map((h) =>
             "<li><strong>" + esc(new Date(h.date + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short" })) + "</strong> · " +
