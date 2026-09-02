@@ -152,7 +152,7 @@ export function viewNutrition() {
   const t = targets();
 
   let html = '<div class="view">';
-  html += '<header class="view-head"><h1>🍽️ Diète</h1><p class="sub">' +
+  html += '<header class="view-head"><h1>Diète</h1><p class="sub">' +
     esc(new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })) +
     "</p></header>";
 

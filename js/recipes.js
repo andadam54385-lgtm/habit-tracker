@@ -26,7 +26,7 @@ export function viewRecipes() {
   const log = logFor();
 
   let html = '<div class="view">';
-  html += '<header class="view-head"><h1>🍲 Recettes</h1><p class="sub">' +
+  html += '<header class="view-head"><h1>Recettes</h1><p class="sub">' +
     "Compose une fois, enregistre ensuite en parts.</p></header>";
   html += nutritionTabs("recettes");
 

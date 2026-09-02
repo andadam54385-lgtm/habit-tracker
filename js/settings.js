@@ -17,7 +17,7 @@ export function viewSettings() {
   const dayCount = Object.keys(state.daily).length;
 
   return '<div class="view">' +
-    '<header class="view-head"><h1>⚙️ Réglages</h1></header>' +
+    '<header class="view-head"><h1>Réglages</h1></header>' +
 
     '<section class="panel">' +
       "<h2>Thème</h2>" +

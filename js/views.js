@@ -268,7 +268,7 @@ export function viewBlocked() {
         "</div>" +
         '<button class="btn btn-small" type="button" data-act="unblock" data-target="' + esc(g.root.id) + '">Fait</button>' +
       "</div>" +
-      renderList(g.items, {}) +
+      renderList(g.items, { hideBlocker: true }) +
       "</section>";
   }
 
@@ -329,7 +329,7 @@ export function viewSection(key, subKey) {
 
   const all = state.items.filter((i) => i.section === key);
   let html = '<div class="view">';
-  html += '<header class="view-head"><h1>' + esc(sec.icon + " " + sec.label) + "</h1></header>";
+  html += '<header class="view-head"><p class="eyebrow">' + esc(sec.icon) + '</p><h1>' + esc(sec.label) + "</h1></header>";
 
   if (key === "diete") {
     html += '<a class="callout" href="#/nutrition">' +
@@ -427,7 +427,7 @@ export function viewDaily() {
   const history = dailyHistory(30);
 
   let html = '<div class="view">';
-  html += '<header class="view-head"><h1>📈 Suivi quotidien</h1><p class="sub">' + esc(fmtDate(new Date())) + "</p></header>";
+  html += '<header class="view-head"><h1>Suivi quotidien</h1><p class="sub">' + esc(fmtDate(new Date())) + "</p></header>";
 
   html += '<section class="metrics">' +
     metricField("sommeil", "Heures de sommeil", today.sommeil, "0", "14", "0.5", "h") +

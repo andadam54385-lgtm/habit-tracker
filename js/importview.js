@@ -31,7 +31,7 @@ function canReadClipboard() {
 
 export function viewImport() {
   return '<div class="view">' +
-    '<header class="view-head"><h1>📥 Importer depuis Claude</h1>' +
+    '<header class="view-head"><h1>Importer depuis Claude</h1>' +
       '<p class="sub">Colle le bloc <code>suivi</code>, vérifie l\'aperçu, valide.</p></header>' +
 
     '<textarea id="imp-text" class="imp-text" rows="8" ' +

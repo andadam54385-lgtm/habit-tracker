@@ -393,7 +393,7 @@ export function viewObjectives(offset) {
     MONTHS[anchor.getMonth()].slice(1) + " " + anchor.getFullYear();
 
   let html = '<div class="view">';
-  html += '<header class="view-head"><h1>🎯 Objectifs & réussite</h1></header>';
+  html += '<header class="view-head"><h1>Objectifs & réussite</h1></header>';
 
   // Navigation entre semaines, comme dans la version d'origine.
   html += '<nav class="week-nav">' +

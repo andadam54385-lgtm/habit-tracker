@@ -155,7 +155,7 @@ export function viewSport(tab) {
   const s = weeklySummary();
 
   let html = '<div class="view">';
-  html += '<header class="view-head"><h1>🏋️ Entraînement</h1><p class="sub">' +
+  html += '<header class="view-head"><h1>Entraînement</h1><p class="sub">' +
     (s.total
       ? "Cette semaine : " + s.total + " séance" + (s.total > 1 ? "s" : "") + " · " + s.minutes + " min" +
         (s.km ? " · " + s.km + " km" : "")

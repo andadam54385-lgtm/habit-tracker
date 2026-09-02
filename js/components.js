@@ -47,10 +47,13 @@ export function renderItem(item, opts) {
     badges.push('<span class="' + cls + '">' + p.done + " sur " + p.target + " cette semaine</span>");
   }
 
-  if (blocker && !done) {
+  // Dans la vue Bloqué, le bloqueur est déjà le titre du groupe : le
+  // répéter sur chaque ligne noyait l'information au lieu de la donner.
+  if (blocker && !done && !o.hideBlocker) {
     badges.push('<span class="badge badge-blocked" data-act="goto-blocker" data-blocker="' +
       esc(blocker.id) + '">🔒 ' + esc(blocker.title) + "</span>");
-  } else if (!done && item.status !== "todo" && STATE_LABEL[item.status]) {
+  } else if (!done && item.status !== "todo" && STATE_LABEL[item.status] &&
+             !(o.hideBlocker && item.status === "blocked")) {
     badges.push('<span class="badge badge-' + esc(item.status) + '">' + STATE_LABEL[item.status] + "</span>");
   }
 
