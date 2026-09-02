@@ -110,6 +110,11 @@ export function load() {
 
   migrateHabitTracker();
   applySeed();
+  // La diète n'est plus cochée case par case : le calculateur nutrition la
+  // suit au fur et à mesure. Les repères du seed restent en lecture.
+  for (const i of state.items) {
+    if (i.section === "diete" && i.recurrence && String(i.id).startsWith("diete-")) i.recurrence = null;
+  }
   refreshBlockedStatuses();
   return state;
 }

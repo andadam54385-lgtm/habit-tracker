@@ -2,14 +2,14 @@
 // réglage des cibles et calibrage des compléments.
 
 import { esc, openSheet, toast, confirmSheet } from "./ui.js";
-import { dayKey, weekDayKeys } from "./state.js";
+import { dayKey } from "./state.js";
 import {
   nutrients, nutrientMap, targets, setTarget, kcalTarget, fmtRange,
   allFoods, foodById, searchFoods, addCustomFood, removeCustomFood,
   supplements, upsertSupplement, removeSupplement,
   logFor, setQuantity, addQuantity, setSupplement, addSupplementUnits,
   addLibre, removeLibre, dayTotals, preview, isMet,
-  loggedDayKeys, dietRate, FOOD_CATS, CAT_MAP, UNIT_LABEL,
+  FOOD_CATS, CAT_MAP, UNIT_LABEL,
   microCompleteness, foodsNeedingMicros, buildCompletionRequest,
   bestSourcesFor, gapsToday, gapsThisWeek, topGaps, weekTotals,
   recipes, recipePerPart
@@ -281,13 +281,6 @@ export function viewNutrition() {
   const week = weekTotals();
   html += microFold("Cibles du jour", "day", day, "nut:jour", gapsToday().length);
   html += microFold("Cibles de la semaine", "week", week, "nut:semaine", gapsThisWeek().length);
-
-  const logged = loggedDayKeys(weekDayKeys()).length;
-  const dr = dietRate(weekDayKeys());
-  html += '<a class="callout" href="#/objectifs"><strong>' +
-    (dr === null ? "Aucune journée saisie cette semaine"
-      : Math.round(dr * 100) + " % de cibles tenues sur " + logged + " jour" + (logged > 1 ? "s" : "")) +
-    "</strong><span>Voir la réussite →</span></a>";
 
   html += '<p class="hint nut-disclaimer">Valeurs pour 100 g / 100 ml, moyennes arrondies ' +
     "(CIQUAL / USDA). L'outil suit des tendances — il ne remplace ni une pesée ni un avis médical.</p>";

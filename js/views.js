@@ -46,105 +46,6 @@ function blockedItems() {
   });
 }
 
-// La prochaine action bloquante : celle dont dépend le plus de choses.
-export function nextBlockingAction() {
-  const candidates = state.items.filter(function (i) {
-    return !isDone(i) && live(i) && i.status !== "blocked" && !rootBlocker(i);
-  });
-  let best = null, bestScore = -1;
-  for (const c of candidates) {
-    const deps = dependentCount(c.id);
-    const score = deps * 10 + (c.priority === "critical" ? 5 : 0) + (c.pinned ? 1 : 0);
-    if (deps === 0 && c.priority !== "critical") continue;
-    if (score > bestScore) { best = c; bestScore = score; }
-  }
-  return best;
-}
-
-// ------------------------------------------------------------------ home
-
-export function viewHome() {
-  const next = nextBlockingAction();
-  const today = dueToday();
-  const doneToday = today.filter((i) => isDone(i)).length;
-  const blocked = blockedItems();
-
-  let html = '<div class="view view-home">';
-
-  html += '<p class="today-date">' + esc(fmtDate(new Date())) + "</p>";
-
-  // 1. La prochaine action bloquante, en haut et en grand.
-  if (next) {
-    const deps = dependentCount(next.id);
-    html +=
-      '<section class="hero" data-id="' + esc(next.id) + '">' +
-        '<p class="hero-kicker">La prochaine action bloquante</p>' +
-        '<h2 class="hero-title">' + esc(next.title) + "</h2>" +
-        (next.detail ? '<p class="hero-detail">' + escLines(next.detail) + "</p>" : "") +
-        (next.warn ? '<p class="hero-warn">⚠️ ' + escLines(next.warn) + "</p>" : "") +
-        (deps ? '<p class="hero-deps">' + deps + (deps > 1 ? " éléments attendent" : " élément attend") + " cette action.</p>" : "") +
-        '<div class="hero-actions">' +
-          '<button class="btn btn-primary" type="button" data-act="hero-done">C\'est fait</button>' +
-          '<button class="btn btn-ghost" type="button" data-act="open-item" data-target="' + esc(next.id) + '">Détails</button>' +
-        "</div>" +
-      "</section>";
-  } else {
-    html +=
-      '<section class="hero hero-clear">' +
-        '<p class="hero-kicker">Rien ne bloque</p>' +
-        '<h2 class="hero-title">Aucune action bloquante en attente.</h2>' +
-      "</section>";
-  }
-
-  // Réussite de la semaine + objectifs en cours : le cœur de l'app d'origine,
-  // gardé visible depuis l'accueil.
-  const rate = weekSuccess();
-  const objs = pendingObjectives();
-  html += '<a class="rate-strip ' + rateClass(rate) + '" href="#/objectifs">' +
-    '<span class="rate-strip-main"><strong>' + formatPercent(rate) + "</strong>" +
-      "<span>de réussite cette semaine</span></span>" +
-    '<span class="rate-strip-obj">' +
-      (objs.total
-        ? objs.done + " / " + objs.total + " objectif" + (objs.total > 1 ? "s" : "")
-        : "Aucun objectif fixé") +
-    " →</span>" +
-  "</a>";
-
-  // 2. Les cases du jour.
-  html += '<section class="block">' +
-    '<div class="block-head">' +
-      "<h2>Les cases du jour</h2>" +
-      '<span class="counter">' + doneToday + " / " + today.length + "</span>" +
-    "</div>";
-
-  const bySection = new Map();
-  for (const i of today) {
-    if (!bySection.has(i.section)) bySection.set(i.section, []);
-    bySection.get(i.section).push(i);
-  }
-  if (!today.length) {
-    html += '<p class="empty">Aucune case aujourd\'hui.</p>';
-  } else {
-    for (const [key, items] of bySection) {
-      const sec = SECTION_MAP[key];
-      html += '<h3 class="group-title">' + esc(sec.icon + " " + sec.label) + "</h3>";
-      html += renderList(items, {});
-    }
-  }
-  html += "</section>";
-
-  // Rappel du volume bloqué, pour que ce soit visible depuis l'accueil.
-  if (blocked.length) {
-    html += '<a class="callout" href="#/bloque">' +
-      "<strong>" + blocked.length + " éléments sont en attente</strong>" +
-      "<span>Voir ce qui bloque →</span>" +
-      "</a>";
-  }
-
-  html += "</div>";
-  return html;
-}
-
 // --------------------------------------------------------------- today
 
 // Thème pliable. Les deux compteurs sont rendus d'avance et c'est le CSS qui
@@ -293,7 +194,23 @@ export function viewBlocked() {
 // ------------------------------------------------------------- rubriques
 
 export function viewSections() {
-  let html = '<div class="view"><header class="view-head"><h1>Rubriques</h1></header><nav class="section-grid">';
+  const rate = weekSuccess();
+  const objs = pendingObjectives();
+  let html = '<div class="view"><header class="view-head"><h1>Accueil</h1>' +
+    '<p class="sub">' + esc(fmtDate(new Date())) + "</p></header>";
+
+  // Réussite de la semaine + objectifs en cours : le cœur de l'app d'origine.
+  html += '<a class="rate-strip ' + rateClass(rate) + '" href="#/objectifs">' +
+    '<span class="rate-strip-main"><strong>' + formatPercent(rate) + "</strong>" +
+      "<span>de réussite cette semaine</span></span>" +
+    '<span class="rate-strip-obj">' +
+      (objs.total
+        ? objs.done + " / " + objs.total + " objectif" + (objs.total > 1 ? "s" : "")
+        : "Aucun objectif fixé") +
+    " →</span>" +
+  "</a>";
+
+  html += '<nav class="section-grid">';
   for (const s of SECTIONS) {
     const items = state.items.filter((i) => i.section === s.key);
     const open = items.filter((i) => !isDone(i) && i.kind !== "info" && i.status !== "rejected" && i.status !== "queue").length;
@@ -310,9 +227,6 @@ export function viewSections() {
   }
   html += "</nav>";
   html += '<div class="section-links">' +
-    '<a class="row-link" href="#/objectifs">🎯 Objectifs & réussite</a>' +
-    '<a class="row-link" href="#/sport">🏋️ Entraînement — séances & minuteurs</a>' +
-    '<a class="row-link" href="#/nutrition">🧮 Calculateur nutrition</a>' +
     '<a class="row-link" href="#/recherche">🔍 Recherche</a>' +
     '<a class="row-link" href="#/import">📥 Importer depuis Claude</a>' +
     '<a class="row-link" href="#/reglages">⚙️ Réglages, export et sauvegarde</a>' +

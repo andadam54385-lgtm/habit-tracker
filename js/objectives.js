@@ -10,7 +10,6 @@
 import { state, save, makeId, dayKey, weekStart, isRecurring } from "./state.js";
 import { esc } from "./ui.js";
 import { SECTION_MAP } from "./seed.js";
-import { dailyTargetStats, weeklyTargetStats, dietRate, loggedDayKeys, fmtRange } from "./nutrition.js";
 
 const MONTHS = [
   "janvier", "février", "mars", "avril", "mai", "juin",
@@ -313,66 +312,6 @@ function trendBlock() {
   return html;
 }
 
-// Cibles du calculateur nutrition, comptées en jours tenus.
-function dietBlock(wDates, mDates) {
-  const wKeys = wDates.map(dayKey);
-  const mKeys = mDates.map(dayKey);
-  const loggedW = loggedDayKeys(wKeys).length;
-
-  let html = '<div class="block-head"><h2>Cibles diète</h2>' +
-    '<span class="counter">' + loggedW + " / 7 jours saisis</span></div>";
-
-  if (!loggedW) {
-    html += '<p class="empty">Aucun repas saisi cette semaine. ' +
-      "Renseigne une journée dans le calculateur nutrition pour voir tes cibles comptées.</p>" +
-      '<a class="row-link" href="#/nutrition">🧮 Ouvrir le calculateur nutrition</a>';
-    return html;
-  }
-
-  const dW = dietRate(wKeys);
-  const dM = dietRate(mKeys);
-  html += '<div class="rate-hero">' +
-    '<div class="rate-tile ' + rateClass(dW) + '">' +
-      '<span class="rate-label">Cibles tenues — semaine</span>' +
-      '<span class="rate-value">' + formatPercent(dW) + "</span>" +
-    "</div>" +
-    '<div class="rate-tile ' + rateClass(dM) + '">' +
-      '<span class="rate-label">Cibles tenues — mois</span>' +
-      '<span class="rate-value">' + formatPercent(dM) + "</span>" +
-    "</div>" +
-  "</div>";
-
-  const statsW = dailyTargetStats(wKeys);
-  const statsM = dailyTargetStats(mKeys);
-  html += '<div class="rate-table-wrap"><table class="rate-table">' +
-    "<thead><tr><th>Cible du jour</th><th>Semaine</th><th>Mois</th></tr></thead><tbody>";
-  for (const s of statsW) {
-    const m = statsM.find((x) => x.n.key === s.n.key);
-    html += "<tr>" +
-      '<td class="rate-name">' + esc(s.n.label) + "</td>" +
-      '<td class="' + rateClass(s.rate) + '">' + s.hit + " / " + s.days + "</td>" +
-      '<td class="' + rateClass(m ? m.rate : null) + '">' + (m ? m.hit + " / " + m.days : "—") + "</td>" +
-    "</tr>";
-  }
-  html += "</tbody></table></div>";
-
-  // Les cibles hebdomadaires se jugent sur le cumul, pas jour par jour.
-  const weekly = weeklyTargetStats(wKeys);
-  html += '<h3 class="group-title">Cibles de la semaine</h3><ul class="target-list">';
-  for (const t of weekly) {
-    html += '<li class="target' + (t.met ? " is-met" : "") + '">' +
-      '<span class="target-mark" aria-hidden="true">' + (t.met ? "✓" : "○") + "</span>" +
-      '<span class="target-label">' + esc(t.n.label) + "</span>" +
-      '<span class="target-val">' + Math.round(t.value) + " / " + esc(fmtRange(t.n)) + " " + esc(t.n.unit) + "</span>" +
-    "</li>";
-  }
-  html += "</ul>";
-  html += '<p class="hint">Les jours non saisis ne comptent pas : oublier de remplir n\'est pas ' +
-    "un échec. Seuls les " + loggedW + " jour" + (loggedW > 1 ? "s" : "") + " renseigné" +
-    (loggedW > 1 ? "s" : "") + " sont notés.</p>";
-  return html;
-}
-
 export function viewObjectives(offset) {
   const off = parseInt(offset, 10) || 0;
   const start = weekStartAt(off);
@@ -439,9 +378,6 @@ export function viewObjectives(offset) {
 
   // Évolution semaine après semaine, rubrique par rubrique.
   html += trendBlock();
-
-  // Cibles nutritionnelles — le calculateur diète enfin scoré.
-  html += dietBlock(wDates, mDates);
 
   if (items.length) {
     html += '<div class="block-head"><h2>Par habitude</h2></div>';

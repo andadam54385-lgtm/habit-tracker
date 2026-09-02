@@ -6,7 +6,7 @@ import { el, toast } from "./js/ui.js";
 import { openQuickAdd, openItem, openHowto } from "./js/sheets.js";
 import { applyTheme, scheduleReminders } from "./js/notify.js";
 import {
-  viewHome, viewToday, viewBlocked, viewSections, viewSection,
+  viewToday, viewBlocked, viewSections, viewSection,
   viewSearch, viewDaily, mount
 } from "./js/views.js";
 import { viewImport, mountImport } from "./js/importview.js";
@@ -31,12 +31,11 @@ import { viewObjectives, mountObjectives, toggleObjective, removeObjective } fro
 import { MIGRATION_RESULT } from "./js/state.js";
 
 const NAV = [
-  { href: "#/", label: "Accueil", icon: "🏠", match: (r) => r.name === "home" },
+  { href: "#/", label: "Accueil", icon: "🏠", match: (r) => ["home", "sections", "section", "daily", "search", "import", "settings", "objectives"].includes(r.name) },
   { href: "#/jour", label: "Jour", icon: "✅", match: (r) => r.name === "today" },
   { href: "#/nutrition", label: "Diète", icon: "🍽️", match: (r) => r.name === "nutrition" || r.name === "recipes" },
   { href: "#/sport", label: "Sport", icon: "🏋️", match: (r) => r.name === "sport" },
-  { href: "#/bloque", label: "Bloqué", icon: "🔒", match: (r) => r.name === "blocked" },
-  { href: "#/rubriques", label: "Rubriques", icon: "☰", match: (r) => ["sections", "section", "daily", "search", "import", "settings", "objectives"].includes(r.name) }
+  { href: "#/bloque", label: "Bloqué", icon: "🔒", match: (r) => r.name === "blocked" }
 ];
 
 // ------------------------------------------------------------- routage
@@ -81,7 +80,7 @@ function renderRoute(route) {
     case "search": return viewSearch(route.params.get("q") || "");
     case "import": return viewImport();
     case "settings": return viewSettings();
-    default: return viewHome();
+    default: return viewSections();
   }
 }
 
@@ -251,17 +250,6 @@ function onClick(e) {
   const openTarget = e.target.closest('[data-act="open-item"]');
   if (openTarget) {
     openItem(openTarget.dataset.target);
-    return;
-  }
-
-  const heroDone = e.target.closest('[data-act="hero-done"]');
-  if (heroDone) {
-    const hero = heroDone.closest("[data-id]");
-    if (hero) {
-      const item = byId(hero.dataset.id);
-      toggle(hero.dataset.id);
-      if (item) toast("« " + item.title + " » marqué fait");
-    }
     return;
   }
 
