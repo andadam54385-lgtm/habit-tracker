@@ -5,6 +5,7 @@ import { esc, escLines } from "./ui.js";
 import { SECTION_MAP } from "./seed.js";
 import { hasHowto } from "./howto.js";
 import { isDone, isRecurring, weekProgress, rootBlocker, dayKey } from "./state.js";
+import { streakFor } from "./forme.js";
 
 const STATE_LABEL = {
   todo: "à faire",
@@ -45,6 +46,11 @@ export function renderItem(item, opts) {
     const p = weekProgress(item);
     const cls = p.done >= p.target ? "badge badge-ok" : "badge";
     badges.push('<span class="' + cls + '">' + p.done + " sur " + p.target + " cette semaine</span>");
+    // Série en cours : visible, c'est ce qui donne envie de ne pas la casser.
+    const st = streakFor(item);
+    if (st && st.current >= 2) {
+      badges.push('<span class="badge badge-streak">🔥 ' + st.current + (st.unit === "jour" ? " j" : " sem") + "</span>");
+    }
   }
 
   // Dans la vue Bloqué, le bloqueur est déjà le titre du groupe : le

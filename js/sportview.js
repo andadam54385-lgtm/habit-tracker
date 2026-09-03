@@ -20,6 +20,53 @@ import {
   lastWorkoutsForTemplate, lastSetsFor, tempoLabel, cleanTempo,
   circuitTemplates, visibleCircuits, circuitByKey, upsertCircuit, anyTemplateByKey
 } from "./sport.js";
+import {
+  loadStatus, LOAD_RATIO_MAX, VOLUME_METRICS, volumeMetric, muscleVolume,
+  circuitBest, isCircuitPR, bestRmMap
+} from "./charge.js";
+import { sportForme } from "./formeview.js";
+
+// Charge d'entraînement : 8 semaines en barres, la semaine en cours
+// comparée à la moyenne des 4 précédentes.
+function loadBlock() {
+  const ls = loadStatus();
+  if (!ls.history.some((h) => h.load > 0)) return "";
+  const max = Math.max.apply(null, ls.history.map((h) => h.load).concat([1]));
+  const verdict = ls.level === "na" ? "Pas encore deux semaines de référence."
+    : ls.level === "high" ? "⚠️ +" + Math.round((ls.ratio - 1) * 100) + " % : lève le pied."
+    : ls.level === "low" ? "Semaine légère (" + Math.round(ls.ratio * 100) + " % de ta moyenne)."
+    : "Dans la zone : " + Math.round(ls.ratio * 100) + " % de ta moyenne.";
+  return '<div class="block-head"><h2>Charge d\'entraînement</h2><span class="counter">' + ls.current + (ls.mean ? " / moy. " + ls.mean : "") + "</span></div>" +
+    '<div class="load-bars">' + ls.history.map(function (h, i) {
+      const hh = Math.max(3, Math.round(h.load / max * 100));
+      const over = ls.mean && h.load > ls.mean * LOAD_RATIO_MAX;
+      return '<span class="load-bar' + (i === ls.history.length - 1 ? " is-current" : "") + (over ? " is-over" : "") + '" style="height:' + hh + '%" title="' + h.load + '"></span>';
+    }).join("") + "</div>" +
+    '<p class="load-verdict is-' + ls.level + '">' + esc(verdict) + "</p>" +
+    '<p class="hint">Charge = RPE × minutes, par semaine. Alerte au-delà de ' + Math.round(LOAD_RATIO_MAX * 100) + " % de la moyenne des 4 dernières semaines. " +
+      "En reprise, la 3e semaine dépasse par construction : la règle qui compte reste comment tu te sens 24-48 h après.</p>";
+}
+
+// Volume par groupe musculaire, au choix : tonnage, séries, reps ou RPE moyen.
+function volumeBlock() {
+  const metric = volumeMetric();
+  const m = VOLUME_METRICS.find((x) => x.key === metric);
+  const rows = muscleVolume();
+  let html = '<div class="block-head"><h2>Volume par muscle</h2><span class="counter">cette semaine</span></div>' +
+    '<div class="sort-row" role="group" aria-label="Mesure">' +
+      VOLUME_METRICS.map((x) => '<button type="button" class="sort-btn' + (x.key === metric ? " is-active" : "") + '" data-act="vol-metric" data-metric="' + x.key + '">' + esc(x.label) + "</button>").join("") +
+    "</div>";
+  if (!rows.length) return html + '<p class="empty">Aucune série cette semaine.</p>';
+  const max = Math.max.apply(null, rows.map((r) => r[metric] || 0).concat([1]));
+  html += '<div class="vol-list">' + rows.map(function (r) {
+    const v = r[metric];
+    const pct = metric === "rpe" ? (v ? v / 10 * 100 : 0) : (v / max * 100);
+    return '<div class="vol-row"><span class="vol-label">' + r.icon + " " + esc(r.label) + "</span>" +
+      '<div class="bar"><div class="bar-fill" style="width:' + pct.toFixed(0) + '%"></div></div>' +
+      '<span class="vol-val">' + (v === null || v === undefined ? "—" : v + (m.unit ? " " + m.unit : "")) + "</span></div>";
+  }).join("") + "</div>";
+  return html;
+}
 
 function fmtSet(s, ex) {
   const load = ex ? ex.load : "kg";
@@ -191,6 +238,7 @@ export function viewSport(tab) {
       : "Rien d'enregistré cette semaine.") +
     "</p></header>";
   html += goalsStrip();
+  html += sportForme();
   html += sportTabs(t);
 
   if (t === "muscu") html += tabMuscu();
@@ -256,6 +304,9 @@ function tabMuscu() {
       "Réafficher " + hidden.length + " séance" + (hidden.length > 1 ? "s masquées" : " masquée") + "</button>";
   }
   html += '<p class="hint">Reprise : RPE 6, charges à 50-60 %, 2 min de repos. Sortir en se sentant capable de refaire la séance.</p>';
+
+  html += loadBlock();
+  html += volumeBlock();
 
   const practiced = exercisesPracticed();
   if (practiced.length) {
@@ -545,6 +596,9 @@ function openFinishMuscu() {
           }))
         });
       }
+      // Records : 1RM estimé avant / après, exercice par exercice.
+      const exIds = session.exercises.filter((e) => e.sets.length).map((e) => e.ex);
+      const before = bestRmMap(exIds);
       const w = addWorkout({
         type: "muscu", template: tpl ? tpl.id : session.template,
         label: tpl ? tpl.label : session.label,
@@ -553,7 +607,11 @@ function openFinishMuscu() {
       });
       session = null;
       close();
-      if (w) toast("Séance enregistrée" + (tpl ? " · modèle créé" : "") + (w.linked ? " — case cochée" : ""));
+      if (!w) return;
+      const after = bestRmMap(exIds);
+      const prs = exIds.filter((id) => before[id] > 0 && after[id] > before[id]).map((id) => (exerciseById(id) || { label: id }).label + " 1RM ≈ " + after[id]);
+      if (prs.length) toast("🏆 Record : " + prs.join(" · "));
+      else toast("Séance enregistrée" + (tpl ? " · modèle créé" : "") + (w.linked ? " — case cochée" : ""));
     });
   });
 }
@@ -987,6 +1045,11 @@ function tabCircuit() {
   }
   html += '<p class="hint">Les stations s\'enchaînent, chaque station validée d\'un tap, le chrono tourne. ' +
     "Un circuit compte comme une séance de musculation, sauf réglage contraire dans le circuit.</p>";
+  const records = circuitTemplates().map((t) => ({ t: t, b: circuitBest(t.key) })).filter((x) => x.b);
+  if (records.length) {
+    html += '<div class="block-head"><h2>Records</h2></div><ul class="bilan-list">' +
+      records.map((x) => "<li>🏆 " + esc(x.t.label) + " : <strong>" + esc(x.b.label) + "</strong> · " + esc(fmtLastUsed(x.b.w.date)) + "</li>").join("") + "</ul>";
+  }
   html += '<div class="block-head"><h2>Derniers circuits</h2></div>' + recentList("circuit");
   return html;
 }
@@ -1224,8 +1287,9 @@ function openFinishCircuit(t, duration, roundsDone, stationsDone, completed) {
         duration: duration, rpe: getRpe(), note: body.querySelector("#cf-note").value
       });
       close();
-      if (w) toast("Circuit enregistré" + (w.linked ? " — case du jour cochée" : ""));
-      else toast("Rien à enregistrer", "error");
+      if (!w) { toast("Rien à enregistrer", "error"); return; }
+      if (isCircuitPR(w)) toast("🏆 Nouveau record sur " + t.label + " !");
+      else toast("Circuit enregistré" + (w.linked ? " — case du jour cochée" : ""));
     });
   });
 }

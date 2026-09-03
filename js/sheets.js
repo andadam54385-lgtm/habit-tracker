@@ -2,6 +2,7 @@
 
 import { esc, escLines, openSheet, toast, confirmSheet } from "./ui.js";
 import { howtoFor } from "./howto.js";
+import { streakFor } from "./forme.js";
 import { SECTIONS, SECTION_MAP, IMPORT_TAGS } from "./seed.js";
 import {
   byId, addItem, updateItem, removeItem,
@@ -202,7 +203,9 @@ export function openItem(id) {
           esc(blocker.id) + '">' + esc(blocker.title) + "</button></p>"
         : "") +
       (deps ? '<p class="sheet-deps">' + deps + (deps > 1 ? " éléments dépendent" : " élément dépend") + " de cet item.</p>" : "") +
-      (prog ? '<p class="sheet-prog">' + prog.done + " sur " + prog.target + " cette semaine</p>" : "") +
+      (prog ? '<p class="sheet-prog">' + prog.done + " sur " + prog.target + " cette semaine" +
+        (function () { const s = streakFor(item); return s && (s.current || s.best) ? " · 🔥 série " + s.current + " " + s.unit + (s.current > 1 ? "s" : "") + " (record " + s.best + ")" : ""; })() +
+        "</p>" : "") +
 
       '<label class="field"><span>Intitulé</span>' +
         '<input id="it-title" class="input" type="text" value="' + esc(item.title) + '"></label>' +

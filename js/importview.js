@@ -62,6 +62,26 @@ export function viewImport() {
       '<button type="button" class="btn btn-ghost btn-block" data-act="copy-consigne">' +
         "Copier la consigne à donner à Claude</button>" +
     "</section>" +
+
+    // Pont Apple Santé sans cloud : un Raccourci iOS ouvre l'app avec le
+    // relevé dans l'adresse, l'import se remplit tout seul.
+    '<details class="fold imp-help"><summary class="fold-head"><span class="fold-caret" aria-hidden="true">›</span>' +
+      "<h2>Relier Sleep Cycle / Apple Santé (Raccourci iOS)</h2></summary><div class=\"fold-body\">" +
+      '<p class="hint">Sleep Cycle écrit ton sommeil dans Apple Santé. Un Raccourci le lit chaque matin et ouvre cette page ' +
+        "avec la ligne déjà remplie : le sommeil pré-remplit le check-in du matin.</p>" +
+      '<ol class="howto-steps">' +
+        "<li>Dans <strong>Sleep Cycle</strong> → Réglages → Apple Santé : active l'écriture de <strong>Analyse du sommeil</strong>.</li>" +
+        "<li>Dans <strong>Raccourcis</strong> → « + » → action <strong>Rechercher des échantillons de santé</strong> : type <em>Analyse du sommeil</em>, " +
+          "filtre <em>Valeur est Endormi</em> et <em>Date de début est dans les dernières 24 heures</em>.</li>" +
+        "<li>Action <strong>Obtenir les statistiques</strong> sur le résultat : <em>Somme</em>, unité <em>heures</em>. Puis <strong>Arrondir le nombre</strong> à 1 décimale.</li>" +
+        "<li>Action <strong>Texte</strong> : <code>[suivi] sommeil=</code> suivi de la variable arrondie. " +
+          "Avec une Apple Watch, ajoute sur la même ligne <code>fc=</code> (fréquence cardiaque au repos) et <code>hrv=</code> (variabilité) obtenus de la même façon.</li>" +
+        "<li>Action <strong>Encoder l'URL</strong> sur le texte, puis <strong>Ouvrir des URL</strong> : " +
+          "<code>https://andadam54385-lgtm.github.io/habit-tracker/#/import?t=</code> suivi du texte encodé.</li>" +
+        "<li>Onglet <strong>Automatisation</strong> → Heure du jour → 7 h → <em>Exécuter immédiatement</em> → ce raccourci. Le matin, l'app s'ouvre sur l'aperçu, tu valides.</li>" +
+      "</ol>" +
+      '<p class="hint">Sans montre, pas de HRV ni de FC de repos : Sleep Cycle ne les mesure pas. Le sommeil seul suffit au check-in.</p>' +
+    "</div></details>" +
     "</div>";
 }
 

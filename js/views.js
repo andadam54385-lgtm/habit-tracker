@@ -5,6 +5,7 @@ import { esc, escLines, fmtDate, fmtShort } from "./ui.js";
 import { renderList, renderGrouped } from "./components.js";
 import { SECTIONS, SECTION_MAP } from "./seed.js";
 import { weekSuccess, pendingObjectives, formatPercent, rateClass } from "./objectives.js";
+import { homeForme } from "./formeview.js";
 import {
   state, isDone, isRecurring, weekProgress, rootBlocker, dependentCount,
   dayKey, dailyHistory, setDaily, setNote, saveQuiet
@@ -210,6 +211,9 @@ export function viewSections() {
     " →</span>" +
   "</a>";
 
+  // Forme du matin, journal du soir, bilan : le rituel du jour.
+  html += homeForme();
+
   html += '<nav class="section-grid">';
   for (const s of SECTIONS) {
     const items = state.items.filter((i) => i.section === s.key);
@@ -366,8 +370,11 @@ export function viewDaily() {
   }
 
   html += '<div class="block-head"><h2>30 derniers jours</h2></div>';
+  html += sparkline(history, "forme", "Forme du matin", "/10", 1, 10);
+  html += sparkline(history, "journee", "Journée (journal du soir)", "/10", 1, 10);
   html += sparkline(history, "sommeil", "Sommeil", "h", 0, 12);
   html += sparkline(history, "fc", "FC au repos", "bpm", 40, 100);
+  html += sparkline(history, "hrv", "HRV", "ms", 20, 100);
   html += sparkline(history, "energie", "Énergie", "/5", 1, 5);
 
   html += noteBlock("suivi");

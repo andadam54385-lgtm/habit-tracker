@@ -29,10 +29,12 @@ import {
 } from "./js/nutrition.js";
 import { state, save } from "./js/state.js";
 import { viewObjectives, mountObjectives, toggleObjective, removeObjective } from "./js/objectives.js";
+import { openCheckin, openJournal, viewBilan, bilanMarkdown } from "./js/formeview.js";
+import { setVolumeMetric } from "./js/charge.js";
 import { MIGRATION_RESULT } from "./js/state.js";
 
 const NAV = [
-  { href: "#/", label: "Accueil", icon: "🏠", match: (r) => ["home", "sections", "section", "daily", "search", "import", "settings", "objectives"].includes(r.name) },
+  { href: "#/", label: "Accueil", icon: "🏠", match: (r) => ["home", "sections", "section", "daily", "search", "import", "settings", "objectives", "bilan"].includes(r.name) },
   { href: "#/jour", label: "Jour", icon: "✅", match: (r) => r.name === "today" },
   { href: "#/nutrition", label: "Diète", icon: "🍽️", match: (r) => r.name === "nutrition" || r.name === "recipes" },
   { href: "#/sport", label: "Sport", icon: "🏋️", match: (r) => r.name === "sport" },
@@ -56,6 +58,7 @@ function parseRoute() {
     case "suivi": return { name: "daily", params };
     case "nutrition": return { name: "nutrition", params };
     case "objectifs": return { name: "objectives", params };
+    case "bilan": return { name: "bilan", params };
     case "recettes": return { name: "recipes", params };
     case "sport": return { name: "sport", params };
     case "recherche": return { name: "search", params };
@@ -76,6 +79,7 @@ function renderRoute(route) {
     case "daily": return viewDaily();
     case "nutrition": return viewNutrition();
     case "objectives": return viewObjectives(route.params.get("w") || 0);
+    case "bilan": return viewBilan(route.params.get("w") || 0);
     case "recipes": return viewRecipes();
     case "sport": return viewSport(route.params.get("t") || "muscu");
     case "search": return viewSearch(route.params.get("q") || "");
@@ -93,7 +97,8 @@ function render() {
   host.innerHTML = renderRoute(route);
 
   if (route.name === "import") {
-    mountImport(sharedPrefill);
+    // Un Raccourci iOS peut ouvrir #/import?t=… avec le relevé du matin.
+    mountImport(sharedPrefill || route.params.get("t") || null);
     sharedPrefill = null;
   } else if (route.name === "settings") {
     mountSettings();
@@ -149,6 +154,22 @@ function isEditing() {
 // -------------------------------------------------------- délégation
 
 function onClick(e) {
+  // ---- forme : check-in, journal, bilan, mesure du volume
+  const formeAct = e.target.closest('[data-act="open-checkin"], [data-act="open-journal"], [data-act="copy-bilan"], [data-act="vol-metric"]');
+  if (formeAct) {
+    const act = formeAct.dataset.act;
+    if (act === "open-checkin") openCheckin();
+    else if (act === "open-journal") openJournal();
+    else if (act === "vol-metric") setVolumeMetric(formeAct.dataset.metric);
+    else if (act === "copy-bilan") {
+      const md = bilanMarkdown(formeAct.dataset.w || 0);
+      const done = () => toast("Bilan copié — colle-le dans Claude");
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(md).then(done, () => fallbackCopy(md, done));
+      else fallbackCopy(md, done);
+    }
+    return;
+  }
+
   // ---- entraînement
   const sportAct = e.target.closest('[data-act="start-muscu"], [data-act="start-run"], [data-act="log-run"],' +
     '[data-act="start-routine"], [data-act="open-workout"], [data-act="del-workout"], [data-act="open-exercise"],' +
@@ -364,4 +385,12 @@ if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", boot);
 } else {
   boot();
+}
+
+function fallbackCopy(text, done) {
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.top = "-1000px";
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand("copy"); done(); } catch (e) { toast("Copie impossible", "error"); }
+  document.body.removeChild(ta);
 }
