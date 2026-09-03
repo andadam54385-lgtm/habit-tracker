@@ -55,13 +55,8 @@ function plannedReminders() {
     plan.push({ time: r.matin, title: "Session du matin", body: "Chaussures enfilées, avant d'ouvrir la porte. Respiration 5-5, 5 min." });
     plan.push({ time: r.retour, title: "Session du retour", body: "Contact coupé, tu ne sors pas avant. Respiration 5-5, 5 min." });
   }
-  if (r.peseeOn) {
-    plan.push({
-      time: r.peseeHeure || "18:00", title: "Pesée",
-      body: "Monte sur la balance. À la salle : prends aussi masse grasse et masse musculaire.",
-      due: function () { return Promise.resolve(weighDue()); }
-    });
-  }
+  // La pesée n'a pas d'heure : elle se rappelle au démarrage d'une séance
+  // (voir openMuscuSession), là où la balance est à portée.
   if (r.photoOn) {
     plan.push({
       time: r.photoHeure || "07:30", title: "Photos de suivi",

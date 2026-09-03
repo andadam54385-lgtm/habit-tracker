@@ -3,7 +3,9 @@
 // enregistrement re-rend la vue principale sans les interrompre.
 
 import { esc, escLines, openSheet, toast, confirmSheet } from "./ui.js";
-import { dayKey, byId, weekProgress } from "./state.js";
+import { state, dayKey, byId, weekProgress } from "./state.js";
+import { weighDue, daysSince } from "./corps.js";
+import { openWeighIn } from "./corpsview.js";
 import {
   MUSCLE_GROUPS, GROUP_MAP, REST_DEFAULT,
   RUN_PRESETS, RUN_MODES, ROUTINES, ROUTINE_MAP, routineSeconds,
@@ -401,7 +403,13 @@ export function openMuscuSession(templateKey, resume) {
   const tpl = templateByKey(templateKey) || templateByKey("libre");
   if (!resume || !session) {
     session = {
-      template: tpl.key, label: tpl.label, startedAt: Date.now(),
+      template: tpl.key, label: tpl.label,
+      // Rien ne tourne tant que « Commencer » n'a pas été touché : le temps
+      // de séance doit être celui de l'effort, pas celui de la feuille ouverte.
+      startedAt: null,
+      setStartAt: null,   // début de la série en cours
+      setEx: null,        // exercice de la série en cours
+      lastSetAt: null,    // fin de la dernière série validée : sert au repos
       exercises: tpl.plan.map((p) => ({ ex: p.ex, target: p.sets + " × " + p.reps, tempo: p.tempo || "", sets: [] })),
       restSeconds: REST_DEFAULT
     };
@@ -427,24 +435,58 @@ export function openMuscuSession(templateKey, resume) {
       }).join("") + "</div></details>";
   }
 
-  // Déclaré hors du rendu : onClose (ci-dessous) doit pouvoir l'arrêter.
-  let rest = null;
+  // Déclarés hors du rendu : onClose (ci-dessous) doit pouvoir les arrêter.
+  let rest = null, tick = null;
   openSheet(session.label, function (body, close) {
     rest = makeCountdown(
       (left) => { const el = body.querySelector("#rest-left"); if (el) el.textContent = fmtClock(left); },
       () => { cueStart(); const bar = body.querySelector("#rest-bar"); if (bar) bar.classList.add("is-over"); }
     );
 
+    // Horloges vivantes, mises à jour sans re-rendre : un rendu ferait perdre
+    // le focus et le contenu des champs en cours de saisie.
+    function refreshClocks() {
+      const s = body.querySelector("#sess-clock");
+      if (s && session.startedAt) s.textContent = fmtClock((Date.now() - session.startedAt) / 1000);
+      const w = body.querySelector("#set-clock");
+      if (w && session.setStartAt) w.textContent = fmtClock((Date.now() - session.setStartAt) / 1000);
+      const p = body.querySelector("#pause-clock");
+      if (p && !session.setStartAt && session.lastSetAt) p.textContent = fmtClock((Date.now() - session.lastSetAt) / 1000);
+    }
+
     function render() {
-      const elapsed = Math.round((Date.now() - session.startedAt) / 1000);
+      const started = !!session.startedAt;
+      const running = !!session.setStartAt;
+      const weighNudge = started && state.settings.reminders && state.settings.reminders.peseeOn && weighDue();
       body.innerHTML =
-        '<div class="rest-bar" id="rest-bar">' +
-          '<span class="rest-label">Repos</span>' +
-          '<span class="rest-left" id="rest-left">' + fmtClock(session.restSeconds) + "</span>" +
-          '<button type="button" class="btn btn-small" data-act="rest-go">▶ ' + session.restSeconds + " s</button>" +
-          '<button type="button" class="btn btn-small btn-ghost" data-act="rest-cfg">' + session.restSeconds + " s</button>" +
-        "</div>" +
-        '<p class="hint">Séance démarrée il y a ' + fmtDuration(elapsed) + ".</p>" +
+        (started
+          ? '<div class="sess-bar">' +
+              '<span class="sess-label">Séance</span>' +
+              '<span class="sess-clock" id="sess-clock">' + fmtClock((Date.now() - session.startedAt) / 1000) + "</span>" +
+              '<button type="button" class="btn btn-small btn-danger-ghost" data-act="sess-finish">■ Terminer</button>' +
+            "</div>"
+          : '<button type="button" class="btn btn-primary btn-block sess-start" data-act="sess-start">▶ Commencer la séance</button>' +
+            '<p class="hint">Le chrono part maintenant. Ensuite, un tap sur « Je commence » avant chaque série : ' +
+              "l'app mesure le temps de la série et la pause entre deux, même sans minuteur.</p>") +
+
+        (weighNudge
+          ? '<button type="button" class="callout sess-weigh" data-act="sess-weigh"><strong>⚖️ Pesée à faire</strong>' +
+            "<span>" + (daysSince("poids") === null ? "Aucune mesure pour l'instant" : daysSince("poids") + " jour" + (daysSince("poids") > 1 ? "s" : "") + " sans pesée") +
+            " — la balance est sur place →</span></button>"
+          : "") +
+
+        (started
+          ? '<div class="rest-bar" id="rest-bar">' +
+              '<span class="rest-label">' + (running ? "Série" : session.lastSetAt ? "Pause" : "Repos") + "</span>" +
+              (running
+                ? '<span class="rest-left" id="set-clock">' + fmtClock((Date.now() - session.setStartAt) / 1000) + "</span>"
+                : session.lastSetAt
+                  ? '<span class="rest-left" id="pause-clock">' + fmtClock((Date.now() - session.lastSetAt) / 1000) + "</span>"
+                  : '<span class="rest-left" id="rest-left">' + fmtClock(session.restSeconds) + "</span>") +
+              '<button type="button" class="btn btn-small" data-act="rest-go">▶ ' + session.restSeconds + " s</button>" +
+              '<button type="button" class="btn btn-small btn-ghost" data-act="rest-cfg">' + session.restSeconds + " s</button>" +
+            "</div>"
+          : "") +
         lastSessionsBlock() +
 
         session.exercises.map(function (e, ei) {
@@ -477,9 +519,21 @@ export function openMuscuSession(templateKey, resume) {
                   return "<li><span>" + (isTime ? s.reps + " s" : s.reps) +
                     (noLoad ? "" : " × " + s.weight + " kg") +
                     (s.rpe ? ' <span class="set-rpe">RPE ' + s.rpe + "</span>" : "") +
+                    (s.dur ? ' <span class="set-time">' + fmtClock(s.dur) + "</span>" : "") +
+                    (s.rest ? ' <span class="set-time">pause ' + fmtClock(s.rest) + "</span>" : "") +
                     (noLoad ? "" : ' <span class="set-rm">1RM ' + estimate1RM(s.weight, s.reps) + "</span>") +
                     '</span><button type="button" class="set-del" data-act="set-del" data-ei="' + ei + '" data-si="' + si + '" aria-label="Retirer">✕</button></li>';
                 }).join("") + "</ol>"
+              : "") +
+            // « Je commence » borne la série : sans lui on garde quand même la
+            // pause, mais pas la durée de la série.
+            (started
+              ? (running && session.setEx === ei
+                  ? '<button type="button" class="btn btn-block set-go is-running" data-act="set-stop">⏱ Série en cours — ' +
+                    '<span id="set-clock-' + ei + '">' + fmtClock((Date.now() - session.setStartAt) / 1000) + "</span> · annuler</button>"
+                  : running
+                    ? ""
+                    : '<button type="button" class="btn btn-block btn-ghost set-go" data-act="set-go" data-ei="' + ei + '">▶ Je commence</button>')
               : "") +
             '<div class="set-form' + (noLoad ? " no-load" : "") + '">' +
               '<input type="number" inputmode="numeric" min="1" max="500" placeholder="' + (isTime ? "sec" : "reps") + '" aria-label="' + (isTime ? "Secondes" : "Reps") + '" data-reps="' + ei + '" value="' + esc(last.reps) + '">' +
@@ -497,12 +551,43 @@ export function openMuscuSession(templateKey, resume) {
           '<button type="button" class="btn btn-primary" data-act="sess-finish">Terminer</button>' +
         "</div>";
 
-      body.querySelector('[data-act="rest-go"]').addEventListener("click", function () {
+      clearInterval(tick);
+      tick = setInterval(refreshClocks, 1000);
+
+      const startBtn = body.querySelector('[data-act="sess-start"]');
+      if (startBtn) startBtn.addEventListener("click", function () { startSession(); });
+
+      const weighBtn = body.querySelector('[data-act="sess-weigh"]');
+      if (weighBtn) weighBtn.addEventListener("click", function () {
+        rest.stop(); clearInterval(tick);
+        close();
+        openWeighIn(null, function () { openMuscuSession(session.template, true); });
+      });
+
+      body.querySelectorAll('[data-act="set-go"]').forEach(function (b) {
+        b.addEventListener("click", function () {
+          if (!session.startedAt) startSession(true);
+          session.setStartAt = Date.now();
+          session.setEx = parseInt(b.dataset.ei, 10);
+          rest.stop();
+          cueStart();
+          render();
+        });
+      });
+      const stopBtn = body.querySelector('[data-act="set-stop"]');
+      if (stopBtn) stopBtn.addEventListener("click", function () {
+        session.setStartAt = null; session.setEx = null;
+        render();
+      });
+
+      const restGo = body.querySelector('[data-act="rest-go"]');
+      if (restGo) restGo.addEventListener("click", function () {
         body.querySelector("#rest-bar").classList.remove("is-over");
         rest.start(session.restSeconds);
         keepAwake();
       });
-      body.querySelector('[data-act="rest-cfg"]').addEventListener("click", function () {
+      const restCfg = body.querySelector('[data-act="rest-cfg"]');
+      if (restCfg) restCfg.addEventListener("click", function () {
         const opts = [60, 90, 120, 150, 180];
         session.restSeconds = opts[(opts.indexOf(session.restSeconds) + 1) % opts.length];
         render();
@@ -516,10 +601,22 @@ export function openMuscuSession(templateKey, resume) {
           const rEl = body.querySelector('[data-rpe="' + ei + '"]');
           const rpe = rEl && rEl.value !== "" ? parseInt(rEl.value, 10) : null;
           if (reps <= 0) return;
-          session.exercises[ei].sets.push({ reps: reps, weight: weight, rpe: rpe });
+          if (!session.startedAt) startSession(true);
+          const now = Date.now();
+          // Durée de la série : du « je commence » à la validation.
+          const dur = session.setStartAt ? Math.round((now - session.setStartAt) / 1000) : null;
+          // Pause : de la fin de la série précédente au « je commence »
+          // (ou à défaut à cette validation).
+          const pause = session.lastSetAt
+            ? Math.round(((session.setStartAt || now) - session.lastSetAt) / 1000) : null;
+          session.exercises[ei].sets.push({ reps: reps, weight: weight, rpe: rpe, dur: dur, rest: pause });
+          session.lastSetAt = now;
+          session.setStartAt = null;
+          session.setEx = null;
           render();
           // Le repos démarre tout seul après une série validée.
-          body.querySelector("#rest-bar").classList.remove("is-over");
+          const bar = body.querySelector("#rest-bar");
+          if (bar) bar.classList.remove("is-over");
           rest.start(session.restSeconds);
           keepAwake();
           cueRest();
@@ -532,7 +629,7 @@ export function openMuscuSession(templateKey, resume) {
         });
       });
       body.querySelector('[data-act="ex-add"]').addEventListener("click", function () {
-        rest.stop();
+        rest.stop(); clearInterval(tick);
         close();
         openExercisePicker(function (ex) {
           session.exercises.push({ ex: ex.id, target: "", sets: [] });
@@ -540,34 +637,59 @@ export function openMuscuSession(templateKey, resume) {
         }, function () { openMuscuSession(session.template, true); });
       });
       body.querySelector('[data-act="sess-cancel"]').addEventListener("click", function () {
-        rest.stop();
+        rest.stop(); clearInterval(tick);
         close();
         confirmSheet("Abandonner la séance ?", "Les séries saisies seront perdues.", "Abandonner",
           function () { session = null; toast("Séance abandonnée"); });
       });
-      body.querySelector('[data-act="sess-finish"]').addEventListener("click", function () {
+      body.querySelectorAll('[data-act="sess-finish"]').forEach((b) => b.addEventListener("click", function () {
         const done = session.exercises.filter((e) => e.sets.length);
         if (!done.length) { toast("Aucune série validée", "error"); return; }
-        rest.stop();
+        session.endedAt = Date.now();
+        rest.stop(); clearInterval(tick);
         close();
         openFinishMuscu();
-      });
+      }));
+
+      // Démarrage : le chrono part, et la pesée se rappelle ici plutôt qu'à
+      // une heure fixe — c'est le moment où tu es devant la balance.
+      function startSession(silent) {
+        session.startedAt = Date.now();
+        keepAwake();
+        if (!silent) cueStart();
+        render();
+        if (state.settings.reminders && state.settings.reminders.peseeOn && weighDue()) {
+          const since = daysSince("poids");
+          toast("⚖️ Pense à te peser" + (since ? " — " + since + " j sans mesure" : ""));
+        }
+      }
     }
 
     render();
-  }, { onClose: function () { if (rest) rest.stop(); releaseAwake(); } });
+  }, { onClose: function () { if (rest) rest.stop(); clearInterval(tick); releaseAwake(); } });
 }
 
 function openFinishMuscu() {
   openSheet("Terminer la séance", function (body, close) {
-    const dur = Math.round((Date.now() - session.startedAt) / 1000);
+    // Durée réelle : du « Commencer » au « Terminer ». Une séance saisie
+    // après coup (jamais démarrée) n'invente pas de durée.
+    const dur = session.startedAt
+      ? Math.round(((session.endedAt || Date.now()) - session.startedAt) / 1000) : 0;
+    const allSets = session.exercises.flatMap((e) => e.sets);
+    const work = allSets.reduce((a, s) => a + (s.dur || 0), 0);
+    const pauses = allSets.map((s) => s.rest).filter((r) => r);
+    const avgRest = pauses.length ? Math.round(pauses.reduce((a, r) => a + r, 0) / pauses.length) : null;
     // RPE de séance proposé = moyenne des RPE de séries, sinon 6 (reprise).
-    const rpes = session.exercises.flatMap((e) => e.sets.map((s) => s.rpe)).filter((r) => r);
+    const rpes = allSets.map((s) => s.rpe).filter((r) => r);
     const suggested = rpes.length ? Math.round(rpes.reduce((a, r) => a + r, 0) / rpes.length) : 6;
     body.innerHTML =
-      '<p class="sheet-text">' + fmtDuration(dur) + " · " +
+      '<p class="sheet-text">' + (dur ? fmtDuration(dur) + " · " : "") +
         session.exercises.filter((e) => e.sets.length).length + " exercices · " +
-        session.exercises.reduce((a, e) => a + e.sets.length, 0) + " séries</p>" +
+        allSets.length + " séries</p>" +
+      (work || avgRest
+        ? '<p class="hint">' + (work ? "Temps sous tension : " + fmtDuration(work) + "." : "") +
+          (avgRest ? " Pause moyenne entre deux séries : " + fmtClock(avgRest) + "." : "") + "</p>"
+        : "") +
       '<div class="field"><span>RPE de la séance' +
         (rpes.length ? " — moyenne de tes séries : " + suggested : " — cible 6 en reprise") + "</span>" +
         rpeChips(suggested) + "</div>" +

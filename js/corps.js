@@ -9,7 +9,10 @@ import { state, save, dayKey } from "./state.js";
 export const BODY_FIELDS = [
   { key: "poids", label: "Poids", short: "Poids", unit: "kg", min: 30, max: 250, step: 0.1, dec: 1, better: "any" },
   { key: "gras", label: "Masse grasse", short: "Gras", unit: "%", min: 3, max: 60, step: 0.1, dec: 1, better: "down" },
-  { key: "muscle", label: "Masse musculaire", short: "Muscle", unit: "%", min: 10, max: 70, step: 0.1, dec: 1, better: "up" }
+  { key: "muscle", label: "Masse musculaire", short: "Muscle", unit: "%", min: 10, max: 70, step: 0.1, dec: 1, better: "up" },
+  // Mensurations : le mètre ruban voit ce que la balance rate.
+  { key: "ventre", label: "Tour de ventre", short: "Ventre", unit: "cm", min: 40, max: 200, step: 0.5, dec: 1, better: "down" },
+  { key: "bras", label: "Tour de bras", short: "Bras", unit: "cm", min: 15, max: 70, step: 0.5, dec: 1, better: "up" }
 ];
 
 export const BODY_MAP = BODY_FIELDS.reduce(function (a, f) { a[f.key] = f; return a; }, {});
@@ -79,7 +82,7 @@ export function allTrends() {
 }
 
 // Une variation compte quand elle dépasse le bruit de la balance.
-export const NOISE = { poids: 0.3, gras: 0.5, muscle: 0.5 };
+export const NOISE = { poids: 0.3, gras: 0.5, muscle: 0.5, ventre: 0.5, bras: 0.3 };
 
 export function trendLevel(field, delta) {
   if (delta === null || Math.abs(delta) < (NOISE[field] || 0.3)) return "flat";

@@ -257,6 +257,13 @@ export function tempoLabel(t) {
 }
 
 // RPE optionnel, borné 1-10 ; null si absent.
+// Secondes mesurées : absentes tant qu'on n'a rien chronométré.
+function cleanSeconds(v, max) {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Math.round(num(v));
+  return n > 0 && n <= max ? n : null;
+}
+
 function cleanRpe(v) {
   if (v === undefined || v === null || v === "") return null;
   const n = Math.round(num(v));
@@ -296,7 +303,11 @@ export function addWorkout(w) {
         const ex = exerciseById(e.ex);
         if (!ex) return null;
         const sets = (e.sets || []).map(function (s) {
-          return { reps: Math.max(0, Math.round(num(s.reps))), weight: Math.max(0, num(s.weight)), rpe: cleanRpe(s.rpe) };
+          return {
+            reps: Math.max(0, Math.round(num(s.reps))), weight: Math.max(0, num(s.weight)), rpe: cleanRpe(s.rpe),
+            // Durée de la série et pause qui la précède, en secondes.
+            dur: cleanSeconds(s.dur, 3600), rest: cleanSeconds(s.rest, 7200)
+          };
         }).filter((s) => s.reps > 0);
         return sets.length ? { ex: ex.id, sets: sets, tempo: cleanTempo(e.tempo) } : null;
       })

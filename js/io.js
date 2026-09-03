@@ -302,6 +302,12 @@ function cleanQtyMap(src) {
 
 // Rappels : heures au format HH:MM, intervalles bornés. Une heure invalide
 // ferait taire le rappel sans rien dire.
+// Secondes mesurées pendant une série : null si absurde ou absent.
+function secondsOr(v, max) {
+  const n = Math.round(numOr(v, 0));
+  return n > 0 && n <= max ? n : null;
+}
+
 function cleanReminders(raw) {
   const r = (raw && typeof raw === "object") ? raw : {};
   const time = (v, def) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(v)) ? String(v) : def);
@@ -327,7 +333,7 @@ function sanitizeState(parsed) {
   // check-in du matin : un JSON forgé ne doit pas y injecter n'importe quoi.
   const DAILY_NUM = {
     sommeil: [0, 24], fc: [20, 220], hrv: [1, 300], energie: [1, 5],
-    poids: [30, 250], gras: [3, 60], muscle: [10, 70],
+    poids: [30, 250], gras: [3, 60], muscle: [10, 70], ventre: [40, 200], bras: [15, 70],
     forme: [1, 10], journee: [1, 10],
     sommeil_q: [1, 4], energie_q: [1, 4], douleur_q: [1, 4], humeur_q: [1, 4]
   };
@@ -508,7 +514,9 @@ function sanitizeState(parsed) {
               .map((s) => ({
                 reps: Math.max(0, Math.round(numOr(s.reps, 0))),
                 weight: Math.max(0, numOr(s.weight, 0)),
-                rpe: (function () { const r = Math.round(numOr(s.rpe, 0)); return r >= 1 && r <= 10 ? r : null; })()
+                rpe: (function () { const r = Math.round(numOr(s.rpe, 0)); return r >= 1 && r <= 10 ? r : null; })(),
+                dur: secondsOr(s.dur, 3600),
+                rest: secondsOr(s.rest, 7200)
               }))
               .filter((s) => s.reps > 0)
           }))

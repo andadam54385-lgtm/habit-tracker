@@ -27,12 +27,15 @@ function fmtDay(key) {
 
 // ------------------------------------------------------------ saisie
 
-export function openWeighIn(key) {
+// `after` permet d'ouvrir la pesée depuis une séance et d'y revenir ensuite :
+// les feuilles ne s'empilent pas, celle de la séance a été fermée.
+export function openWeighIn(key, after) {
   const k = key || dayKey();
   const d = state.daily[k] || {};
   openSheet("⚖️ Pesée du jour", function (body, close) {
     body.innerHTML =
-      '<p class="sheet-text">Le poids seul suffit. Gras et muscle, seulement les jours où tu passes sur la balance de la salle.</p>' +
+      '<p class="sheet-text">Le poids seul suffit. Gras et muscle le jour où tu passes sur la balance de la salle, ' +
+        "ventre et bras quand tu sors le mètre : chaque champ vide est simplement ignoré.</p>" +
       BODY_FIELDS.map(function (f) {
         const last = lastEntry(f.key);
         return '<label class="field"><span>' + esc(f.label) + " (" + f.unit + ")" +
@@ -61,14 +64,17 @@ export function openWeighIn(key) {
       toast(p ? "Pesée enregistrée : " + p.value + " kg" : "Enregistré");
     });
     body.querySelector("#bw-poids").focus();
-  });
+  }, { onClose: function () { if (after) setTimeout(after, 0); } });
 }
 
 // ------------------------------------------------------------ rappels
 
 const REMINDER_DEFS = [
-  { key: "pesee", label: "Pesée", icon: "⚖️", onKey: "peseeOn", timeKey: "peseeHeure", daysKey: "peseeJours",
-    defTime: "18:00", defDays: 1, maxDays: 30, hint: "Par exemple à l'heure de ta séance, la balance est sur place." },
+  // La pesée ne suit pas une heure : elle se rappelle au moment où tu
+  // démarres une séance, la balance est sur place.
+  { key: "pesee", label: "Pesée au début de séance", icon: "⚖️", onKey: "peseeOn", daysKey: "peseeJours",
+    defDays: 1, maxDays: 30, atSession: true,
+    hint: "Quand tu appuies sur « Commencer la séance », l'app te le rappelle si ta dernière pesée date." },
   { key: "photo", label: "Photos", icon: "📷", onKey: "photoOn", timeKey: "photoHeure", daysKey: "photoJours",
     defTime: "07:30", defDays: 14, maxDays: 90, hint: "Le matin, même lumière et même endroit : c'est ce qui rend la comparaison lisible." }
 ];
@@ -84,8 +90,11 @@ function remindersBlock() {
         '<label class="switch"><input type="checkbox" data-rem-on="' + def.key + '"' + (on ? " checked" : "") + ">" +
           "<span>" + def.icon + " " + esc(def.label) + "</span></label>" +
         '<div class="times">' +
-          '<label class="field"><span>Heure</span><input class="input" type="time" data-rem-time="' + def.key + '" value="' + esc(r[def.timeKey] || def.defTime) + '"></label>' +
-          '<label class="field"><span>Tous les</span><span class="rem-days"><input class="input" type="number" inputmode="numeric" min="1" max="' + def.maxDays +
+          (def.atSession
+            ? '<p class="rem-when">Au démarrage d\'une séance</p>'
+            : '<label class="field"><span>Heure</span><input class="input" type="time" data-rem-time="' + def.key + '" value="' + esc(r[def.timeKey] || def.defTime) + '"></label>') +
+          '<label class="field"><span>' + (def.atSession ? "Si plus de" : "Tous les") + '</span><span class="rem-days">' +
+            '<input class="input" type="number" inputmode="numeric" min="1" max="' + def.maxDays +
             '" data-rem-days="' + def.key + '" value="' + (r[def.daysKey] || def.defDays) + '"> jours</span></label>' +
         "</div>" +
         '<p class="hint">' + esc(def.hint) + "</p>" +
