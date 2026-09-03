@@ -1,7 +1,7 @@
 /* Service worker : coquille hors ligne + réception du partage système.
    Pas de push, pas de serveur — l'app reste entièrement locale. */
 
-const VERSION = "suivi-v27";
+const VERSION = "suivi-v28";
 const SHELL = [
   "./",
   "./index.html",
@@ -31,6 +31,10 @@ const SHELL = [
   "./js/exercises.js",
   "./js/sport.js",
   "./js/forme.js",
+  "./js/corps.js",
+  "./js/photos.js",
+  "./js/corpsview.js",
+  "./js/rapport.js",
   "./js/charge.js",
   "./js/formeview.js",
   "./js/sportview.js"

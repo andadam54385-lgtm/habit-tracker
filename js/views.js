@@ -231,6 +231,7 @@ export function viewSections() {
   }
   html += "</nav>";
   html += '<div class="section-links">' +
+    '<a class="row-link" href="#/corps">⚖️ Corps — poids, composition, photos</a>' +
     '<a class="row-link" href="#/recherche">🔍 Recherche</a>' +
     '<a class="row-link" href="#/import">📥 Importer depuis Claude</a>' +
     '<a class="row-link" href="#/reglages">⚙️ Réglages, export et sauvegarde</a>' +

@@ -54,6 +54,8 @@ export function viewSettings() {
       '<button type="button" class="btn btn-block btn-ghost" data-act="copy-md">Copier le Markdown</button>' +
       '<button type="button" class="btn btn-block btn-ghost" data-act="export-json">Sauvegarde JSON</button>' +
       '<button type="button" class="btn btn-block btn-ghost" data-act="copy-json">Copier le JSON</button>' +
+      '<p class="hint">Les photos de suivi ne sont dans aucun export : elles pèsent trop lourd et ne servent qu\'à l\'œil. ' +
+        "Elles restent sur cet appareil, et se suppriment une par une dans Corps.</p>" +
     "</section>" +
 
     '<section class="panel">' +

@@ -1025,3 +1025,41 @@ td.rate-none { color: var(--text-faint); }
 .bilan-journal li { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font-size: 14px; }
 .bilan-journal strong { font-size: 12.5px; color: var(--accent); }
 .bilan-ko { font-size: 12.5px; color: var(--text-soft); }
+
+/* ------------------------------------------------------------- corps */
+.body-card { margin-top: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.body-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.body-card-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
+.body-last { font-size: 12.5px; color: var(--text-soft); font-variant-numeric: tabular-nums; }
+.trend-row { display: grid; grid-template-columns: 42px 1fr auto; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--border); }
+.trend-row:first-of-type { border-top: 0; }
+.trend-win { font-size: 12px; font-weight: 700; color: var(--text-faint); }
+.trend-avg { display: flex; flex-direction: column; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.trend-avg small { font-size: 11.5px; font-weight: 500; color: var(--text-faint); }
+.trend-delta { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text-soft); }
+.trend-delta.is-good { color: var(--ok); }
+.trend-delta.is-bad { color: var(--danger, #e5484d); }
+.trend-delta.is-up, .trend-delta.is-down { color: var(--accent); }
+.hint-inline { font-weight: 500; color: var(--text-faint); }
+.chart-svg { display: block; width: 100%; height: 80px; color: var(--accent); }
+.chart-scale { font-size: 11.5px; color: var(--text-faint); }
+
+/* photos */
+.ph-actions { margin: 10px 0; }
+.ph-actions .btn { width: 100%; }
+.ph-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.ph-side { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ph-side select { min-height: 40px; font-size: 14px; }
+.ph-frame { aspect-ratio: 3 / 4; border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-2); border: 1px solid var(--border); }
+.ph-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ph-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.ph-cell { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.ph-thumb { aspect-ratio: 1; border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-2); border: 1px solid var(--border); }
+.ph-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ph-cell figcaption { display: flex; align-items: center; justify-content: space-between; gap: 4px; font-size: 11.5px; color: var(--text-soft); }
+.ph-del { width: 24px; height: 24px; border: 0; background: none; color: var(--text-faint); font-size: 13px; }
+
+/* rappels */
+.rem-card { margin-top: 10px; }
+.rem-days { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-soft); }
+.rem-days input { width: 64px; text-align: center; }

@@ -30,7 +30,12 @@ function emptyState() {
     importedHashes: {},  // hash -> timestamp (idempotence des imports)
     settings: {
       theme: "auto",
-      reminders: { retour: "18:30", matin: "07:00", on: false },
+      reminders: {
+        retour: "18:30", matin: "07:00", on: false,
+        // Pesée et photos : chacune son heure et son rythme.
+        peseeOn: false, peseeHeure: "18:00", peseeJours: 1,
+        photoOn: false, photoHeure: "07:30", photoJours: 14
+      },
       folded: {}         // sectionKey -> true si le thème est replié
     },
     seededIds: []        // ids de graine déjà injectés — permet d'en ajouter plus tard

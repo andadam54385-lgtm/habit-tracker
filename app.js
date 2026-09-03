@@ -3,6 +3,7 @@
 
 import { load, subscribe, toggle, setStatus, byId } from "./js/state.js";
 import { el, toast } from "./js/ui.js";
+import { download, stamp } from "./js/io.js";
 import { openQuickAdd, openItem, openHowto } from "./js/sheets.js";
 import { applyTheme, scheduleReminders } from "./js/notify.js";
 import {
@@ -29,12 +30,14 @@ import {
 } from "./js/nutrition.js";
 import { state, save } from "./js/state.js";
 import { viewObjectives, mountObjectives, toggleObjective, removeObjective } from "./js/objectives.js";
-import { openCheckin, openJournal, viewBilan, bilanMarkdown } from "./js/formeview.js";
+import { openCheckin, openJournal, viewBilan, bilanMarkdown, setRapportPeriod, rapportPeriod } from "./js/formeview.js";
+import { viewCorps, mountCorps, openWeighIn, setPhotoKind, pickPhoto, confirmDeletePhoto } from "./js/corpsview.js";
+import { rapportMarkdown } from "./js/rapport.js";
 import { setVolumeMetric } from "./js/charge.js";
 import { MIGRATION_RESULT } from "./js/state.js";
 
 const NAV = [
-  { href: "#/", label: "Accueil", icon: "🏠", match: (r) => ["home", "sections", "section", "daily", "search", "import", "settings", "objectives", "bilan"].includes(r.name) },
+  { href: "#/", label: "Accueil", icon: "🏠", match: (r) => ["home", "sections", "section", "daily", "search", "import", "settings", "objectives", "bilan", "corps"].includes(r.name) },
   { href: "#/jour", label: "Jour", icon: "✅", match: (r) => r.name === "today" },
   { href: "#/nutrition", label: "Diète", icon: "🍽️", match: (r) => r.name === "nutrition" || r.name === "recipes" },
   { href: "#/sport", label: "Sport", icon: "🏋️", match: (r) => r.name === "sport" },
@@ -59,6 +62,7 @@ function parseRoute() {
     case "nutrition": return { name: "nutrition", params };
     case "objectifs": return { name: "objectives", params };
     case "bilan": return { name: "bilan", params };
+    case "corps": return { name: "corps", params };
     case "recettes": return { name: "recipes", params };
     case "sport": return { name: "sport", params };
     case "recherche": return { name: "search", params };
@@ -80,6 +84,7 @@ function renderRoute(route) {
     case "nutrition": return viewNutrition();
     case "objectives": return viewObjectives(route.params.get("w") || 0);
     case "bilan": return viewBilan(route.params.get("w") || 0);
+    case "corps": return viewCorps();
     case "recipes": return viewRecipes();
     case "sport": return viewSport(route.params.get("t") || "muscu");
     case "search": return viewSearch(route.params.get("q") || "");
@@ -109,6 +114,8 @@ function render() {
     mountObjectives();
   } else if (route.name === "recipes") {
     mountRecipes();
+  } else if (route.name === "corps") {
+    mountCorps();
   } else if (route.name === "sport") {
     mountSport();
   } else {
@@ -133,31 +140,59 @@ function scheduleRender() {
   if (!isEditing()) { render(); return; }
   if (renderQueued) return;
   renderQueued = true;
+
+  let poll = null;
+  function flush() {
+    if (isEditing()) return false;
+    document.removeEventListener("focusout", onOut);
+    clearInterval(poll);
+    renderQueued = false;
+    render();
+    return true;
+  }
   // On garde l'écouteur jusqu'à un vrai rendu : si le focus saute directement
   // d'un champ à un autre, on attend le focusout suivant au lieu d'abandonner
   // le rendu en route.
-  document.addEventListener("focusout", function onOut() {
-    setTimeout(function () {
-      if (isEditing()) return;
-      document.removeEventListener("focusout", onOut);
-      renderQueued = false;
-      render();
-    }, 0);
-  });
+  function onOut() { setTimeout(flush, 0); }
+  document.addEventListener("focusout", onOut);
+  // Filet : une feuille fermée alors qu'un champ avait le focus ne produit
+  // pas toujours de focusout — sans ce contrôle, la vue resterait périmée.
+  poll = setInterval(flush, 300);
 }
 
 function isEditing() {
   const a = document.activeElement;
-  return !!a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA" || a.tagName === "SELECT");
+  // Un champ détaché du document (feuille fermée) ne bloque plus le rendu.
+  return !!a && document.contains(a) &&
+    (a.tagName === "INPUT" || a.tagName === "TEXTAREA" || a.tagName === "SELECT");
 }
 
 // -------------------------------------------------------- délégation
 
 function onClick(e) {
   // ---- forme : check-in, journal, bilan, mesure du volume
-  const formeAct = e.target.closest('[data-act="open-checkin"], [data-act="open-journal"], [data-act="copy-bilan"], [data-act="vol-metric"]');
+  const formeAct = e.target.closest('[data-act="open-checkin"], [data-act="open-journal"], [data-act="copy-bilan"], [data-act="vol-metric"],' +
+    '[data-act="weigh-in"], [data-act="ph-kind"], [data-act="ph-add"], [data-act="ph-del"],' +
+    '[data-act="rapport-period"], [data-act="copy-rapport"], [data-act="export-rapport"]');
   if (formeAct) {
     const act = formeAct.dataset.act;
+    if (act === "weigh-in") { openWeighIn(); return; }
+    if (act === "ph-kind") { setPhotoKind(formeAct.dataset.kind); return; }
+    if (act === "ph-add") { pickPhoto(); return; }
+    if (act === "ph-del") { confirmDeletePhoto(formeAct.dataset.photo); return; }
+    if (act === "rapport-period") { setRapportPeriod(formeAct.dataset.days); return; }
+    if (act === "copy-rapport") {
+      const md = rapportMarkdown(rapportPeriod());
+      const done = () => toast("Compte rendu copié — colle-le dans Claude");
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(md).then(done, () => fallbackCopy(md, done));
+      else fallbackCopy(md, done);
+      return;
+    }
+    if (act === "export-rapport") {
+      download("compte-rendu-" + stamp() + ".md", rapportMarkdown(rapportPeriod()), "text/markdown");
+      toast("Compte rendu exporté");
+      return;
+    }
     if (act === "open-checkin") openCheckin();
     else if (act === "open-journal") openJournal();
     else if (act === "vol-metric") setVolumeMetric(formeAct.dataset.metric);

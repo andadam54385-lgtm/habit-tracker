@@ -2,7 +2,7 @@
 // la semaine. Cartes réutilisées par l'accueil et l'écran Sport.
 
 import { esc, escLines, openSheet, toast } from "./ui.js";
-import { state, dayKey, weekDayKeys } from "./state.js";
+import { state, save, dayKey, weekDayKeys } from "./state.js";
 import {
   CHECKIN, checkinFor, formeScore, formeAdvice, sleepOption, saveCheckin, checkinStreak,
   saveJournal, journalFor, topStreaks, averageOf, dayData
@@ -14,6 +14,21 @@ import {
 } from "./objectives.js";
 import { topGaps } from "./nutrition.js";
 import { SECTION_MAP } from "./seed.js";
+import { PERIODS, rapportSummary } from "./rapport.js";
+import { weighDue, daysSince, trendFor, composition } from "./corps.js";
+
+// Période du compte rendu, mémorisée entre deux visites.
+export function rapportPeriod() {
+  const n = Math.round(+state.settings.rapportJours);
+  return PERIODS.indexOf(n) >= 0 ? n : 14;
+}
+
+export function setRapportPeriod(days) {
+  const n = Math.round(+days);
+  if (PERIODS.indexOf(n) < 0) return;
+  state.settings.rapportJours = n;
+  save();
+}
 
 const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 
@@ -135,7 +150,16 @@ export function homeForme() {
     '<span class="forme-main"><strong>' + (j ? "Journée " + (j.note ? j.note + "/10" : "notée") : "Journal du soir") + "</strong>" +
       "<span>" + esc(j && j.reussites ? j.reussites.split("\n")[0].slice(0, 90) : "Mes réussites du jour, en deux lignes.") + "</span></span>" +
     "</button>";
-  html += '<a class="row-link" href="#/bilan">📋 Bilan de la semaine</a>';
+  // La pesée n'a de carte que quand elle est due : sinon c'est du bruit.
+  if (state.settings.reminders && state.settings.reminders.peseeOn && weighDue()) {
+    const since = daysSince("poids");
+    html += '<button type="button" class="forme-card is-todo" data-act="weigh-in">' +
+      '<span class="forme-face">⚖️</span>' +
+      '<span class="forme-main"><strong>Pesée à faire</strong><span>' +
+        (since === null ? "Première mesure : poids, et si tu es à la salle, gras et muscle." : since + " jour" + (since > 1 ? "s" : "") + " sans mesure.") +
+      "</span></span></button>";
+  }
+  html += '<a class="row-link" href="#/bilan">📋 Bilan et compte rendu</a>';
   return html;
 }
 
@@ -194,6 +218,7 @@ export function weeklyReview(offset) {
       minutes: Math.round(ws.reduce((a, w) => a + (w.duration || 0), 0) / 60) },
     load: load, loadStatus: ls,
     forme: averageOf("forme", keys), sommeil: averageOf("sommeil", keys), journee: averageOf("journee", keys),
+    poids: trendFor("poids", 7), corps: composition(),
     journal: journal, streaks: topStreaks(3), gaps: gaps, fixes: fixes.slice(0, 3)
   };
 }
@@ -215,7 +240,8 @@ export function viewBilan(offset) {
   "</section>";
   html += '<p class="hint">' + r.sessions.muscu + " muscu · " + r.sessions.circuit + " circuit · " + r.sessions.course + " course · " + r.sessions.mobilite + " mobilité · " + r.sessions.minutes + " min" +
     (r.loadStatus && r.loadStatus.mean ? " · charge " + (r.loadStatus.ratio >= 1 ? "+" : "") + Math.round((r.loadStatus.ratio - 1) * 100) + " % vs 4 dernières semaines" : "") +
-    (r.forme ? " · forme " + r.forme + "/10" : "") + (r.sommeil ? " · sommeil " + r.sommeil + " h" : "") + (r.journee ? " · journées " + r.journee + "/10" : "") + "</p>";
+    (r.forme ? " · forme " + r.forme + "/10" : "") + (r.sommeil ? " · sommeil " + r.sommeil + " h" : "") + (r.journee ? " · journées " + r.journee + "/10" : "") +
+    (r.poids.current !== null ? " · poids " + r.poids.current + " kg" + (r.poids.delta !== null ? " (" + (r.poids.delta > 0 ? "+" : "") + r.poids.delta + " vs 7 j avant)" : "") : "") + "</p>";
 
   if (r.fixes.length) {
     html += '<div class="block-head"><h2>À corriger en priorité</h2></div><ol class="bilan-list is-fix">' +
@@ -247,8 +273,28 @@ export function viewBilan(offset) {
   }
 
   html += '<div class="sheet-actions" style="margin-top:16px">' +
-    '<button type="button" class="btn btn-primary btn-block" data-act="copy-bilan" data-w="' + r.offset + '">📋 Copier pour Claude</button></div>' +
-    '<p class="hint">Colle le bilan dans Claude pour ajuster le plan de la semaine suivante. Il te renverra un bloc suivi à importer.</p>';
+    '<button type="button" class="btn btn-primary btn-block" data-act="copy-bilan" data-w="' + r.offset + '">📋 Copier le bilan</button></div>';
+
+  // Compte rendu complet : plus long que le bilan, fait pour être lu par
+  // Claude et revenir en conseils.
+  const period = rapportPeriod();
+  const sum = rapportSummary(period);
+  html += '<div class="block-head"><h2>Compte rendu pour Claude</h2></div>' +
+    '<div class="sort-row" role="group" aria-label="Période du compte rendu">' +
+      PERIODS.map((p) => '<button type="button" class="sort-btn' + (p === period ? " is-active" : "") +
+        '" data-act="rapport-period" data-days="' + p + '">' + p + " jours</button>").join("") +
+    "</div>" +
+    '<p class="hint">Sur ' + sum.days + " jours : " + sum.sessions + " séance" + (sum.sessions > 1 ? "s" : "") + " · " +
+      sum.logged + " journée" + (sum.logged > 1 ? "s" : "") + " de diète saisie" + (sum.logged > 1 ? "s" : "") +
+      (sum.poids !== null ? " · poids moyen " + sum.poids + " kg" + (sum.delta !== null ? " (" + (sum.delta > 0 ? "+" : "") + sum.delta + ")" : "") : "") +
+      (sum.forme !== null ? " · forme " + sum.forme + "/10" : "") + " · " + sum.journal + " journal" +
+      " · réussite " + formatPercent(sum.rate) + ".</p>" +
+    '<div class="sheet-actions">' +
+      '<button type="button" class="btn btn-primary" data-act="copy-rapport">📋 Copier le compte rendu</button>' +
+      '<button type="button" class="btn btn-ghost" data-act="export-rapport">Fichier .md</button>' +
+    "</div>" +
+    '<p class="hint">Colle-le dans Claude : corps, entraînement, charge, diète, forme et journal, avec les périodes. ' +
+      "Il te répond en conseils et en bloc suivi à réimporter. Les photos n'y sont pas.</p>";
   html += "</div>";
   return html;
 }
@@ -259,6 +305,11 @@ export function bilanMarkdown(offset) {
   out.push("- Réussite globale : " + formatPercent(r.total));
   out.push("- Séances : " + r.sessions.total + " (" + r.sessions.muscu + " muscu, " + r.sessions.circuit + " circuit, " + r.sessions.course + " course, " + r.sessions.mobilite + " mobilité), " + r.sessions.minutes + " min, charge " + r.load +
     (r.loadStatus && r.loadStatus.mean ? " (" + (r.loadStatus.ratio >= 1 ? "+" : "") + Math.round((r.loadStatus.ratio - 1) * 100) + " % vs 4 dernières semaines)" : ""));
+  if (r.poids.current !== null) {
+    out.push("- Poids moyen : " + r.poids.current + " kg sur " + r.poids.n + " pesée" + (r.poids.n > 1 ? "s" : "") +
+      (r.poids.delta !== null ? " (" + (r.poids.delta > 0 ? "+" : "") + r.poids.delta + " kg vs les 7 jours précédents)" : ""));
+  }
+  if (r.corps && r.corps.gras) out.push("- Composition : " + r.corps.gras.pct + " % de gras" + (r.corps.muscle ? ", " + r.corps.muscle.pct + " % de muscle" : "") + " (mesuré le " + r.corps.gras.date + ")");
   if (r.forme) out.push("- Forme moyenne : " + r.forme + "/10");
   if (r.sommeil) out.push("- Sommeil moyen : " + r.sommeil + " h");
   if (r.journee) out.push("- Journées notées : " + r.journee + "/10");

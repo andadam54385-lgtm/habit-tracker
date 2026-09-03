@@ -160,10 +160,11 @@ function groupedLines(items) {
 function exportDailyTable() {
   const keys = Object.keys(state.daily).sort();
   if (!keys.length) return "_Aucune donnée de suivi._";
-  const rows = ["| Date | Sommeil | FC repos | Énergie |", "|---|---|---|---|"];
+  const rows = ["| Date | Poids | Gras | Muscle | Sommeil | Forme | Journée |", "|---|---|---|---|---|---|---|"];
   for (const k of keys) {
     const v = state.daily[k];
-    rows.push("| " + k + " | " + val(v.sommeil, " h") + " | " + val(v.fc) + " | " + val(v.energie, "/5") + " |");
+    rows.push("| " + k + " | " + val(v.poids, " kg") + " | " + val(v.gras, " %") + " | " + val(v.muscle, " %") +
+      " | " + val(v.sommeil, " h") + " | " + val(v.forme, "/10") + " | " + val(v.journee, "/10") + " |");
   }
   return rows.join("\n");
 }
@@ -299,11 +300,52 @@ function cleanQtyMap(src) {
   return out;
 }
 
+// Rappels : heures au format HH:MM, intervalles bornés. Une heure invalide
+// ferait taire le rappel sans rien dire.
+function cleanReminders(raw) {
+  const r = (raw && typeof raw === "object") ? raw : {};
+  const time = (v, def) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(v)) ? String(v) : def);
+  const days = (v, def, max) => {
+    const n = Math.round(parseFloat(v));
+    return Number.isFinite(n) && n >= 1 && n <= max ? n : def;
+  };
+  return {
+    matin: time(r.matin, "07:00"), retour: time(r.retour, "18:30"), on: !!r.on,
+    peseeOn: !!r.peseeOn, peseeHeure: time(r.peseeHeure, "18:00"), peseeJours: days(r.peseeJours, 1, 30),
+    photoOn: !!r.photoOn, photoHeure: time(r.photoHeure, "07:30"), photoJours: days(r.photoJours, 14, 90)
+  };
+}
+
 function sanitizeState(parsed) {
   const out = Object.assign({}, parsed);
 
   for (const k of ["checks", "daily", "nutrition", "notes", "importedHashes"]) {
     if (!out[k] || typeof out[k] !== "object" || Array.isArray(out[k])) out[k] = {};
+  }
+
+  // Le suivi quotidien porte maintenant des mesures corporelles et le
+  // check-in du matin : un JSON forgé ne doit pas y injecter n'importe quoi.
+  const DAILY_NUM = {
+    sommeil: [0, 24], fc: [20, 220], hrv: [1, 300], energie: [1, 5],
+    poids: [30, 250], gras: [3, 60], muscle: [10, 70],
+    forme: [1, 10], journee: [1, 10],
+    sommeil_q: [1, 4], energie_q: [1, 4], douleur_q: [1, 4], humeur_q: [1, 4]
+  };
+  const DAILY_INT = ["sommeil_q", "energie_q", "douleur_q", "humeur_q", "forme", "journee", "fc", "energie"];
+  const dailyIn = out.daily;
+  out.daily = {};
+  for (const [dkey, raw] of Object.entries(dailyIn)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dkey) || !raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const clean = {};
+    for (const [field, bounds] of Object.entries(DAILY_NUM)) {
+      // « 81,9 » vient d'un clavier français : c'est un nombre, pas 81.
+      const n = parseFloat(String(raw[field]).replace(",", "."));
+      if (!Number.isFinite(n) || n < bounds[0] || n > bounds[1]) continue;
+      clean[field] = DAILY_INT.indexOf(field) >= 0 ? Math.round(n) : Math.round(n * 10) / 10;
+    }
+    if (typeof raw.reussites === "string" && raw.reussites.trim()) clean.reussites = raw.reussites.slice(0, 600);
+    if (typeof raw.bloque === "string" && raw.bloque.trim()) clean.bloque = raw.bloque.slice(0, 400);
+    if (Object.keys(clean).length) out.daily[dkey] = clean;
   }
 
   const obj = (parsed.objectives && typeof parsed.objectives === "object") ? parsed.objectives : {};
@@ -326,12 +368,11 @@ function sanitizeState(parsed) {
   const s = (out.settings && typeof out.settings === "object") ? out.settings : {};
   out.settings = {
     theme: ["auto", "clair", "sombre"].indexOf(s.theme) >= 0 ? s.theme : "auto",
-    reminders: Object.assign(
-      { matin: "07:00", retour: "18:30", on: false },
-      (s.reminders && typeof s.reminders === "object") ? s.reminders : {}
-    ),
+    reminders: cleanReminders(s.reminders),
     folded: (s.folded && typeof s.folded === "object" && !Array.isArray(s.folded)) ? s.folded : {},
     templateSort: ["recent", "name", "order"].indexOf(s.templateSort) >= 0 ? s.templateSort : "order",
+    volumeMetric: ["tonnage", "sets", "reps", "rpe"].indexOf(s.volumeMetric) >= 0 ? s.volumeMetric : "tonnage",
+    rapportJours: [7, 14, 30].indexOf(Math.round(parseFloat(s.rapportJours))) >= 0 ? Math.round(parseFloat(s.rapportJours)) : 14,
     hiddenTemplates: (Array.isArray(s.hiddenTemplates) ? s.hiddenTemplates : []).filter((x) => typeof x === "string"),
     // Les cibles macros de l'utilisateur font partie de la sauvegarde :
     // les jeter remettrait ses fourchettes aux défauts en silence.
