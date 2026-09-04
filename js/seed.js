@@ -97,6 +97,32 @@ export const SEED_ITEMS = [
     status: "optional", priority: "low"
   }),
 
+  // ---- Ajoutés après la téléconsultation du 4 septembre 2026 ----
+  it({
+    id: "rdv-polygraphie", section: "sante", sub: "rendezvous",
+    title: "🔴 Polygraphie ventilatoire nocturne — PRIORITÉ N°1",
+    detail: "Hypothèse principale depuis le 4 sept. : apnée du sommeil (ronflement important). Examen à domicile, remboursé, prescrit par le médecin traitant ou un pneumologue.\nElle explique par un seul mécanisme : fatigue non réparée par le repos, chute de testostérone (axe gonadique supprimé), TG ↑ / HDL ↓, prise de poids, intolérance à l'effort.",
+    warn: "Point discordant à signaler : l'hématocrite a baissé (48,6 → 44,1 %) alors que l'apnée tend plutôt à l'élever.",
+    priority: "critical", pinned: true
+  }),
+  it({
+    id: "rdv-medecin-traitant", section: "sante", sub: "rendezvous",
+    title: "0 · Médecin traitant en présentiel — à déclarer",
+    detail: "Recommandé par le médecin le 4 sept. Une fatigue de 10 mois ne se gère pas en téléconsultations successives. C'est lui qui prescrira le bilan sanguin, l'EFR et la trétinoïne.\nDeux prescripteurs déjà connus : Dr Claire Delage (2025), Dr Emma Laxou Huin (2026).",
+    priority: "critical", pinned: true
+  }),
+  it({
+    id: "rdv-irm", section: "sante", sub: "rendezvous",
+    title: "Clarifier l'indication de l'IRM",
+    detail: "Évoquée le 4 sept. sans précision. Question à poser : « l'IRM, c'est pour quoi exactement — et est-ce lié au contrôle ophtalmologique ? »\nSi les deux sont liés (recherche hypophysaire), le bilan hormonal — prolactine, LH, FSH — devient prioritaire AVANT l'IRM.",
+    priority: "critical"
+  }),
+  it({
+    id: "rdv-ophtalmo", section: "sante", sub: "rendezvous",
+    title: "Contrôle ophtalmologique + lentilles",
+    detail: "Évoqué le 4 sept. Myopie : correction à jour, lentilles comme alternative aux lunettes, et passage obligé vers la chirurgie réfractive (vue stable 2 ans requise). Clôt la question « peptide pour la rétine »."
+  }),
+
   it({
     id: "ord-bilan", section: "sante", sub: "ordonnances",
     title: "Bilan sanguin",
@@ -126,6 +152,9 @@ export const SEED_ITEMS = [
   it({ id: "mk-hepatique", section: "sante", sub: "ordonnances", group: "Marqueurs du bilan sanguin", title: "Bilan hépatique", kind: "marqueur", status: "blocked", blockedBy: "ord-bilan" }),
   it({ id: "mk-renal", section: "sante", sub: "ordonnances", group: "Marqueurs du bilan sanguin", title: "Créatinine / DFG", kind: "marqueur", status: "blocked", blockedBy: "ord-bilan" }),
   it({ id: "mk-lipidique", section: "sante", sub: "ordonnances", group: "Marqueurs du bilan sanguin", title: "Bilan lipidique", kind: "marqueur", status: "blocked", blockedBy: "ord-bilan" }),
+  it({ id: "mk-insuline", section: "sante", sub: "ordonnances", group: "Marqueurs du bilan sanguin", title: "Insuline à jeun (HOMA-IR)", detail: "Justifié par TG 0,64 → 1,69 et HDL 0,75 → 0,41 entre les deux bilans.", kind: "marqueur", status: "blocked", blockedBy: "ord-bilan" }),
+  it({ id: "mk-ige", section: "sante", sub: "ordonnances", group: "Marqueurs du bilan sanguin", title: "IgE totales + spécifiques (cacahuète, acariens, pollens, moisissures)", detail: "Éosinophilie apparue + asthme d'enfance + cacahuète quotidienne = un seul terrain atopique. Une rhinite allergique aggrave aussi le ronflement.", kind: "marqueur", status: "blocked", blockedBy: "ord-bilan", priority: "critical" }),
+  it({ id: "mk-eps", section: "sante", sub: "ordonnances", group: "Marqueurs du bilan sanguin", title: "EPS — parasitologie des selles, 3 prélèvements", detail: "Au plan depuis mai 2026, jamais réalisé.", kind: "marqueur", status: "blocked", blockedBy: "ord-bilan" }),
 
   it({ id: "adire-1", section: "sante", sub: "adire", title: "Fatigue depuis novembre 2025, aggravation progressive jusqu'en février 2026" }),
   it({ id: "adire-2", section: "sante", sub: "adire", title: "Aucune amélioration au repos, y compris pendant une période de chômage" }),
@@ -137,6 +166,11 @@ export const SEED_ITEMS = [
   it({ id: "adire-8", section: "sante", sub: "adire", title: "Sommeil de 6-7 h habituellement", detail: "Données disponibles dans Sleep Cycle." }),
   it({ id: "adire-9", section: "sante", sub: "adire", title: "Moral bas, projets à l'arrêt, motivation en berne — demander un avis", priority: "critical" }),
   it({ id: "adire-10", section: "sante", sub: "adire", title: "Liste complète des compléments pris" }),
+  it({ id: "adire-11", section: "sante", sub: "adire", title: "Testostérone 10,90 µg/L le 27/09/2025 (norme 2,50-8,36), sans aucun traitement hormonal", detail: "Prélevée à 11 h 40 — hors créneau 7-10 h — donc probablement encore plus haute le matin. Si le nouveau dosage revient sous 10,90, la chute réelle est plus importante que la comparaison brute.", priority: "critical", pinned: true }),
+  it({ id: "adire-12", section: "sante", sub: "adire", title: "Hématocrite 48,6 → 44,1 % et hémoglobine 15,9 → 14,6 g/dL entre les deux bilans" }),
+  it({ id: "adire-13", section: "sante", sub: "adire", title: "Triglycérides 0,64 → 1,69 et HDL 0,75 → 0,41 g/L — alors que je m'entraînais encore régulièrement", priority: "critical" }),
+  it({ id: "adire-14", section: "sante", sub: "adire", title: "Douleurs cervicales fréquentes" }),
+  it({ id: "adire-15", section: "sante", sub: "adire", title: "Poids 83 → 87 kg, masse grasse ~13 % → ~19 % (estimation), progressivement depuis fin 2025" }),
 
   // ============================================================== B. DIÈTE
   it({
@@ -257,6 +291,19 @@ export const SEED_ITEMS = [
     detail: "Course, LISS, HIIT ou fractionné : chaque sortie enregistrée coche la case. Fréquence réglable dans la fiche.",
     recurrence: week(2)
   }),
+  it({
+    id: "entr-myofonctionnel", section: "entrainement", group: "Cou",
+    title: "Thérapie myofonctionnelle — langue & pharynx",
+    detail: "Les exercices qui réduisent l'index d'apnées d'environ 50 % chez l'adulte (méta-analyses, Cochrane 2020). Ce sont ces muscles-là qui comptent pour l'apnée — pas le cou. Routine chronométrée dans Sport.",
+    warn: "Effet attendu à 8-12 semaines de pratique quotidienne. Ne remplace pas une CPAP si l'apnée est sévère.",
+    recurrence: daily, priority: "critical", pinned: true
+  }),
+  it({
+    id: "entr-marche", section: "entrainement", group: "Cardio",
+    title: "Marche 20-30 min dehors",
+    detail: "Le premier levier perdu fin novembre 2025 et jamais repris. Gratuit, ne fausse aucun bilan, agit sur l'énergie et l'humeur.",
+    recurrence: daily
+  }),
 
   // ========================================================== E. RELAXATION
   it({
@@ -348,4 +395,44 @@ export const SEED_ITEMS = [
   it({ id: "app-file-mensonge", section: "apprentissage", group: "File d'attente", title: "Détection du mensonge", kind: "queue", status: "queue" }),
   it({ id: "app-file-peptides", section: "apprentissage", group: "File d'attente", title: "Peptides", kind: "queue", status: "queue" }),
   it({ id: "app-file-reste", section: "apprentissage", group: "File d'attente", title: "Le reste", kind: "queue", status: "queue" })
+];
+
+// Correctifs d'items DÉJÀ injectés sur un appareil. applySeed() n'ajoute que
+// les ids inconnus ; ces patches sont appliqués par applySeedPatches() dans
+// state.js, une seule fois par version (state.seedPatchVersion).
+// Règle : ne jamais modifier un patch publié — en ajouter un nouveau avec v+1.
+export const SEED_PATCHES = [
+  // ===== v2 — téléconsultation du 4 sept. 2026, bilans PDF reçus, inventaire compléments confirmé
+  { v: 2, id: "rdv-gen", patch: { status: "done", pinned: false, priority: "normal", warn: "",
+      title: "1 · Généraliste — téléconsultation ✅ faite le 4 sept.",
+      detail: "Résultat : pas de prise de sang prescrite (« c'est bon »). Hypothèse avancée : apnée du sommeil (ronflement). IRM et contrôle ophtalmologique évoqués. Conseil : être suivi par un médecin en présentiel." } },
+  { v: 2, id: "rdv-labo", patch: { blockedBy: "ord-bilan", detail: "7 h 30, à jeun, avant le travail — dès qu'une ordonnance existe." } },
+  { v: 2, id: "ord-bilan", patch: { blockedBy: "rdv-medecin-traitant",
+      detail: "Refusé en téléconsultation le 4 sept. À obtenir du médecin traitant. Prélèvement 7 h-10 h à jeun — impératif pour la testostérone.",
+      warn: "Argument : testostérone 10,90 documentée le 27/09/2025 sans traitement, hématocrite 48,6 → 44,1 %. Et si apnée confirmée, l'axe gonadique est fréquemment touché — le dosage confirme le mécanisme, ce n'est plus de la pêche." } },
+  { v: 2, id: "ord-efr", patch: { blockedBy: "rdv-medecin-traitant" } },
+  { v: 2, id: "ord-tretinoine", patch: { blockedBy: "rdv-medecin-traitant" } },
+  { v: 2, id: "mk-ferritine", patch: { title: "CRP", detail: "Ferritine retirée : 124 µg/L le 18/05/2026, normale — inutile à redemander." } },
+  { v: 2, id: "mk-vitamines", patch: { title: "25-OH vitamine D, B12, folates", detail: "Magnésium retiré : supplémenté depuis 9 mois, le dosage refléterait le complément. Vitamine D non supplémentée → vraie mesure de base." } },
+  { v: 2, id: "mk-renal", patch: { status: "optional", detail: "Stable sur les deux bilans (G2 sans atteinte rénale). Uniquement si la question du sel de potassium est posée." } },
+  { v: 2, id: "adire-3", patch: { title: "Aucune amélioration après suppression du sucre liquide, de l'alcool et des gâteaux industriels",
+      detail: "Ne PAS dire « et l'arrêt du sport » : il ne date que de 2 semaines, trop court pour conclure — le médecin le renverrait." } },
+  { v: 2, id: "adire-5", patch: { title: "Éosinophilie apparue entre les deux bilans : 279/mm³ (normal, réf < 400) le 27/09/2025 → 617/mm³ (réf < 500) le 18/05/2026",
+      detail: "Jamais explorée. Terrain atopique : asthme d'enfance + cacahuète quotidienne." } },
+  { v: 2, id: "adire-8", patch: { title: "Sommeil 6-7 h — et ronflement important", detail: "Données Sleep Cycle. Avec des apnées, même 8 h ne réparent pas.", priority: "critical" } },
+  { v: 2, id: "adire-10", patch: { title: "Compléments : zinc 15 mg + magnésium bisglycinate, le soir, depuis 9 mois. Pas de vitamine D." } },
+  { v: 2, id: "comp-regle", patch: {
+      detail: "Manger MIEUX, pas MOINS. Améliorer la qualité dès maintenant (légumes, fruits, viande rouge, arrêt de l'ice tea), à maintenance. Pas de sèche ni de nouveau complément dans les 2-3 semaines avant une prise de sang.",
+      warn: "Pas de déficit calorique marqué avant une prise de sang : il fait chuter testostérone, T3 et insuline — les trois marqueurs prioritaires." } },
+  { v: 2, id: "comp-magnesium", patch: { detail: "Pris le soir, avec le zinc — confirmé le 3 sept." } },
+  { v: 2, id: "comp-zinc", patch: { group: "À prendre", status: "todo", blockedBy: null, warn: "", recurrence: { type: "daily" },
+      title: "Zinc 15 mg, le soir",
+      detail: "Pris depuis 9 mois (démarré ~déc. 2025, en réaction à la fatigue). À déclarer au médecin : un zinc sérique refléterait le complément. 15 mg = moins de la moitié de la limite de sécurité, risque cuivre négligeable." } },
+  { v: 2, id: "comp-vitd", patch: { detail: "Pas pris actuellement (oublis). Le 25-OH-D sera donc une vraie mesure de base. À démarrer après le dosage." } },
+  { v: 2, id: "entr-reprise", patch: { title: "Reprise progressive — après 2 semaines d'arrêt",
+      detail: "Arrêt complet depuis ~21 août 2026, en diminution progressive depuis janvier. Semaines 1-2 : 2 séances, full body, 3 exercices, 3 séries, RPE 6, 40 min, charges à 50-60 %\nSemaines 3-4 : 3 séances, 4 exercices, RPE 7\nSemaines 5-8 : montée progressive, zéro échec musculaire" } },
+  { v: 2, id: "entr-cou", patch: { status: "blocked", blockedBy: "rdv-polygraphie", title: "Séance cou — EN PAUSE",
+      detail: "En pause : douleurs cervicales fréquentes. Et un tour de cou élevé (> 43 cm) est un facteur de risque d'apnée — muscler le cou peut aller contre le dossier apnée. À trancher après la polygraphie.",
+      warn: "Ne pas reprendre tant que les douleurs cervicales persistent et que la polygraphie n'est pas faite." } },
+  { v: 2, id: "diete-allergie-cacahuete", patch: { blockedBy: "mk-ige", detail: "Tant que les IgE spécifiques (cacahuète incluse) ne sont pas faites." } }
 ];

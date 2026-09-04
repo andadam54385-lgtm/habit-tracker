@@ -1,7 +1,7 @@
 // Store unique : tout l'état de l'app tient dans un seul objet JSON,
 // ce qui rend l'export Markdown et la sauvegarde triviaux (spec §6).
 
-import { SEED_ITEMS, SECTION_MAP } from "./seed.js";
+import { SEED_ITEMS, SEED_PATCHES, SECTION_MAP } from "./seed.js";
 import { toast } from "./ui.js";
 
 const STORAGE_KEY = "suivi.v1";
@@ -115,6 +115,7 @@ export function load() {
 
   migrateHabitTracker();
   applySeed();
+  applySeedPatches();
   // La diète n'est plus cochée case par case : le calculateur nutrition la
   // suit au fur et à mesure. Les repères du seed restent en lecture.
   for (const i of state.items) {
@@ -233,6 +234,29 @@ function applySeed() {
     added++;
   }
   if (added) save();
+}
+
+// Applique les correctifs de seed.js (SEED_PATCHES) aux items déjà présents,
+// une seule fois par version. Sans ça, une correction dans la graine ne
+// toucherait jamais un appareil qui l'a déjà injectée.
+function applySeedPatches() {
+  const done = Number(state.seedPatchVersion) || 0;
+  const byId = new Map(state.items.map((i) => [i.id, i]));
+  let latest = done;
+  let applied = 0;
+  for (const p of SEED_PATCHES) {
+    if (p.v <= done) continue;
+    if (p.v > latest) latest = p.v;
+    const item = byId.get(p.id);
+    if (!item) continue;
+    Object.assign(item, p.patch);
+    applied++;
+  }
+  if (latest > done) {
+    state.seedPatchVersion = latest;
+    save();
+    if (applied) console.info("Seed : " + applied + " correctif(s) appliqué(s), version " + latest);
+  }
 }
 
 export function save() {

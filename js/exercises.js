@@ -239,7 +239,27 @@ export const ROUTINES = [
       phase("Repos", 20, "", "rest"),
       phase("Ouverture contrôlée · série 2/2", 40, "Mouvement rectiligne, jamais forcé", "work")
     ],
-    caution: "Claquement, blocage ou douleur devant l'oreille : on arrête, avis médical." }
+    caution: "Claquement, blocage ou douleur devant l'oreille : on arrête, avis médical." },
+  // Protocole oropharyngé (Guimarães 2009) — celui des méta-analyses sur l'apnée :
+  // réduction de l'index d'apnées-hypopnées d'environ 50 % chez l'adulte.
+  { key: "myofonctionnel", label: "Myofonctionnel — langue & pharynx", icon: "👅", item: "entr-myofonctionnel",
+    intro: "Les muscles qui comptent pour l'apnée : langue, voile du palais, joues — pas le cou. Assis, dos droit, respiration nasale. Un peu plus de 10 minutes.",
+    phases: [
+      phase("Glissé palatin", 60, "Pointe de la langue derrière les incisives, glisser vers l'arrière le long du palais — 20 fois, lentement", "work"),
+      phase("Repos", 15, "Langue au palais, dents décollées", "rest"),
+      phase("Ventouse", 60, "Toute la langue plaquée contre le palais, aspirer, tenir 5 s, relâcher — 8 fois", "work"),
+      phase("Repos", 15, "", "rest"),
+      phase("Voile du palais", 90, "Bouche ouverte, dire « A » par à-coups en sentant le fond de la gorge se soulever", "work"),
+      phase("Repos", 15, "", "rest"),
+      phase("Joue gauche", 45, "Pousser la joue vers l'extérieur avec la langue, le doigt résiste de l'extérieur — 10 fois", "work"),
+      phase("Joue droite", 45, "Même chose côté droit — 10 fois", "work"),
+      phase("Repos", 15, "", "rest"),
+      phase("Mastication alternée", 90, "Mâcher à vide côté gauche puis droit, langue au palais, déglutir sans contracter les joues", "work"),
+      phase("Repos", 15, "", "rest"),
+      phase("Clics", 45, "Claquer la langue contre le palais, 20 fois, bien sonore", "work"),
+      phase("Ventouse finale", 60, "Toute la langue au palais, tenir 10 s — 4 fois", "work")
+    ],
+    caution: "Aucune douleur attendue. Gêne à l'articulation de la mâchoire : réduire l'amplitude. Tous les jours — l'effet demande 8 à 12 semaines." }
 ];
 
 export const ROUTINE_MAP = ROUTINES.reduce(function (a, r) { a[r.key] = r; return a; }, {});
