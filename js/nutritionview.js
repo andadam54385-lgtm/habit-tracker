@@ -122,9 +122,49 @@ function gapsBanner() {
     "</section>";
 }
 
+// Répartition des lipides : le total de gras ne dit pas s'il est bon.
+// Les saturés ont un plafond, le reste sert de repère.
+function fatBlock(day, nmap) {
+  const fats = nutrients().filter((n) => n.fat);
+  const total = fats.reduce((a, n) => a + (day[n.key] || 0), 0);
+  const lip = day.lip || 0;
+  const ags = nmap.ags;
+  const over = (day.ags || 0) > ags.ceil;
+  // Sans aucune valeur, un bloc vide vaudrait mieux qu'un faux zéro.
+  if (!total && !lip) return "";
+  // Le reliquat n'est un trou de catalogue que si un aliment du jour n'a
+  // aucun détail : sinon c'est l'écart normal entre lipides et acides gras.
+  const log = logFor();
+  const unknown = Object.entries(log.items || {}).reduce(function (a, [id, qty]) {
+    const f = foodById(id);
+    if (!f || !f.n.lip) return a;
+    const known = ["ags", "agmi", "agpi"].some((k) => f.n[k] !== undefined);
+    return known ? a : a + (preview(f, qty).lip || 0);
+  }, 0);
+  return '<section class="fats' + (over ? " is-over" : "") + '">' +
+    '<div class="fats-head"><h2>Répartition des lipides</h2>' +
+      '<span class="counter">' + fmtN(lip) + " g au total</span></div>" +
+    '<div class="fats-rows">' + fats.map(function (n) {
+      const v = day[n.key] || 0;
+      const share = lip > 0 ? Math.round(v / lip * 100) : 0;
+      const bad = n.ceil && v > n.ceil;
+      return '<div class="fat-row' + (bad ? " is-over" : "") + '">' +
+        '<span class="fat-label">' + esc(n.label) + "</span>" +
+        '<div class="bar"><div class="bar-fill" style="width:' + Math.min(100, n.target ? v / n.target * 100 : 0).toFixed(0) + '%"></div></div>' +
+        '<span class="fat-val">' + fmtN(v) + " g<small>" + (n.ceil ? "max " + n.ceil : share + " %") + "</small></span>" +
+      "</div>";
+    }).join("") + "</div>" +
+    (over
+      ? '<p class="nut-warn">⚠️ ' + esc(ags.warn) + "</p>"
+      : '<p class="hint">Plafond des saturés : ' + ags.ceil + " g, soit 10 % de tes calories. " +
+        (unknown > 1 ? "Répartition inconnue pour " + fmtN(unknown) + " g venant d'aliments sans détail — complète-les via Claude." : "") + "</p>") +
+  "</section>";
+}
+
 // Bloc repliable des micronutriments, séparé par période.
 function microFold(title, period, totals, foldKey, gapsCount) {
-  const list = nutrients().filter((n) => n.period === period && !n.main);
+  // Les lipides détaillés ont leur propre bloc, en haut : pas de doublon ici.
+  const list = nutrients().filter((n) => n.period === period && !n.main && !n.fat);
   const met = list.filter((n) => !n.sparse && isMet(n, totals[n.key])).length;
   const open = !(state.settings.folded && state.settings.folded[foldKey]);
   return '<details class="fold" data-fold="' + esc(foldKey) + '"' + (open ? " open" : "") + ">" +
@@ -162,6 +202,8 @@ export function viewNutrition() {
     macroTile(nmap.kcal, day.kcal) + macroTile(nmap.prot, day.prot) +
     macroTile(nmap.glu, day.glu) + macroTile(nmap.lip, day.lip) +
     "</div>";
+
+  html += fatBlock(day, nmap);
 
   html += '<button type="button" class="btn btn-block btn-ghost" data-act="edit-targets">' +
     "🎯 Mes cibles : " + t.prot + " P · " + t.glu + " G · " + t.lip + " L " +

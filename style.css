@@ -1083,3 +1083,16 @@ td.rate-none { color: var(--text-faint); }
 }
 .sess-weigh strong { font-size: 14.5px; }
 .sess-weigh span { font-size: 12.5px; font-weight: 500; }
+
+/* ------------------------------------------- répartition des lipides */
+.fats { margin: 10px 0 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.fats.is-over { border-color: var(--danger, #e5484d); }
+.fats-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.fats-head h2 { margin: 0; font-size: 15px; font-weight: 700; }
+.fats-rows { display: grid; gap: 8px; margin-top: 8px; }
+.fat-row { display: grid; grid-template-columns: 104px 1fr 74px; align-items: center; gap: 8px; font-size: 13px; }
+.fat-label { color: var(--text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fat-val { display: flex; flex-direction: column; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fat-val small { font-size: 11px; font-weight: 500; color: var(--text-faint); }
+.fat-row.is-over .bar-fill { background: var(--danger, #e5484d); }
+.fat-row.is-over .fat-val { color: var(--danger, #e5484d); }

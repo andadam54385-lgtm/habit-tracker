@@ -24,6 +24,15 @@ const MICROS = [
   { key: "sucres", label: "Sucres",     unit: "g",  target: 110, min: 0, ceil: 110, period: "day",
     warn: "Au-delà de 110 g, c'est le piège du jus de fruits quotidien." },
 
+  // Répartition des lipides : le total ne dit pas si le gras est le bon.
+  // Les cibles suivent les calories, recalculées dans nutrients().
+  { key: "ags",  label: "Gras saturés", unit: "g", target: 33, min: 0, ceil: 33, period: "day", fat: true,
+    warn: "Au-delà de 10 % des calories, c'est le seuil où le LDL grimpe. Beurre, fromage, huile de coco, chocolat." },
+  { key: "agmi", label: "Mono-insaturés", unit: "g", target: 50, min: 0, period: "day", fat: true,
+    note: "Huile d'olive, avocat, amandes : c'est là que le gras est le plus utile." },
+  { key: "agpi", label: "Poly-insaturés", unit: "g", target: 23, min: 0, period: "day", fat: true,
+    note: "Noix, poissons gras, huiles de graines. Contient les oméga-3 et 6." },
+
   { key: "k",   label: "Potassium",     unit: "mg", target: 4250, min: 4000, period: "day" },
   { key: "phos", label: "Phosphore",    unit: "mg", target: 700, period: "day" },
   { key: "cu",  label: "Cuivre",        unit: "mg", target: 1.3, period: "day" },
@@ -99,7 +108,14 @@ export function nutrients() {
     { key: "prot", label: "Protéines", unit: "g", target: t.prot, min: pb.min, period: "day", main: true },
     { key: "glu", label: "Glucides", unit: "g", target: t.glu, min: gb.min, ceil: gb.max, period: "day", main: true },
     { key: "lip", label: "Lipides", unit: "g", target: t.lip, min: lb.min, ceil: lb.max, period: "day", main: true }
-  ].concat(MICROS);
+  ].concat(MICROS.map(function (m) {
+    if (!m.fat) return m;
+    // Saturés : plafond à 10 % des calories. Mono et poly : repères, pas
+    // des plafonds — en manquer n'est pas un échec.
+    const share = m.key === "ags" ? 0.10 : m.key === "agmi" ? 0.15 : 0.07;
+    const target = Math.round(kcal * share / 9);
+    return Object.assign({}, m, { target: target, ceil: m.ceil !== undefined ? target : undefined });
+  }));
 }
 
 export function nutrientMap() {

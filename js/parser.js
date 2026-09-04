@@ -48,7 +48,7 @@ function stripBullet(line) {
 
 // Valeurs de micronutriments renvoyées par Claude pour un aliment.
 // « vk » = vitamine K ; « k » est déjà le potassium.
-const MICRO_KEYS = ["fibres", "sucres", "k", "na", "mg", "ca", "fe", "zn",
+const MICRO_KEYS = ["fibres", "sucres", "ags", "agmi", "agpi", "k", "na", "mg", "ca", "fe", "zn",
   "phos", "cu", "mn", "c", "b1", "b2", "b3", "b5", "b8", "b9", "e", "vk",
   "vita", "b6", "iode", "chr", "mo", "d", "b12", "se", "om3"];
 
