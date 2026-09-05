@@ -2,7 +2,7 @@
 // sauvegarde et restauration JSON.
 
 import { state, save, addItem, setDaily, dayKey, isDone, isRecurring, weekProgress, rootBlocker, makeId } from "./state.js";
-import { SECTIONS, SECTION_MAP } from "./seed.js";
+import { SECTIONS, SECTION_MAP, SEED_PATCHES } from "./seed.js";
 import { totalsFor, applyFoodValues, CAT_MAP } from "./nutrition.js";
 import {
   trackedItems, weekDates, monthDates, weekStartAt,
@@ -370,6 +370,12 @@ function sanitizeState(parsed) {
       if (clean.length) out.objectives[scope][periodKey] = clean;
     }
   }
+
+  // Numéro de correctifs de graine : une valeur au-dessus de ce que cette
+  // version connaît ferait sauter en silence toutes les corrections à venir.
+  const maxPatch = SEED_PATCHES.reduce((a, p) => Math.max(a, Number(p.v) || 0), 0);
+  const patchV = Math.floor(numOr(parsed.seedPatchVersion, 0));
+  out.seedPatchVersion = Math.min(maxPatch, Math.max(0, patchV));
 
   const s = (out.settings && typeof out.settings === "object") ? out.settings : {};
   out.settings = {
