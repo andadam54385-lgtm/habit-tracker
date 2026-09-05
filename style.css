@@ -1096,3 +1096,23 @@ td.rate-none { color: var(--text-faint); }
 .fat-val small { font-size: 11px; font-weight: 500; color: var(--text-faint); }
 .fat-row.is-over .bar-fill { background: var(--danger, #e5484d); }
 .fat-row.is-over .fat-val { color: var(--danger, #e5484d); }
+
+/* --------------------------------------------- sélecteur d'exercices */
+.ep-row { align-items: center; }
+.ep-row.is-picked { border-color: var(--accent); background: var(--accent-soft); }
+.ep-row .food-row-add { font-weight: 800; color: var(--accent); }
+.ep-row .row-act { flex: none; }
+
+/* -------------------------------------------- moyenne de la semaine */
+.week-avg {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: 10px 0 0; padding: 12px 14px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
+}
+.week-avg.is-ok { border-color: var(--ok); background: var(--ok-soft); }
+.week-avg-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.week-avg-main strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+.week-avg-main span { font-size: 12.5px; color: var(--text-soft); }
+.week-avg-side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 13px; font-weight: 700; text-align: right; white-space: nowrap; }
+.week-avg-side small { font-size: 11.5px; font-weight: 500; color: var(--text-faint); }
+.week-avg-empty { margin-top: 10px; }

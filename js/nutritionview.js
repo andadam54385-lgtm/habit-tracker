@@ -11,7 +11,7 @@ import {
   addLibre, removeLibre, dayTotals, preview, isMet,
   FOOD_CATS, CAT_MAP, UNIT_LABEL,
   microCompleteness, foodsNeedingMicros, buildCompletionRequest,
-  bestSourcesFor, gapsToday, gapsThisWeek, topGaps, weekTotals,
+  bestSourcesFor, gapsToday, gapsThisWeek, topGaps, weekTotals, weekAverages,
   recipes, recipePerPart
 } from "./nutrition.js";
 import { nutritionTabs } from "./recipes.js";
@@ -122,6 +122,24 @@ function gapsBanner() {
     "</section>";
 }
 
+// Moyenne de la semaine : une journée basse ou haute ne veut rien dire,
+// c'est la moyenne des jours saisis qui se compare à la cible.
+function weekAverageBlock(nmap) {
+  const avg = weekAverages();
+  if (!avg.days) {
+    return '<p class="hint week-avg-empty">Aucune journée saisie cette semaine : la moyenne apparaîtra ici.</p>';
+  }
+  const kcal = nmap.kcal;
+  const inBand = avg.kcal >= kcal.min && avg.kcal <= kcal.ceil;
+  const ecart = avg.kcal - kcal.target;
+  return '<div class="week-avg' + (inBand ? " is-ok" : "") + '">' +
+    '<span class="week-avg-main"><strong>' + fmtN(avg.kcal) + " kcal</strong>" +
+      "<span>en moyenne sur " + avg.days + " jour" + (avg.days > 1 ? "s" : "") + " saisi" + (avg.days > 1 ? "s" : "") + " cette semaine</span></span>" +
+    '<span class="week-avg-side">' + (inBand ? "dans la fourchette" : (ecart > 0 ? "+" : "") + fmtN(Math.round(ecart)) + " kcal") + "<small>" +
+      fmtN(avg.prot) + " P · " + fmtN(avg.glu) + " G · " + fmtN(avg.lip) + " L</small></span>" +
+  "</div>";
+}
+
 // Répartition des lipides : le total de gras ne dit pas s'il est bon.
 // Les saturés ont un plafond, le reste sert de repère.
 function fatBlock(day, nmap) {
@@ -203,6 +221,7 @@ export function viewNutrition() {
     macroTile(nmap.glu, day.glu) + macroTile(nmap.lip, day.lip) +
     "</div>";
 
+  html += weekAverageBlock(nmap);
   html += fatBlock(day, nmap);
 
   html += '<button type="button" class="btn btn-block btn-ghost" data-act="edit-targets">' +

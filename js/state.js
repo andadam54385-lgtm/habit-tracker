@@ -24,6 +24,7 @@ function emptyState() {
     recipes: [],         // recettes : ingrédients + nombre de parts
     workouts: [],        // séances : muscu (séries), course (LISS/HIIT/fractionné), mobilité
     customExercises: [], // exercices créés dans l'app
+    exerciseOverrides: {}, // corrections d'exercices du catalogue : id -> champs
     workoutTemplates: [], // modèles de séances personnels
     objectives: { weekly: {}, monthly: {} },  // periodKey -> [{id,text,done}]
     notes: {},           // sectionKey -> texte libre
@@ -97,6 +98,7 @@ export function load() {
   if (!Array.isArray(state.workouts)) state.workouts = [];
   if (!Array.isArray(state.customExercises)) state.customExercises = [];
   if (!Array.isArray(state.workoutTemplates)) state.workoutTemplates = [];
+  if (!state.exerciseOverrides || typeof state.exerciseOverrides !== "object") state.exerciseOverrides = {};
   // Un élément null dans ces tableaux planterait chaque rendu suivant.
   state.customFoods = state.customFoods.filter((f) => f && typeof f === "object");
   state.supplements = state.supplements.filter((x) => x && typeof x === "object");
@@ -140,6 +142,17 @@ export function load() {
     const it = byId(id);
     if (it && it.title === RENAMED[id][0]) it.title = RENAMED[id][1];
   }
+  // Les bras se comptent maintenant en biceps et triceps : un exercice
+  // perso rangé dans « bras » deviendrait invisible dans les filtres.
+  for (const e of state.customExercises) {
+    if (e.group === "bras") e.group = /triceps|extension|dips/i.test(e.label) ? "triceps" : "biceps";
+    if (Array.isArray(e.sec)) e.sec = e.sec.map((g) => (g === "bras" ? "biceps" : g));
+  }
+  for (const o of Object.values(state.exerciseOverrides)) {
+    if (o && o.group === "bras") o.group = "biceps";
+    if (o && Array.isArray(o.sec)) o.sec = o.sec.map((g) => (g === "bras" ? "biceps" : g));
+  }
+
   refreshBlockedStatuses();
   return state;
 }

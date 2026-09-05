@@ -20,7 +20,8 @@ import {
   sortedTemplates, templateSort, setTemplateSort, TEMPLATE_SORTS,
   hiddenTemplates, hideTemplate, unhideTemplates,
   lastWorkoutsForTemplate, lastSetsFor, tempoLabel, cleanTempo,
-  circuitTemplates, visibleCircuits, circuitByKey, upsertCircuit, anyTemplateByKey
+  circuitTemplates, visibleCircuits, circuitByKey, upsertCircuit, anyTemplateByKey,
+  secondaryOf, updateExercise, resetExercise, removeCustomExercise, moveTemplate
 } from "./sport.js";
 import {
   loadStatus, LOAD_RATIO_MAX, VOLUME_METRICS, volumeMetric, muscleVolume,
@@ -290,6 +291,14 @@ function tabMuscu() {
       "</button>" +
       (isLibre ? "" :
         '<span class="start-row-actions">' +
+          // Réordonner : visible seulement en tri « Ordre », sinon le
+          // déplacement serait invisible au rendu suivant.
+          (sort === "order"
+            ? '<button type="button" class="row-act" data-act="tpl-move-up" data-template="' + esc(tpl.key) +
+              '" aria-label="Monter ' + esc(tpl.label) + '">↑</button>' +
+              '<button type="button" class="row-act" data-act="tpl-move-down" data-template="' + esc(tpl.key) +
+              '" aria-label="Descendre ' + esc(tpl.label) + '">↓</button>'
+            : "") +
           (tpl.builtin ? "" :
             '<button type="button" class="row-act" data-act="edit-template" data-template="' + esc(tpl.key) +
             '" aria-label="Modifier ' + esc(tpl.label) + '">✎</button>') +
@@ -300,6 +309,9 @@ function tabMuscu() {
   }
   html += "</ul>";
 
+  if (sort === "order") {
+    html += '<p class="hint">Les flèches changent l\'ordre des séances. Il ne s\'applique qu\'en tri « Ordre ».</p>';
+  }
   html += '<button type="button" class="btn btn-block btn-ghost" data-act="new-template">+ Nouveau modèle</button>';
   if (hidden.length) {
     html += '<button type="button" class="linkish start-unhide" data-act="unhide-templates">' +
@@ -631,8 +643,8 @@ export function openMuscuSession(templateKey, resume) {
       body.querySelector('[data-act="ex-add"]').addEventListener("click", function () {
         rest.stop(); clearInterval(tick);
         close();
-        openExercisePicker(function (ex) {
-          session.exercises.push({ ex: ex.id, target: "", sets: [] });
+        openExercisePicker(function (list) {
+          for (const ex of list || []) session.exercises.push({ ex: ex.id, target: "", sets: [] });
           openMuscuSession(session.template, true);
         }, function () { openMuscuSession(session.template, true); });
       });
@@ -833,8 +845,8 @@ export function openTemplateEditor(key, resume) {
 
       body.querySelector('[data-act="tpl-add"]').addEventListener("click", function () {
         close();
-        openExercisePicker(function (ex) {
-          if (ex) tplDraft.plan.push({ ex: ex.id, sets: 3, reps: ex.load === "temps" ? 30 : 8 });
+        openExercisePicker(function (list) {
+          for (const ex of list || []) tplDraft.plan.push({ ex: ex.id, sets: 3, reps: ex.load === "temps" ? 30 : 8 });
           openTemplateEditor(tplDraft.id, true);
         }, function () { openTemplateEditor(tplDraft.id, true); });
       });
@@ -862,72 +874,165 @@ export function openTemplateEditor(key, resume) {
   });
 }
 
+// Sélecteur d'exercices : filtre par muscle mémorisé d'une fois sur
+// l'autre, sélection multiple, et modification sur place.
+let pickerQ = "", pickerGroup = "all";
+
 function openExercisePicker(onPick, onCancel) {
-  let q = "", group = "all";
-  openSheet("Ajouter un exercice", function (body, close) {
-    let picked = false;
+  const chosen = [];
+  openSheet("Ajouter des exercices", function (body, close) {
+    let done = false;
     function render() {
-      const results = searchExercises(q, group);
+      const results = searchExercises(pickerQ, pickerGroup);
       body.innerHTML =
-        '<input type="search" id="ep-q" class="input input-lg" placeholder="Nom de l\'exercice…" value="' + esc(q) + '" autocomplete="off">' +
-        '<select id="ep-group" class="input"><option value="all">Tous les groupes</option>' +
-          MUSCLE_GROUPS.map((g) => '<option value="' + g.key + '"' + (group === g.key ? " selected" : "") + ">" + esc(g.icon + " " + g.label) + "</option>").join("") +
+        '<input type="search" id="ep-q" class="input input-lg" placeholder="Nom de l\'exercice…" value="' + esc(pickerQ) + '" autocomplete="off">' +
+        '<select id="ep-group" class="input"><option value="all">Tous les muscles</option>' +
+          MUSCLE_GROUPS.map((g) => '<option value="' + g.key + '"' + (pickerGroup === g.key ? " selected" : "") + ">" + esc(g.icon + " " + g.label) + "</option>").join("") +
         "</select>" +
         (results.length
-          ? '<ul class="food-results">' + results.map((e) =>
-              '<li class="food-row" data-ex="' + esc(e.id) + '" role="button" tabindex="0"><span class="food-row-main">' +
-              '<span class="food-row-label">' + esc(e.label) + (e.custom ? ' <span class="badge badge-quiet">perso</span>' : "") + "</span>" +
-              '<span class="food-row-detail">' + esc((GROUP_MAP[e.group] || {}).label || e.group) + " · " +
-                (e.load === "kg" ? "charge" : e.load === "temps" ? "temps" : "poids du corps") + "</span>" +
-              '</span><span class="food-row-add" aria-hidden="true">+</span></li>').join("") + "</ul>"
-          : '<p class="empty">Aucun exercice.</p>') +
-        '<button type="button" class="btn btn-block btn-ghost" data-act="ep-new">+ Créer un exercice</button>';
+          ? '<ul class="food-results">' + results.map(function (e) {
+              const sec = secondaryOf(e).map((g) => (GROUP_MAP[g] || {}).label || g);
+              const on = chosen.indexOf(e.id) >= 0;
+              return '<li class="food-row ep-row' + (on ? " is-picked" : "") + '" data-ex="' + esc(e.id) + '">' +
+                '<span class="food-row-main" data-act="ep-toggle" role="button" tabindex="0">' +
+                  '<span class="food-row-label">' + esc(e.label) +
+                    (e.custom ? ' <span class="badge badge-quiet">perso</span>' : "") +
+                    (e.edited ? ' <span class="badge badge-quiet">modifié</span>' : "") +
+                    (e.asSecondary ? ' <span class="badge badge-quiet">secondaire</span>' : "") + "</span>" +
+                  '<span class="food-row-detail">' + esc((GROUP_MAP[e.group] || {}).label || e.group) +
+                    (sec.length ? " + " + esc(sec.join(", ")) : "") + " · " +
+                    (e.load === "kg" ? "charge" : e.load === "temps" ? "temps" : "poids du corps") + "</span>" +
+                "</span>" +
+                '<button type="button" class="row-act" data-act="ep-edit" aria-label="Modifier ' + esc(e.label) + '">✎</button>' +
+                '<span class="food-row-add" aria-hidden="true">' + (on ? "✓" : "+") + "</span></li>";
+            }).join("") + "</ul>"
+          : '<p class="empty">Aucun exercice pour ce muscle.</p>') +
+        '<button type="button" class="btn btn-block btn-ghost" data-act="ep-new">+ Créer un exercice</button>' +
+        (chosen.length
+          ? '<div class="sheet-actions"><button type="button" class="btn btn-primary btn-block" data-act="ep-ok">' +
+            "Ajouter " + chosen.length + " exercice" + (chosen.length > 1 ? "s" : "") + "</button></div>"
+          : '<p class="hint">Touche un exercice pour le cocher : tu peux en ajouter plusieurs d\'un coup. Le muscle choisi reste sélectionné.</p>');
 
       const qi = body.querySelector("#ep-q");
       let timer = null;
       qi.addEventListener("input", function () {
         clearTimeout(timer);
         timer = setTimeout(function () {
-          q = qi.value; const caret = qi.selectionStart; render();
+          pickerQ = qi.value; const caret = qi.selectionStart; render();
           const nq = body.querySelector("#ep-q"); nq.focus(); nq.setSelectionRange(caret, caret);
         }, 200);
       });
-      body.querySelector("#ep-group").addEventListener("change", (e) => { group = e.target.value; render(); });
-      body.querySelectorAll(".food-row").forEach(function (row) {
-        row.addEventListener("click", function () {
-          picked = true; close(); onPick(exerciseById(row.dataset.ex));
+      body.querySelector("#ep-group").addEventListener("change", function (e) { pickerGroup = e.target.value; render(); });
+
+      body.querySelectorAll('[data-act="ep-toggle"]').forEach(function (el) {
+        el.addEventListener("click", function () {
+          const id = el.closest(".ep-row").dataset.ex;
+          const i = chosen.indexOf(id);
+          if (i >= 0) chosen.splice(i, 1); else chosen.push(id);
+          render();
         });
       });
+      body.querySelectorAll('[data-act="ep-edit"]').forEach(function (el) {
+        el.addEventListener("click", function () {
+          const id = el.closest(".ep-row").dataset.ex;
+          done = true; close();
+          openExerciseEditor(id, function () { openExercisePicker(onPick, onCancel); });
+        });
+      });
+      const ok = body.querySelector('[data-act="ep-ok"]');
+      if (ok) ok.addEventListener("click", function () {
+        done = true; close();
+        onPick(chosen.map(exerciseById).filter(Boolean));
+      });
       body.querySelector('[data-act="ep-new"]').addEventListener("click", function () {
-        picked = true; close();
-        openNewExercise(function (ex) { if (ex) onPick(ex); else if (onCancel) onCancel(); });
+        done = true; close();
+        openExerciseEditor(null, function (ex) {
+          if (ex) onPick([ex]); else if (onCancel) onCancel();
+        });
       });
     }
     render();
-  }, { onClose: function () { /* si fermé sans choix, on revient à la séance */ } });
+  }, { onClose: function () { /* fermé sans choix : le rappel se fait côté appelant */ } });
 }
 
-function openNewExercise(done) {
-  openSheet("Nouvel exercice", function (body, close) {
-    body.innerHTML =
-      '<label class="field"><span>Nom</span><input type="text" id="ne-label" class="input" maxlength="60"></label>' +
-      '<label class="field"><span>Groupe</span><select id="ne-group" class="input">' +
-        MUSCLE_GROUPS.map((g) => '<option value="' + g.key + '">' + esc(g.icon + " " + g.label) + "</option>").join("") + "</select></label>" +
-      '<label class="field"><span>Type de charge</span><select id="ne-load" class="input">' +
-        '<option value="kg">Charge en kg</option><option value="corps">Poids du corps (reps)</option><option value="temps">Temps (secondes)</option></select></label>' +
-      '<label class="field"><span>Consigne (facultatif)</span><input type="text" id="ne-cue" class="input" maxlength="200"></label>' +
-      '<div class="sheet-actions"><button type="button" class="btn btn-ghost" data-act="c">Annuler</button>' +
-      '<button type="button" class="btn btn-primary" data-act="ok">Créer</button></div>';
-    body.querySelector('[data-act="c"]').addEventListener("click", function () { close(); done(null); });
-    body.querySelector('[data-act="ok"]').addEventListener("click", function () {
-      const ex = addCustomExercise({
-        label: body.querySelector("#ne-label").value, group: body.querySelector("#ne-group").value,
-        load: body.querySelector("#ne-load").value, cue: body.querySelector("#ne-cue").value
+// Création et modification : même feuille. Un exercice du catalogue se
+// corrige sans se dupliquer, et se remet à l'original d'un bouton.
+export function openExerciseEditor(exId, done) {
+  const ex = exId ? exerciseById(exId) : null;
+  const draft = {
+    label: ex ? ex.label : "",
+    group: ex ? ex.group : "jambes",
+    sec: ex ? secondaryOf(ex).slice() : [],
+    load: ex ? ex.load : "kg",
+    cue: ex ? ex.cue || "" : ""
+  };
+  openSheet(ex ? "Modifier l'exercice" : "Nouvel exercice", function (body, close) {
+    function render() {
+      body.innerHTML =
+        '<label class="field"><span>Nom</span><input type="text" id="ne-label" class="input" maxlength="60" value="' + esc(draft.label) + '"></label>' +
+        '<label class="field"><span>Muscle principal</span><select id="ne-group" class="input">' +
+          MUSCLE_GROUPS.map((g) => '<option value="' + g.key + '"' + (draft.group === g.key ? " selected" : "") + ">" + esc(g.icon + " " + g.label) + "</option>").join("") +
+        "</select></label>" +
+        '<div class="field"><span>Muscles secondaires</span><div class="chips" id="ne-sec">' +
+          MUSCLE_GROUPS.filter((g) => g.key !== draft.group).map((g) =>
+            '<button type="button" class="chip' + (draft.sec.indexOf(g.key) >= 0 ? " is-active" : "") +
+            '" data-sec="' + g.key + '">' + esc(g.icon + " " + g.label) + "</button>").join("") +
+        "</div></div>" +
+        '<p class="hint">Les muscles secondaires comptent pour moitié dans le volume de la semaine.</p>' +
+        '<label class="field"><span>Type de charge</span><select id="ne-load" class="input">' +
+          [["kg", "Charge en kg"], ["corps", "Poids du corps (reps)"], ["temps", "Temps (secondes)"]].map((o) =>
+            '<option value="' + o[0] + '"' + (draft.load === o[0] ? " selected" : "") + ">" + o[1] + "</option>").join("") +
+        "</select></label>" +
+        '<label class="field"><span>Consigne (facultatif)</span><input type="text" id="ne-cue" class="input" maxlength="200" value="' + esc(draft.cue) + '"></label>' +
+        (ex && ex.edited ? '<button type="button" class="linkish" data-act="ne-reset">Revenir à la version d\'origine</button>' : "") +
+        '<div class="sheet-actions">' +
+          (ex && ex.custom ? '<button type="button" class="btn btn-danger-ghost" data-act="ne-del">Supprimer</button>' : '<button type="button" class="btn btn-ghost" data-act="c">Annuler</button>') +
+          '<button type="button" class="btn btn-primary" data-act="ok">' + (ex ? "Enregistrer" : "Créer") + "</button>" +
+        "</div>";
+
+      body.querySelector("#ne-group").addEventListener("change", function (e) {
+        draft.group = e.target.value;
+        draft.sec = draft.sec.filter((g) => g !== draft.group);
+        keep(); render();
       });
-      if (!ex) { body.querySelector("#ne-label").focus(); return; }
-      close(); done(ex);
-    });
-    body.querySelector("#ne-label").focus();
+      body.querySelector("#ne-sec").addEventListener("click", function (e) {
+        const c = e.target.closest(".chip");
+        if (!c) return;
+        const i = draft.sec.indexOf(c.dataset.sec);
+        if (i >= 0) draft.sec.splice(i, 1); else draft.sec.push(c.dataset.sec);
+        keep(); render();
+      });
+      function keep() {
+        draft.label = body.querySelector("#ne-label").value;
+        draft.cue = body.querySelector("#ne-cue").value;
+        draft.load = body.querySelector("#ne-load").value;
+      }
+
+      const cancel = body.querySelector('[data-act="c"]');
+      if (cancel) cancel.addEventListener("click", function () { close(); done(null); });
+      const del = body.querySelector('[data-act="ne-del"]');
+      if (del) del.addEventListener("click", function () {
+        close();
+        confirmSheet("Supprimer « " + ex.label + " » ?",
+          "Les séances déjà enregistrées avec cet exercice restent dans l'historique.",
+          "Supprimer", function () { removeCustomExercise(ex.id); toast("Exercice supprimé"); done(null); });
+      });
+      const reset = body.querySelector('[data-act="ne-reset"]');
+      if (reset) reset.addEventListener("click", function () {
+        resetExercise(ex.id); close(); toast("Version d'origine rétablie"); done(exerciseById(ex.id));
+      });
+      body.querySelector('[data-act="ok"]').addEventListener("click", function () {
+        keep();
+        const fields = { label: draft.label, group: draft.group, sec: draft.sec, load: draft.load, cue: draft.cue };
+        const saved = ex ? updateExercise(ex.id, fields) : addCustomExercise(fields);
+        if (!saved) { body.querySelector("#ne-label").focus(); return; }
+        close();
+        toast(ex ? "Exercice modifié" : "Exercice créé");
+        done(saved);
+      });
+      if (!ex) body.querySelector("#ne-label").focus();
+    }
+    render();
   });
 }
 
@@ -1273,8 +1378,8 @@ export function openCircuitEditor(key, resume) {
       }));
       body.querySelector('[data-act="ci-add"]').addEventListener("click", function () {
         close();
-        openExercisePicker(function (ex) {
-          if (ex) circDraft.plan.push({ ex: ex.id, qty: ex.load === "temps" ? 30 : 10, unit: ex.load === "temps" ? "s" : "reps" });
+        openExercisePicker(function (list) {
+          for (const ex of list || []) circDraft.plan.push({ ex: ex.id, qty: ex.load === "temps" ? 30 : 10, unit: ex.load === "temps" ? "s" : "reps" });
           openCircuitEditor(circDraft.id, true);
         }, function () { openCircuitEditor(circDraft.id, true); });
       });

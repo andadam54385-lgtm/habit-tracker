@@ -33,6 +33,7 @@ import { viewObjectives, mountObjectives, toggleObjective, removeObjective } fro
 import { openCheckin, openJournal, viewBilan, bilanMarkdown, setRapportPeriod, rapportPeriod } from "./js/formeview.js";
 import { viewCorps, mountCorps, openWeighIn, setPhotoKind, pickPhoto, confirmDeletePhoto } from "./js/corpsview.js";
 import { rapportMarkdown } from "./js/rapport.js";
+import { moveTemplate } from "./js/sport.js";
 import { setVolumeMetric } from "./js/charge.js";
 import { MIGRATION_RESULT } from "./js/state.js";
 
@@ -209,7 +210,7 @@ function onClick(e) {
   const sportAct = e.target.closest('[data-act="start-muscu"], [data-act="start-run"], [data-act="log-run"],' +
     '[data-act="start-routine"], [data-act="open-workout"], [data-act="del-workout"], [data-act="open-exercise"],' +
     '[data-act="new-template"], [data-act="edit-template"], [data-act="del-template"],' +
-    '[data-act="tpl-sort"], [data-act="unhide-templates"],' +
+    '[data-act="tpl-sort"], [data-act="unhide-templates"], [data-act="tpl-move-up"], [data-act="tpl-move-down"],' +
     '[data-act="start-circuit"], [data-act="new-circuit"], [data-act="edit-circuit"]');
   if (sportAct) {
     const act = sportAct.dataset.act;
@@ -220,6 +221,10 @@ function onClick(e) {
     if (act === "edit-template") { openTemplateEditor(sportAct.dataset.template); return; }
     if (act === "del-template") { confirmDeleteTemplate(sportAct.dataset.template); return; }
     if (act === "tpl-sort") { changeTemplateSort(sportAct.dataset.sort); return; }
+    if (act === "tpl-move-up" || act === "tpl-move-down") {
+      moveTemplate(sportAct.dataset.template, act === "tpl-move-up" ? -1 : 1);
+      return;
+    }
     if (act === "unhide-templates") { restoreHiddenTemplates(); return; }
     if (act === "start-muscu") openMuscuSession(sportAct.dataset.template);
     else if (act === "start-run") openIntervalTimer(sportAct.dataset.preset);

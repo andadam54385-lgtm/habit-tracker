@@ -621,6 +621,20 @@ export function gapsFor(period, key) {
     .sort((a, b) => a.share - b.share);
 }
 
+// Moyenne des journées réellement saisies : sur une semaine, c'est elle
+// qui compte, pas le total d'un jour isolé.
+export function weekAverages(ref) {
+  const logged = loggedDayKeys(weekDayKeys(ref));
+  const out = { days: logged.length };
+  if (!logged.length) return out;
+  const keys = ["kcal", "prot", "glu", "lip", "ags", "agmi", "agpi", "fibres", "sucres"];
+  for (const k of keys) {
+    const sum = logged.reduce((a, day) => a + (totalsFor([day])[k] || 0), 0);
+    out[k] = Math.round(sum / logged.length * 10) / 10;
+  }
+  return out;
+}
+
 export function gapsToday(key) { return gapsFor("day", key); }
 export function gapsThisWeek() { return gapsFor("week"); }
 

@@ -3,6 +3,7 @@
 
 import { state, save, addItem, setDaily, dayKey, isDone, isRecurring, weekProgress, rootBlocker, makeId } from "./state.js";
 import { SECTIONS, SECTION_MAP, SEED_PATCHES } from "./seed.js";
+import { GROUP_MAP, EXERCISE_MAP } from "./exercises.js";
 import { totalsFor, applyFoodValues, CAT_MAP } from "./nutrition.js";
 import {
   trackedItems, weekDates, monthDates, weekStartAt,
@@ -308,6 +309,21 @@ function secondsOr(v, max) {
   return n > 0 && n <= max ? n : null;
 }
 
+// Groupes musculaires : un groupe inconnu (ou disparu d'une version à
+// l'autre) ne doit pas rendre un exercice introuvable dans les filtres.
+function cleanGroup(v, fallback) {
+  return (typeof v === "string" && GROUP_MAP[v]) ? v : fallback;
+}
+
+function cleanGroups(v, main) {
+  const out = [];
+  for (const g of (Array.isArray(v) ? v : [])) {
+    if (typeof g !== "string" || !GROUP_MAP[g] || g === main || out.indexOf(g) >= 0) continue;
+    out.push(g);
+  }
+  return out.slice(0, 6);
+}
+
 function cleanReminders(raw) {
   const r = (raw && typeof raw === "object") ? raw : {};
   const time = (v, def) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(v)) ? String(v) : def);
@@ -383,6 +399,8 @@ function sanitizeState(parsed) {
     reminders: cleanReminders(s.reminders),
     folded: (s.folded && typeof s.folded === "object" && !Array.isArray(s.folded)) ? s.folded : {},
     templateSort: ["recent", "name", "order"].indexOf(s.templateSort) >= 0 ? s.templateSort : "order",
+    templateOrder: (Array.isArray(s.templateOrder) ? s.templateOrder : [])
+      .filter((k) => typeof k === "string").slice(0, 60),
     volumeMetric: ["tonnage", "sets", "reps", "rpe"].indexOf(s.volumeMetric) >= 0 ? s.volumeMetric : "tonnage",
     rapportJours: [7, 14, 30].indexOf(Math.round(parseFloat(s.rapportJours))) >= 0 ? Math.round(parseFloat(s.rapportJours)) : 14,
     hiddenTemplates: (Array.isArray(s.hiddenTemplates) ? s.hiddenTemplates : []).filter((x) => typeof x === "string"),
@@ -455,11 +473,29 @@ function sanitizeState(parsed) {
     .map((raw) => ({
       id: typeof raw.id === "string" && raw.id ? raw.id : makeId("ex"),
       label: raw.label.slice(0, 60),
-      group: typeof raw.group === "string" ? raw.group.slice(0, 20) : "gainage",
+      group: cleanGroup(raw.group, "gainage"),
+      sec: cleanGroups(raw.sec, cleanGroup(raw.group, "gainage")),
       cue: typeof raw.cue === "string" ? raw.cue.slice(0, 200) : "",
       load: ["kg", "corps", "temps"].indexOf(raw.load) >= 0 ? raw.load : "kg",
       custom: true
     }));
+
+  // Corrections d'exercices du catalogue : mêmes règles que les exercices
+  // perso, et jamais un id inventé.
+  const ovIn = (parsed.exerciseOverrides && typeof parsed.exerciseOverrides === "object" && !Array.isArray(parsed.exerciseOverrides))
+    ? parsed.exerciseOverrides : {};
+  out.exerciseOverrides = {};
+  for (const [id, raw] of Object.entries(ovIn)) {
+    if (!EXERCISE_MAP[id] || !raw || typeof raw !== "object" || typeof raw.label !== "string" || !raw.label.trim()) continue;
+    const group = cleanGroup(raw.group, EXERCISE_MAP[id].group);
+    out.exerciseOverrides[id] = {
+      label: raw.label.slice(0, 60),
+      group: group,
+      sec: cleanGroups(raw.sec, group),
+      cue: typeof raw.cue === "string" ? raw.cue.slice(0, 200) : "",
+      load: ["kg", "corps", "temps"].indexOf(raw.load) >= 0 ? raw.load : EXERCISE_MAP[id].load
+    };
+  }
 
   out.workoutTemplates = (Array.isArray(parsed.workoutTemplates) ? parsed.workoutTemplates : [])
     .filter((t) => t && typeof t === "object" && typeof t.label === "string" && t.label.trim() && Array.isArray(t.plan))

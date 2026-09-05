@@ -11,37 +11,105 @@ import {
 
 // ------------------------------------------------------------- exercices
 
+// Un exercice du catalogue peut être corrigé sans être dupliqué : la
+// correction vit à part, l'original reste la référence.
+function overrides() {
+  if (!state.exerciseOverrides || typeof state.exerciseOverrides !== "object") state.exerciseOverrides = {};
+  return state.exerciseOverrides;
+}
+
+function withOverride(e) {
+  const o = overrides()[e.id];
+  return o ? Object.assign({}, e, o, { edited: true }) : e;
+}
+
 export function allExercises() {
-  return EXERCISES.concat(state.customExercises || []);
+  return EXERCISES.map(withOverride).concat((state.customExercises || []).map(withOverride));
 }
 
 export function exerciseById(id) {
-  return EXERCISE_MAP[id] || (state.customExercises || []).find((e) => e.id === id) || null;
+  const base = EXERCISE_MAP[id] || (state.customExercises || []).find((e) => e.id === id);
+  return base ? withOverride(base) : null;
 }
 
-export function addCustomExercise(fields) {
-  const label = String(fields.label || "").trim();
-  if (!label) return null;
-  if (!state.customExercises) state.customExercises = [];
-  const entry = {
-    id: makeId("ex"),
+// Muscles secondaires : ceux qui travaillent sans être la cible.
+export function secondaryOf(ex) {
+  return (ex && Array.isArray(ex.sec) ? ex.sec : []).filter((g) => GROUP_MAP[g] && g !== ex.group);
+}
+
+function cleanExerciseFields(fields, fallback) {
+  const base = fallback || {};
+  const label = String(fields.label === undefined ? base.label : fields.label || "").trim();
+  const group = GROUP_MAP[fields.group] ? fields.group : (base.group || "gainage");
+  const sec = [];
+  for (const g of (Array.isArray(fields.sec) ? fields.sec : (base.sec || []))) {
+    if (GROUP_MAP[g] && g !== group && sec.indexOf(g) < 0) sec.push(g);
+  }
+  return {
     label: label.slice(0, 60),
-    group: GROUP_MAP[fields.group] ? fields.group : "gainage",
-    cue: String(fields.cue || "").slice(0, 200),
-    load: ["kg", "corps", "temps"].indexOf(fields.load) >= 0 ? fields.load : "kg",
-    custom: true
+    group: group,
+    sec: sec.slice(0, 6),
+    cue: String(fields.cue === undefined ? (base.cue || "") : fields.cue || "").slice(0, 200),
+    load: ["kg", "corps", "temps"].indexOf(fields.load) >= 0 ? fields.load : (base.load || "kg")
   };
+}
+
+// Modifie n'importe quel exercice : le sien directement, celui du
+// catalogue par-dessus. `resetExercise` rend l'original.
+export function updateExercise(id, fields) {
+  const custom = (state.customExercises || []).find((e) => e.id === id);
+  if (custom) {
+    const next = cleanExerciseFields(fields, custom);
+    if (!next.label) return null;
+    Object.assign(custom, next);
+    save();
+    return custom;
+  }
+  const base = EXERCISE_MAP[id];
+  if (!base) return null;
+  const next = cleanExerciseFields(fields, base);
+  if (!next.label) return null;
+  overrides()[id] = next;
+  save();
+  return exerciseById(id);
+}
+
+export function resetExercise(id) {
+  if (!overrides()[id]) return null;
+  delete state.exerciseOverrides[id];
+  save();
+  return exerciseById(id);
+}
+
+export function isEdited(id) { return !!overrides()[id]; }
+
+export function addCustomExercise(fields) {
+  const next = cleanExerciseFields(fields, {});
+  if (!next.label) return null;
+  if (!state.customExercises) state.customExercises = [];
+  const entry = Object.assign({ id: makeId("ex") }, next, { custom: true });
   state.customExercises.push(entry);
   save();
   return entry;
 }
 
+export function removeCustomExercise(id) {
+  if (!state.customExercises) return;
+  state.customExercises = state.customExercises.filter((e) => e.id !== id);
+  save();
+}
+
+// Filtrer par groupe remonte aussi les exercices où le muscle travaille en
+// secondaire — marqués comme tels pour ne pas les confondre avec la cible.
 export function searchExercises(query, group) {
   const q = String(query || "").trim().toLowerCase();
-  return allExercises().filter(function (e) {
-    if (group && group !== "all" && e.group !== group) return false;
+  return allExercises().map(function (e) {
+    const secondary = !!(group && group !== "all" && e.group !== group && secondaryOf(e).indexOf(group) >= 0);
+    return secondary ? Object.assign({}, e, { asSecondary: true }) : e;
+  }).filter(function (e) {
+    if (group && group !== "all" && e.group !== group && !e.asSecondary) return false;
     return !q || e.label.toLowerCase().includes(q);
-  });
+  }).sort((a, b) => (a.asSecondary ? 1 : 0) - (b.asSecondary ? 1 : 0));
 }
 
 // --------------------------------------------------------------- modèles
@@ -214,6 +282,26 @@ export function setTemplateSort(key) {
 
 // Modèles visibles, triés selon la préférence. « libre » reste toujours en
 // dernier : ce n'est pas une séance, c'est une porte de sortie.
+// Ordre choisi à la main, en mode « Ordre ». Les séances absentes de la
+// liste passent après, dans l'ordre du catalogue.
+export function templateOrder() {
+  const o = state.settings && state.settings.templateOrder;
+  return Array.isArray(o) ? o.filter((k) => typeof k === "string") : [];
+}
+
+export function moveTemplate(key, dir) {
+  const list = sortedTemplates().filter((t) => t.key !== "libre").map((t) => t.key);
+  const i = list.indexOf(key);
+  const j = i + (dir < 0 ? -1 : 1);
+  if (i < 0 || j < 0 || j >= list.length) return false;
+  list.splice(j, 0, list.splice(i, 1)[0]);
+  state.settings.templateOrder = list;
+  // Réordonner à la main n'a de sens que si l'on regarde cet ordre.
+  state.settings.templateSort = "order";
+  save();
+  return true;
+}
+
 export function sortedTemplates() {
   const hidden = hiddenTemplates();
   const list = allTemplates()
@@ -222,6 +310,13 @@ export function sortedTemplates() {
   const libre = list.filter((t) => t.key === "libre");
   const rest = list.filter((t) => t.key !== "libre");
   const sort = templateSort();
+  const manual = templateOrder();
+  if (sort === "order" && manual.length) {
+    rest.sort(function (a, b) {
+      const ia = manual.indexOf(a.key), ib = manual.indexOf(b.key);
+      return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+    });
+  }
   if (sort === "name") {
     rest.sort((a, b) => a.label.localeCompare(b.label, "fr"));
   } else if (sort === "recent") {

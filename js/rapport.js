@@ -11,7 +11,7 @@ import { averageOf, journalFor, topStreaks, checkinStreak } from "./forme.js";
 import { loadStatus, muscleVolume, sessionLoad } from "./charge.js";
 import { workouts, weeklySummary, exercisesPracticed, fmtDuration, exerciseById } from "./sport.js";
 import { BODY_FIELDS, trendFor, composition, lastEntry, daysSince } from "./corps.js";
-import { nutrients, dayTotals, weekTotals, isMet, topGaps, loggedDayKeys, fmtRange } from "./nutrition.js";
+import { nutrients, dayTotals, weekTotals, weekAverages, isMet, topGaps, loggedDayKeys, fmtRange } from "./nutrition.js";
 
 export const PERIODS = [7, 14, 30];
 
@@ -150,6 +150,12 @@ export function rapportMarkdown(days) {
     const dt = dayTotals(), wt = weekTotals();
     const macros = nutrients().filter((x) => x.main);
     out.push("- Aujourd'hui : " + macros.map((x) => x.label + " " + Math.round(dt[x.key]) + " / " + fmtRange(x) + " " + x.unit).join(" · "));
+    const avg = weekAverages();
+    if (avg.days) {
+      out.push("- Moyenne de la semaine (" + avg.days + " jour" + (avg.days > 1 ? "s" : "") + " saisi" + (avg.days > 1 ? "s" : "") + ") : " +
+        avg.kcal + " kcal · " + avg.prot + " g P · " + avg.glu + " g G · " + avg.lip + " g L" +
+        (avg.ags ? " · dont " + avg.ags + " g de gras saturés" : ""));
+    }
     const gaps = topGaps(6);
     if (gaps.length) {
       out.push("- Manques les plus marqués :");

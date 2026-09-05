@@ -2,7 +2,7 @@
 // La charge sert la règle de la reprise : pas de bond d'une semaine à l'autre.
 
 import { state, save } from "./state.js";
-import { workouts, weekWorkouts, exerciseById, circuitByKey, estimate1RM, fmtDuration } from "./sport.js";
+import { workouts, weekWorkouts, exerciseById, secondaryOf, circuitByKey, estimate1RM, fmtDuration } from "./sport.js";
 import { GROUP_MAP } from "./exercises.js";
 
 // ------------------------------------------------------------------ charge
@@ -68,6 +68,10 @@ function bucket(acc, group) {
   return acc[group] || (acc[group] = { group: group, tonnage: 0, sets: 0, reps: 0, rpeSum: 0, rpeN: 0 });
 }
 
+// Un muscle secondaire travaille sans être la cible : il compte pour
+// moitié, sinon le dos d'un rowing pèserait autant que ses biceps.
+export const SECONDARY_SHARE = 0.5;
+
 export function muscleVolume(ref) {
   const acc = {};
   for (const w of weekWorkouts(ref)) {
@@ -75,13 +79,17 @@ export function muscleVolume(ref) {
       for (const e of w.exercises) {
         const ex = exerciseById(e.ex);
         if (!ex) continue;
-        const g = bucket(acc, ex.group);
-        for (const s of e.sets) {
-          g.sets++;
-          g.reps += s.reps;
-          g.tonnage += s.reps * (s.weight || 0);
-          const r = s.rpe || w.rpe;
-          if (r) { g.rpeSum += r; g.rpeN++; }
+        const targets = [{ group: ex.group, share: 1 }]
+          .concat(secondaryOf(ex).map((g) => ({ group: g, share: SECONDARY_SHARE })));
+        for (const t of targets) {
+          const g = bucket(acc, t.group);
+          for (const s of e.sets) {
+            g.sets += t.share;
+            g.reps += s.reps * t.share;
+            g.tonnage += s.reps * (s.weight || 0) * t.share;
+            const r = s.rpe || w.rpe;
+            if (r) { g.rpeSum += r; g.rpeN++; }
+          }
         }
       }
     } else if (w.type === "circuit") {
@@ -103,7 +111,7 @@ export function muscleVolume(ref) {
     const meta = GROUP_MAP[g.group] || { label: g.group, icon: "" };
     return {
       group: g.group, label: meta.label, icon: meta.icon,
-      tonnage: Math.round(g.tonnage), sets: g.sets, reps: g.reps,
+      tonnage: Math.round(g.tonnage), sets: Math.round(g.sets * 10) / 10, reps: Math.round(g.reps),
       rpe: g.rpeN ? Math.round(g.rpeSum / g.rpeN * 10) / 10 : null
     };
   }).sort((a, b) => (b[metric] || 0) - (a[metric] || 0));
