@@ -268,6 +268,38 @@ export const SEED_ITEMS = [
     recurrence: week(3)
   }),
 
+  // ===== Aromates & aliments ciblés (2026-09-08) =====
+  it({
+    id: "diete-cannelle", section: "diete", group: "Aromates & aliments ciblés",
+    title: "🔴 Cannelle — prendre de la CEYLAN, pas celle que tu as",
+    detail: "Méta-analyse 2025 sur 28 essais : −15,3 mg/dL de glycémie à jeun contre placebo. Modeste mais réel, et pertinent vu le profil insulinique (ratio TG/HDL à 4,1).\nÉtiquette à chercher : « cannelle de Ceylan » ou Cinnamomum verum.",
+    warn: "La cannelle de Saigon en stock est celle qui contient LE PLUS de coumarine du marché — jusqu'à 1000× la Ceylan. Une cuillère à café ≈ 78 mg de coumarine, pour une dose tolérable de ~8,7 mg/jour (0,1 mg/kg, EFSA) : environ 9× la limite. La coumarine est hépatotoxique de façon dose-dépendante. Saigon en occasionnel uniquement, jamais en quotidien.",
+    priority: "critical"
+  }),
+  it({
+    id: "diete-grenade", section: "diete", group: "Aromates & aliments ciblés",
+    title: "Jus de grenade — 200-250 ml, jours d'entraînement",
+    detail: "Seul effet hormonal documenté de la liste boissons : baisse du cortisol post-musculation, donc ratio testostérone/cortisol amélioré (étude sur haltérophiles élite, notée le 2026-04-26).",
+    warn: "~30 g de sucre la portion — à compter, et à réserver aux jours d'entraînement.",
+    recurrence: week(3)
+  }),
+  it({
+    id: "diete-avocat-role", section: "diete", group: "Aromates & aliments ciblés", kind: "info",
+    title: "Avocat — pourquoi il mérite sa place",
+    detail: "1 avocat : ~700 mg de potassium · 81 µg de folates (ton point faible) · 21 µg de vitamine K · lipides mono-insaturés.\nIl coche trois de tes cases d'un coup."
+  }),
+  it({
+    id: "diete-ail-oignon", section: "diete", group: "Aromates & aliments ciblés", kind: "info",
+    title: "Ail et oignon — bons aliments, mauvais arguments hormonaux",
+    detail: "Ail : preuve quasi nulle sur la testostérone (déjà tranché le 2026-04-26). Vraies forces : cardiovasculaire et intestinale. 1 gousse fraîche/jour.\nOignon : les études « testostérone » sont chez le rat, avec des effets qui ne se retrouvent pas chez l'humain. Ce qu'il apporte réellement : fructanes prébiotiques (microbiote) et quercétine.",
+    warn: "À manger pour le goût et le microbiote, pas comme levier hormonal."
+  }),
+  it({
+    id: "diete-choline", section: "diete", group: "Aromates & aliments ciblés", kind: "info",
+    title: "Bonus des 7 œufs : ~1000 mg de choline",
+    detail: "Deux fois la cible. Précurseur de l'acétylcholine et protecteur hépatique — utile avec des triglycérides à 1,69."
+  }),
+
   // ===== Alternatives =====
   it({
     id: "diete-alt-proteines", section: "diete", group: "Alternatives", kind: "info",
@@ -428,6 +460,26 @@ export const SEED_ITEMS = [
     title: "Marche 20-30 min dehors",
     detail: "Le premier levier perdu fin novembre 2025 et jamais repris. Gratuit, ne fausse aucun bilan, agit sur l'énergie et l'humeur.",
     recurrence: daily
+  }),
+  it({
+    id: "entr-marche-repas", section: "entrainement", group: "Cardio",
+    title: "Marche 10 min après le petit-déjeuner",
+    detail: "Le petit-déjeuner est le repas le plus glucidique (~123 g) — c'est là que la marche rend le plus. Le muscle capte le glucose SANS insuline (translocation GLUT4).\nMéta-analyses : baisse des pics de glucose et d'insuline par rapport à rester assis.\nSi possible, une seconde après le dîner : 10 + 10 valent mieux que 20 d'un coup.",
+    recurrence: daily, priority: "critical", pinned: true
+  }),
+  it({
+    id: "entr-sprint-gh", section: "entrainement", group: "Cardio",
+    title: "1 sprint de 30 s — stimulus GH",
+    detail: "UN SEUL effort de 30 s à fond, pas une séance de sprints. 10 min d'échauffement + 1 sprint + 5 min de retour au calme = 15 min.\nUn sprint de 30 s élève la GH pendant 90 à 120 min. Les répétitions ATTÉNUENT la réponse (rétrocontrôle par les acides gras libres) : avec 60 min de récupération, le 2e sprint n'ajoute rien.\nSur vélo, jour sans jambes.",
+    warn: "À démarrer en semaine 5 seulement — pas avant que le volume de musculation soit reconstruit et la polygraphie faite.",
+    status: "blocked", blockedBy: "rdv-polygraphie", recurrence: week(1)
+  }),
+  it({
+    id: "entr-vo2max", section: "entrainement", group: "Cardio",
+    title: "VO2max — 4×4 ou 30/30, séance séparée du sprint",
+    detail: "4 min à ~90 % FCmax / 3 min de récupération, ×4. Le protocole le mieux étudié pour le VO2max.\nDose-dépendant : ≥ 75 min/semaine donne la meilleure amélioration. C'est l'inverse du sprint GH, qui demande un seul effort — les deux ne se font pas dans la même séance.\nSur vélo ou rameur : la course crée une interférence significative avec la musculation, pas le vélo.",
+    warn: "Semaine 5 au plus tôt. Et si une séance te met par terre 24-48 h après, c'est le signal clinique à noter et à dire au médecin.",
+    status: "blocked", blockedBy: "rdv-polygraphie", recurrence: week(1)
   }),
 
   // ========================================================== E. RELAXATION
@@ -593,5 +645,17 @@ export const SEED_PATCHES = [
   { v: 3, id: "comp-omega3", patch: {
       title: "Oméga-3 — 2 g d'EPA + DHA",
       detail: "Devenu la source principale : sardines et maquereau écartés au goût.",
-      warn: "Piège d'étiquette : lire EPA + DHA, pas « huile de poisson ». Une capsule à 1000 mg d'huile n'en contient souvent que 300 mg — il en faut alors 5 à 6." } }
+      warn: "Piège d'étiquette : lire EPA + DHA, pas « huile de poisson ». Une capsule à 1000 mg d'huile n'en contient souvent que 300 mg — il en faut alors 5 à 6." } },
+
+  // ===== v4 — aromates, marche post-repas, sprint GH (2026-09-08)
+  { v: 4, id: "diete-guide-matin", patch: {
+      detail: "3 œufs · avoine 80 g · beurre d'amande 30 g · miel 10-15 g · pépites de chocolat 15 g · lait 150 ml · cannelle de Ceylan\nSmoothie : 1 orange pressée + 1 citron pressé + 1 kiwi + 1 banane + 20 g de lait écrémé en poudre\n≈ 1180 kcal · 51 g de protéines",
+      warn: "Marche 10 min juste après — c'est le repas le plus glucidique de la journée." } },
+  { v: 4, id: "diete-add-avocat", patch: {
+      detail: "1 par jour. ~700 mg de potassium, 81 µg de folates, 21 µg de vitamine K, lipides mono-insaturés." } },
+  { v: 4, id: "entr-cardio", patch: {
+      detail: "Marche, LISS, HIIT ou fractionné : chaque sortie enregistrée coche la case.\nSemaines 1-4 : marche uniquement, le temps de reconstruire le volume de musculation. Sprint GH et VO2max à partir de la semaine 5." } },
+  { v: 4, id: "diete-boisson-post", patch: {
+      title: "Post-training : jus de grenade 200-250 ml",
+      detail: "Voir la fiche dédiée dans « Aromates & aliments ciblés » — baisse documentée du cortisol post-musculation." } }
 ];
