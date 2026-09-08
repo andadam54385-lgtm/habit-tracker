@@ -122,6 +122,12 @@ export const SEED_ITEMS = [
     title: "Contrôle ophtalmologique + lentilles",
     detail: "Évoqué le 4 sept. Myopie : correction à jour, lentilles comme alternative aux lunettes, et passage obligé vers la chirurgie réfractive (vue stable 2 ans requise). Clôt la question « peptide pour la rétine »."
   }),
+  it({
+    id: "rdv-kine", section: "sante", sub: "rendezvous",
+    title: "Kinésithérapeute — cervicalgies + lombalgies",
+    detail: "Indication type chez un travailleur manuel. Prescriptible par le médecin, remboursé.\nMéta-analyse sur 7 723 conducteurs professionnels : lombalgie chez 39 % sur 7 jours, 53 % sur 12 mois. Facteurs les mieux établis : mauvaise posture de conduite (OR 2,37) et manutention manuelle (OR 2,23) — tu as les deux, plus les vibrations.",
+    priority: "critical"
+  }),
 
   it({
     id: "ord-bilan", section: "sante", sub: "ordonnances",
@@ -178,6 +184,7 @@ export const SEED_ITEMS = [
     title: "Cibles quotidiennes",
     detail: "~3 000 kcal · ~190 g protéines · potassium 4 000-4 500 mg · sodium 3 000-3 500 mg"
   }),
+  it({ id: "adire-16", section: "sante", sub: "adire", title: "Lombalgies fréquentes en plus des cervicalgies — conduite, vibrations et port de charge", detail: "Demander une prescription de kinésithérapie." }),
 
   it({ id: "diete-repas-1", section: "diete", group: "Journée type", title: "7 h, maison", detail: "3 œufs + 80 g avoine + banane + purée d'amande" }),
   it({ id: "diete-repas-2", section: "diete", group: "Journée type", title: "Sac", detail: "Lait entier 500 ml, amandes, fruits" }),
@@ -481,6 +488,38 @@ export const SEED_ITEMS = [
     warn: "Semaine 5 au plus tôt. Et si une séance te met par terre 24-48 h après, c'est le signal clinique à noter et à dire au médecin.",
     status: "blocked", blockedBy: "rdv-polygraphie", recurrence: week(1)
   }),
+  it({
+    id: "entr-cervical", section: "entrainement", group: "Cou & dos",
+    title: "Flexion craniocervicale — le bon exercice pour les cervicalgies",
+    detail: "Allongé sur le dos. Léger « oui » du menton vers la gorge, SANS décoller la tête et SANS contracter les muscles superficiels du cou. Tenir 10 s. 10 répétitions.\nCe n'est pas de la musculation : c'est de la rééducation. Ça doit être presque imperceptible — si tu forces, tu fais l'exercice de travers.\nMéta-analyse sur 25 essais / 1 166 participants : réduction modérée à large de la douleur, amélioration modérée de l'incapacité, meilleure posture de tête.",
+    warn: "Agit sur la coordination neuromusculaire, pas sur la force à charge élevée. Remplace la séance cou tant que les douleurs sont présentes.",
+    recurrence: daily, priority: "critical", pinned: true
+  }),
+  it({
+    id: "ergo-siege", section: "entrainement", group: "Ergonomie & douleurs",
+    title: "Siège du camion — dossier 100-110°",
+    detail: "Soutien lombaire réglé sur le creux du dos, distance aux pédales qui n'oblige pas à tendre les jambes.\nLa posture de conduite est le facteur de risque le mieux documenté de la lombalgie du conducteur (OR 2,37).",
+    warn: "C'est la combinaison posture + vibrations + port de charge qui fait le mal de dos, pas chaque facteur isolément. Le siège est celui sur lequel tu as prise."
+  }),
+  it({
+    id: "ergo-telephone", section: "entrainement", group: "Ergonomie & douleurs",
+    title: "Support téléphone à hauteur des yeux",
+    detail: "GPS et scan consultés tête baissée toute la journée = flexion cervicale soutenue pendant des heures.\nLe geste le moins cher de toute la liste, et il retire la cause plutôt que de traiter le symptôme.",
+    priority: "critical"
+  }),
+  it({
+    id: "ergo-oreiller", section: "entrainement", group: "Ergonomie & douleurs",
+    title: "Oreiller — ni trop haut, ni absent",
+    detail: "Sur le dos : un oreiller FIN qui comble le creux de la nuque. Pas d'oreiller du tout fait basculer la tête en arrière — c'est une contrainte, pas une position neutre.\nSur le côté : plus épais, pour combler la largeur de l'épaule.\nAutotest : allongé, quelqu'un qui te regarde de profil doit voir ton visage à peu près horizontal — menton ni rentré vers la poitrine, ni basculé en arrière.",
+    warn: "Matelas ferme = il faut plus d'oreiller. Matelas mou = moins, l'épaule s'enfonce."
+  }),
+  it({
+    id: "ergo-cote", section: "entrainement", group: "Ergonomie & douleurs",
+    title: "🎯 Dormir sur le côté — ça sert deux problèmes à la fois",
+    detail: "Le ronflement va avec le sommeil sur le dos, et le sommeil sur le dos est ce qui aggrave l'apnée. Passer sur le côté sert donc la nuque ET l'apnée.\nPlus de 50 % des apnées sont positionnelles — chez ceux qui répondent, la réduction de l'index d'apnées atteint 69 à 79 %.",
+    warn: "Ça change le besoin d'oreiller : il en faut un plus épais sur le côté.",
+    recurrence: daily
+  }),
 
   // ========================================================== E. RELAXATION
   it({
@@ -657,5 +696,14 @@ export const SEED_PATCHES = [
       detail: "Marche, LISS, HIIT ou fractionné : chaque sortie enregistrée coche la case.\nSemaines 1-4 : marche uniquement, le temps de reconstruire le volume de musculation. Sprint GH et VO2max à partir de la semaine 5." } },
   { v: 4, id: "diete-boisson-post", patch: {
       title: "Post-training : jus de grenade 200-250 ml",
-      detail: "Voir la fiche dédiée dans « Aromates & aliments ciblés » — baisse documentée du cortisol post-musculation." } }
+      detail: "Voir la fiche dédiée dans « Aromates & aliments ciblés » — baisse documentée du cortisol post-musculation." } },
+
+  // ===== v5 — cervicalgies, lombalgies, ergonomie (2026-09-08)
+  { v: 5, id: "entr-cou", patch: {
+      title: "Séance cou (hypertrophie) — SUSPENDUE",
+      detail: "Suspendue pour deux raisons : cervicalgies actives, et un tour de cou élevé (> 43 cm) est un facteur de risque d'apnée.\nCe n'est PAS le bon exercice pour des cervicalgies : celui-là vise l'hypertrophie pour la mâchoire. Le bon, c'est la flexion craniocervicale — voir la fiche dédiée.",
+      warn: "Ne pas reprendre tant que les douleurs persistent et que la polygraphie n'est pas faite." } },
+  { v: 5, id: "adire-14", patch: {
+      title: "Douleurs cervicales fréquentes — et lombalgies",
+      detail: "Tête baissée toute la journée (GPS, scan) + posture de conduite + vibrations + port de charge. Demander une prescription de kiné." } }
 ];

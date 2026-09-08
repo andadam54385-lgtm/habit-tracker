@@ -260,7 +260,17 @@ export const ROUTINES = [
       phase("Clics", 45, "Claquer la langue contre le palais, 20 fois, bien sonore", "work"),
       phase("Ventouse finale", 60, "Toute la langue au palais, tenir 10 s — 4 fois", "work")
     ],
-    caution: "Aucune douleur attendue. Gêne à l'articulation de la mâchoire : réduire l'amplitude. Tous les jours — l'effet demande 8 à 12 semaines." }
+    caution: "Aucune douleur attendue. Gêne à l'articulation de la mâchoire : réduire l'amplitude. Tous les jours — l'effet demande 8 à 12 semaines." },
+  // Flexion craniocervicale — rééducation des fléchisseurs profonds.
+  // Rien à voir avec la routine "cou" ci-dessus, qui vise l'hypertrophie.
+  { key: "cervical", label: "Flexion craniocervicale", icon: "🧠", item: "entr-cervical",
+    intro: "Allongé sur le dos, genoux pliés. Le mouvement doit être presque imperceptible : si tu sens les muscles du devant du cou se contracter, tu forces trop.",
+    phases: [].concat(
+      [phase("Installation", 30, "Sur le dos, genoux pliés, tête neutre. Une main derrière la nuque pour sentir qu'elle ne se soulève pas", "rest")],
+      sets("Maintien", 10, 10, 10, "Léger « oui » du menton vers la gorge, tête posée. Respire normalement pendant les 10 s"),
+      [phase("Retour au calme", 30, "Relâche complètement, laisse la nuque reposer", "rest")]
+    ),
+    caution: "Aucune douleur ne doit apparaître. Si les muscles superficiels du cou se contractent ou tremblent, réduis l'amplitude. Vertige ou fourmillements : on arrête." }
 ];
 
 export const ROUTINE_MAP = ROUTINES.reduce(function (a, r) { a[r.key] = r; return a; }, {});
