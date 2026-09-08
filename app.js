@@ -31,7 +31,7 @@ import {
 import { state, save } from "./js/state.js";
 import { viewObjectives, mountObjectives, toggleObjective, removeObjective } from "./js/objectives.js";
 import { openCheckin, openJournal, viewBilan, bilanMarkdown, setRapportPeriod, rapportPeriod } from "./js/formeview.js";
-import { viewCorps, mountCorps, openWeighIn, setPhotoKind, pickPhoto, confirmDeletePhoto } from "./js/corpsview.js";
+import { viewCorps, mountCorps, openWeighIn, openMeasure, setPhotoKind, pickPhoto, confirmDeletePhoto } from "./js/corpsview.js";
 import { rapportMarkdown } from "./js/rapport.js";
 import { moveTemplate } from "./js/sport.js";
 import { setVolumeMetric } from "./js/charge.js";
@@ -173,11 +173,12 @@ function isEditing() {
 function onClick(e) {
   // ---- forme : check-in, journal, bilan, mesure du volume
   const formeAct = e.target.closest('[data-act="open-checkin"], [data-act="open-journal"], [data-act="copy-bilan"], [data-act="vol-metric"],' +
-    '[data-act="weigh-in"], [data-act="ph-kind"], [data-act="ph-add"], [data-act="ph-del"],' +
+    '[data-act="weigh-in"], [data-act="measure"], [data-act="ph-kind"], [data-act="ph-add"], [data-act="ph-del"],' +
     '[data-act="rapport-period"], [data-act="copy-rapport"], [data-act="export-rapport"]');
   if (formeAct) {
     const act = formeAct.dataset.act;
     if (act === "weigh-in") { openWeighIn(); return; }
+    if (act === "measure") { openMeasure(formeAct.dataset.field); return; }
     if (act === "ph-kind") { setPhotoKind(formeAct.dataset.kind); return; }
     if (act === "ph-add") { pickPhoto(); return; }
     if (act === "ph-del") { confirmDeletePhoto(formeAct.dataset.photo); return; }

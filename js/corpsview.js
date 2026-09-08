@@ -27,6 +27,70 @@ function fmtDay(key) {
 
 // ------------------------------------------------------------ saisie
 
+// Une mesure à la fois : le poids le matin, le bras le dimanche. Rien
+// d'autre n'est touché — les champs vides d'une autre mesure n'effacent
+// plus rien.
+export function openMeasure(fieldKey, key, after) {
+  const f = BODY_MAP[fieldKey];
+  if (!f) return;
+  const k = key || dayKey();
+  const today = (state.daily[k] || {})[f.key];
+  const last = lastEntry(f.key);
+  const t = trendFor(f.key, 7);
+
+  openSheet(f.icon + " " + f.label, function (body, close) {
+    body.innerHTML =
+      '<label class="field measure-field"><span>' + esc(f.label) + " en " + esc(f.unit) + "</span>" +
+        // type="text" : le clavier français tape « 81,4 », qu'un champ
+        // numérique rendrait vide sans le dire.
+        '<input type="text" inputmode="decimal" autocomplete="off" class="input input-lg" id="mz-val"' +
+          ' value="' + (today === undefined ? "" : today) + '" placeholder="—"></label>' +
+      '<p class="hint">' + esc(f.hint) + "</p>" +
+      '<div class="measure-context">' +
+        '<span><strong>' + (last ? last.value + " " + f.unit : "—") + "</strong>" +
+          "<small>" + (last ? "dernière, " + esc(fmtDay(last.key)) : "jamais mesuré") + "</small></span>" +
+        '<span><strong>' + (t.current === null ? "—" : t.current + " " + f.unit) + "</strong>" +
+          "<small>moyenne 7 j" + (t.n ? " · " + t.n + " mesure" + (t.n > 1 ? "s" : "") : "") + "</small></span>" +
+      "</div>" +
+      (today !== undefined ? '<button type="button" class="linkish" data-act="mz-del">Effacer la mesure du jour</button>' : "") +
+      '<div class="sheet-actions"><button type="button" class="btn btn-ghost" data-act="c">Annuler</button>' +
+      '<button type="button" class="btn btn-primary" data-act="ok">Enregistrer</button></div>' +
+      '<button type="button" class="linkish measure-all" data-act="mz-all">Tout noter d\'un coup →</button>';
+
+    function save(raw) {
+      const values = {};
+      values[f.key] = raw;
+      setBody(values, k);
+    }
+    body.querySelector('[data-act="c"]').addEventListener("click", close);
+    const del = body.querySelector('[data-act="mz-del"]');
+    if (del) del.addEventListener("click", function () {
+      save("");
+      close();
+      toast(f.label + " effacé pour aujourd'hui");
+    });
+    body.querySelector('[data-act="mz-all"]').addEventListener("click", function () {
+      close();
+      openWeighIn(k, after);
+    });
+    body.querySelector('[data-act="ok"]').addEventListener("click", function () {
+      const raw = body.querySelector("#mz-val").value.trim();
+      const n = parseFloat(raw.replace(",", "."));
+      // Une valeur saisie mais hors bornes serait silencieusement perdue.
+      if (raw && !(n >= f.min && n <= f.max)) {
+        toast(f.label + " : valeur impossible (" + f.min + " à " + f.max + " " + f.unit + ")", "error");
+        return;
+      }
+      save(raw);
+      close();
+      toast(raw ? f.label + " : " + lastEntry(f.key).value + " " + f.unit : f.label + " effacé");
+    });
+    const input = body.querySelector("#mz-val");
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }, { onClose: function () { if (after) setTimeout(after, 0); } });
+}
+
 // `after` permet d'ouvrir la pesée depuis une séance et d'y revenir ensuite :
 // les feuilles ne s'empilent pas, celle de la séance a été fermée.
 export function openWeighIn(key, after) {
@@ -34,8 +98,8 @@ export function openWeighIn(key, after) {
   const d = state.daily[k] || {};
   openSheet("⚖️ Pesée du jour", function (body, close) {
     body.innerHTML =
-      '<p class="sheet-text">Le poids seul suffit. Gras et muscle le jour où tu passes sur la balance de la salle, ' +
-        "ventre et bras quand tu sors le mètre : chaque champ vide est simplement ignoré.</p>" +
+      '<p class="sheet-text">Tout d\'un coup. Pour une seule mesure, passe par son bouton ' +
+        "dans la liste : les autres n'y sont pas touchées.</p>" +
       BODY_FIELDS.map(function (f) {
         const last = lastEntry(f.key);
         return '<label class="field"><span>' + esc(f.label) + " (" + f.unit + ")" +
@@ -120,9 +184,14 @@ function trendCard(f) {
     "</div>";
   }).join("");
   const last = lastEntry(f.key);
+  const since = daysSince(f.key);
   return '<section class="body-card">' +
-    '<div class="body-card-head"><h3>' + esc(f.label) + "</h3>" +
-      '<span class="body-last">' + (last ? last.value + " " + f.unit + " · " + esc(fmtDay(last.key)) : "jamais mesuré") + "</span></div>" +
+    '<div class="body-card-head"><h3>' + f.icon + " " + esc(f.label) + "</h3>" +
+      '<button type="button" class="btn btn-small btn-primary" data-act="measure" data-field="' + esc(f.key) + '">' +
+        (last ? "Noter" : "Première mesure") + "</button></div>" +
+    '<p class="body-last">' + (last
+      ? last.value + " " + f.unit + " · " + esc(fmtDay(last.key)) + (since ? " · il y a " + since + " j" : " · aujourd'hui")
+      : "jamais mesuré") + "</p>" +
     rows +
   "</section>";
 }
@@ -168,10 +237,23 @@ export function viewCorps() {
         : "Poids, et si tu es à la salle : masse grasse et masse musculaire.") + "</span></span>" +
   "</button>";
 
+  // Une mesure = un bouton. Rien n'oblige à les prendre ensemble.
+  const today = state.daily[dayKey()] || {};
+  html += '<div class="measure-chips">' + BODY_FIELDS.map(function (f) {
+    const has = today[f.key] !== undefined;
+    return '<button type="button" class="measure-chip' + (has ? " is-done" : "") +
+      '" data-act="measure" data-field="' + esc(f.key) + '">' +
+      '<span class="measure-chip-icon">' + f.icon + "</span>" +
+      '<span class="measure-chip-label">' + esc(f.short) + "</span>" +
+      '<span class="measure-chip-val">' + (has ? today[f.key] + " " + f.unit : "＋") + "</span>" +
+    "</button>";
+  }).join("") + "</div>";
+
   html += '<div class="block-head"><h2>Tendances</h2><span class="counter">7 et 14 jours</span></div>';
   html += BODY_FIELDS.map(trendCard).join("");
-  html += '<p class="hint">On compare des moyennes de fenêtres, pas deux pesées : le poids d\'un jour ne veut rien dire. ' +
-    "Gras et muscle ne se mesurent qu'à la salle — les fenêtres sans mesure affichent « aucune mesure », jamais un faux zéro.</p>";
+  html += '<p class="hint">Chaque mesure se note seule : le poids le matin, le mètre ruban quand tu y penses, ' +
+    "gras et muscle le jour où tu passes sur la balance de la salle. On compare des moyennes de fenêtres, " +
+    "pas deux pesées — une fenêtre sans mesure affiche « aucune mesure », jamais un faux zéro.</p>";
   html += weightChart();
 
   const sinceG = daysSince("gras");

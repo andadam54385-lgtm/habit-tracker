@@ -6,13 +6,20 @@
 
 import { state, save, dayKey } from "./state.js";
 
+// Chaque mesure se prend seule : la balance le matin, le mètre ruban le
+// dimanche, l'impédancemètre à la salle. Aucune n'en attend une autre.
 export const BODY_FIELDS = [
-  { key: "poids", label: "Poids", short: "Poids", unit: "kg", min: 30, max: 250, step: 0.1, dec: 1, better: "any" },
-  { key: "gras", label: "Masse grasse", short: "Gras", unit: "%", min: 3, max: 60, step: 0.1, dec: 1, better: "down" },
-  { key: "muscle", label: "Masse musculaire", short: "Muscle", unit: "%", min: 10, max: 70, step: 0.1, dec: 1, better: "up" },
+  { key: "poids", label: "Poids", short: "Poids", icon: "⚖️", unit: "kg", min: 30, max: 250, step: 0.1, dec: 1, better: "any",
+    hint: "Le matin, à jeun, après être passé aux toilettes : c'est la mesure la moins bruitée." },
+  { key: "gras", label: "Masse grasse", short: "Gras", icon: "🧈", unit: "%", min: 3, max: 60, step: 0.1, dec: 1, better: "down",
+    hint: "Balance à impédance de la salle. Même machine, mêmes conditions, sinon la comparaison ne vaut rien." },
+  { key: "muscle", label: "Masse musculaire", short: "Muscle", icon: "💪", unit: "%", min: 10, max: 70, step: 0.1, dec: 1, better: "up",
+    hint: "Relevée en même temps que la masse grasse, sur la même balance." },
   // Mensurations : le mètre ruban voit ce que la balance rate.
-  { key: "ventre", label: "Tour de ventre", short: "Ventre", unit: "cm", min: 40, max: 200, step: 0.5, dec: 1, better: "down" },
-  { key: "bras", label: "Tour de bras", short: "Bras", unit: "cm", min: 15, max: 70, step: 0.5, dec: 1, better: "up" }
+  { key: "ventre", label: "Tour de ventre", short: "Ventre", icon: "📐", unit: "cm", min: 40, max: 200, step: 0.5, dec: 1, better: "down",
+    hint: "Au nombril, debout, sans rentrer le ventre, en fin d'expiration." },
+  { key: "bras", label: "Tour de bras", short: "Bras", icon: "📏", unit: "cm", min: 15, max: 70, step: 0.5, dec: 1, better: "up",
+    hint: "Bras contracté, au plus large, toujours le même côté." }
 ];
 
 export const BODY_MAP = BODY_FIELDS.reduce(function (a, f) { a[f.key] = f; return a; }, {});
