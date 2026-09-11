@@ -4,7 +4,7 @@
 import { esc, escLines, openSheet, toast } from "./ui.js";
 import { state, save, dayKey, weekDayKeys } from "./state.js";
 import {
-  CHECKIN, checkinFor, formeScore, formeAdvice, sleepOption, saveCheckin, checkinStreak,
+  CHECKIN, checkinFor, formeScore, formeAdvice, sleepOption, saveCheckin, saveSleepHours, checkinStreak,
   saveJournal, journalFor, topStreaks, averageOf, dayData
 } from "./forme.js";
 import { loadStatus, weekLoad, sessionLoad } from "./charge.js";
@@ -47,8 +47,13 @@ export function openCheckin() {
       const complete = done();
       const score = complete ? formeScore(values) : null;
       const adv = score ? formeAdvice(score) : null;
+      const hours = dayData().sommeil;
       body.innerHTML =
-        (typeof today.sommeil === "number" ? '<p class="hint" style="margin-top:0">Sommeil importé : ' + today.sommeil + " h</p>" : "") +
+        // Le chiffre exact, lu sur Sleep Cycle au réveil. Facultatif : les
+        // pastilles suffisent, mais il aligne la réponse et affine la moyenne.
+        '<label class="ck-hours"><span>Heures de sommeil <small>facultatif</small></span>' +
+          '<input type="text" inputmode="decimal" autocomplete="off" id="ck-hours" ' +
+            'value="' + (hours === undefined ? "" : hours) + '" placeholder="7,2"></label>' +
         CHECKIN.map(function (q) {
           return '<div class="ck-row"><span class="ck-label">' + esc(q.label) + "</span>" +
             '<div class="ck-opts">' + q.opts.map(function (o, i) {
@@ -67,6 +72,15 @@ export function openCheckin() {
             "</div>" +
             '<button type="button" class="btn btn-primary btn-block" data-act="ok">C\'est noté</button>'
           : '<p class="hint">Quatre taps, c\'est tout. Le score s\'affiche tout seul.</p>');
+
+      // `change` et pas `input` : un rendu à chaque frappe volerait le focus.
+      body.querySelector("#ck-hours").addEventListener("change", function (e) {
+        const res = saveSleepHours(e.target.value);
+        if (res === false) { toast("Heures de sommeil : valeur impossible", "error"); return; }
+        if (res !== null && sleepOption(res)) values.sommeil_q = sleepOption(res);
+        if (done()) saveCheckin(values);
+        render();
+      });
 
       body.querySelectorAll(".ck-chip").forEach((b) => b.addEventListener("click", function () {
         values[b.dataset.q] = parseInt(b.dataset.v, 10);

@@ -38,6 +38,31 @@ export function sleepOption(hours) {
   return hours < 5 ? 1 : hours < 6 ? 2 : hours < 7 ? 3 : 4;
 }
 
+// Heures exactes, lues sur Sleep Cycle au réveil. Plus précis que les
+// quatre paliers, et la réponse « Sommeil » du check-in s'aligne dessus.
+// Rend le nombre enregistré, null si le champ est vidé, false si la valeur
+// est impossible — pour que la saisie ne disparaisse pas en silence.
+export function saveSleepHours(raw, key) {
+  const k = key || dayKey();
+  const txt = String(raw === undefined || raw === null ? "" : raw).trim().replace(",", ".");
+  if (!state.daily[k]) state.daily[k] = {};
+  const d = state.daily[k];
+  if (!txt) {
+    delete d.sommeil;
+    if (!Object.keys(d).length) delete state.daily[k];
+    save();
+    return null;
+  }
+  const n = parseFloat(txt);
+  if (!Number.isFinite(n) || n <= 0 || n > 24) return false;
+  d.sommeil = Math.round(n * 10) / 10;
+  // La pastille suit l'heure saisie : une seule vérité pour le score.
+  const opt = sleepOption(d.sommeil);
+  if (opt) d.sommeil_q = opt;
+  save();
+  return d.sommeil;
+}
+
 export function saveCheckin(values, key) {
   const k = key || dayKey();
   if (!state.daily[k]) state.daily[k] = {};

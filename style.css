@@ -1136,3 +1136,13 @@ td.rate-none { color: var(--text-faint); }
 .measure-all { display: block; margin-top: 12px; text-align: center; width: 100%; }
 .body-card-head .btn-small { flex: none; }
 .body-card .body-last { margin: 0 0 8px; font-size: 12.5px; color: var(--text-soft); font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------ heures de sommeil exactes */
+.ck-hours { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.ck-hours > span { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-soft); }
+.ck-hours small { font-size: 10.5px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--text-faint); }
+.ck-hours input {
+  width: 92px; min-height: var(--tap); padding: 0 10px; text-align: center;
+  background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
