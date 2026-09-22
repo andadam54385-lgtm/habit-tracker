@@ -51,14 +51,6 @@ export const CATALOGUE = [
     { kcal: 164, prot: 8.9, glu: 27, lip: 2.6, ags: 0.3, agmi: 0.6, agpi: 1.2, k: 291, mg: 48, ca: 49, fe: 2.9, zn: 1.5, b9: 172, se: 4, na: 7, e: 0.35, vk: 4, fibres: 7.6, sucres: 4.8, b6: 0.14, b1: 0.12, b2: 0.06, b3: 0.53, b5: 0.29, b8: 1, phos: 168, cu: 0.35, mn: 1.03, chr: 1, mo: 90 }),
   f("quinoa", "Quinoa cuit", "feculents", "g", 100,
     { kcal: 120, prot: 4.4, glu: 21, lip: 1.9, ags: 0.2, agmi: 0.5, agpi: 1.1, k: 172, mg: 64, ca: 17, fe: 1.5, zn: 1.1, b9: 42, se: 3, na: 7, e: 0.6, fibres: 2.8, sucres: 0.9, b6: 0.12, b1: 0.11, b2: 0.11, b3: 0.41, b5: 0.28, b8: 2, phos: 152, cu: 0.19, mn: 0.63 }),
-  // Farine crue, pas la pâte cuite : pour des pâtes maison, c'est la farine
-  // qui porte les calories — l'eau de cuisson n'en ajoute aucune.
-  f("semoule-crue", "Semoule de blé dur (crue, pour pâtes maison)", "feculents", "g", 100,
-    { kcal: 355, prot: 12.8, glu: 71, lip: 1.5, ags: 0.25, agmi: 0.15, agpi: 0.6, k: 200, mg: 50, fe: 1.2, zn: 1, na: 2, fibres: 3.6, sucres: 3, b1: 0.15, b3: 3, phos: 140, b9: 25 }),
-  f("frites-air-fryer", "Frites maison (air fryer)", "feculents", "g", 100,
-    { kcal: 130, prot: 2.3, glu: 22, lip: 3.5, ags: 0.4, agmi: 1.8, agpi: 1.1, k: 480, na: 5, mg: 20, fe: 0.5, c: 12, fibres: 2.3, sucres: 1 }),
-  f("flageolets", "Flageolets cuits", "feculents", "g", 100,
-    { kcal: 95, prot: 7.5, glu: 16, lip: 0.5, ags: 0.1, agmi: 0.05, agpi: 0.2, k: 330, na: 5, mg: 35, ca: 40, fe: 2, zn: 1, b9: 40, fibres: 6, sucres: 1 }),
 
   // ------------------------------------------------------- protéines
   f("oeuf", "Œuf (1, ~50 g)", "proteines", "u", 1,
@@ -97,8 +89,6 @@ export const CATALOGUE = [
     { kcal: 65, prot: 3.2, glu: 4.8, lip: 3.2, ags: 2.0, agmi: 0.9, agpi: 0.1, k: 156, na: 43, mg: 11, ca: 120, zn: 0.4, b9: 5, d: 0.1, b12: 0.45, se: 1, e: 0.1, vk: 0.3, sucres: 4.8, b6: 0.04, vita: 46, iode: 15, b1: 0.04, b2: 0.18, b3: 0.09, b5: 0.36, b8: 2, phos: 93, cu: 0.01, mn: 0.004, chr: 1, mo: 5 }),
   f("lait-demi", "Lait demi-écrémé", "laitiers", "ml", 100,
     { kcal: 47, prot: 3.3, glu: 4.8, lip: 1.6, ags: 1.0, agmi: 0.5, agpi: 0.1, k: 156, na: 43, mg: 11, ca: 120, zn: 0.4, b12: 0.45, e: 0.04, vk: 0.2, sucres: 4.8, b6: 0.04, vita: 22, iode: 15, b1: 0.04, b2: 0.18, b3: 0.09, b5: 0.36, b8: 2, phos: 95, cu: 0.01, mn: 0.004 }),
-  f("lait-poudre-ecreme", "Lait écrémé en poudre", "laitiers", "g", 100,
-    { kcal: 357, prot: 36, glu: 52, lip: 1, ags: 0.65, agmi: 0.25, agpi: 0.03, ca: 1300, k: 1600, phos: 1000, na: 500, mg: 110, zn: 4, b2: 1.5, b12: 4.5, sucres: 52 }, { step: 5 }),
   f("fromage-blanc", "Fromage blanc 3 %", "laitiers", "g", 100,
     { kcal: 74, prot: 8, glu: 4, lip: 3, ags: 1.9, agmi: 0.8, agpi: 0.1, k: 130, na: 40, ca: 110, mg: 11, b12: 0.5, e: 0.1, vk: 0.2, sucres: 4, b6: 0.05, vita: 20, iode: 12, b1: 0.04, b2: 0.2, b3: 0.1, b5: 0.4, b8: 3, phos: 130, cu: 0.02, mn: 0.01 }),
   f("yaourt", "Yaourt nature", "laitiers", "g", 100,

@@ -26,8 +26,7 @@ import {
 import { addRecipeParts } from "./js/nutrition.js";
 import {
   removeLibre, addQuantity, addSupplementUnits, foodById,
-  SEED_SUPPLEMENTS, SEED_RECIPES, migrateNutritionLogs, upsertSupplement,
-  upsertRecipe, recipeById
+  SEED_SUPPLEMENTS, migrateNutritionLogs, upsertSupplement
 } from "./js/nutrition.js";
 import { state, save } from "./js/state.js";
 import { viewObjectives, mountObjectives, toggleObjective, removeObjective } from "./js/objectives.js";
@@ -390,15 +389,17 @@ function boot() {
     save();
   }
 
-  // Les repas du guide diète, une seule fois : ensuite tu peux les modifier
-  // ou les supprimer, rien ne les réinjecte. Indépendant du flag ci-dessus
-  // pour ne pas dépendre de si les compléments existaient déjà.
-  if (!state.seededGuideRecipes) {
-    state.seededGuideRecipes = true;
-    for (const r of SEED_RECIPES) {
-      if (!recipeById(r.id)) upsertRecipe(r);
+  // Retrait des recettes du guide diète ajoutées par erreur en v37 : ce
+  // n'était pas ce qui était demandé. Purge une seule fois, sur tout
+  // appareil qui les aurait déjà reçues.
+  if (!state.removedGuideRecipes) {
+    state.removedGuideRecipes = true;
+    const GUIDE_RECIPE_IDS = ["rec-guide-matin", "rec-guide-sac", "rec-guide-pause", "rec-guide-pause-poulet", "rec-guide-soir"];
+    if (state.recipes && state.recipes.length) {
+      const before = state.recipes.length;
+      state.recipes = state.recipes.filter((r) => GUIDE_RECIPE_IDS.indexOf(r.id) < 0);
+      if (state.recipes.length !== before) save();
     }
-    save();
   }
 
   applyTheme();
