@@ -1146,3 +1146,11 @@ td.rate-none { color: var(--text-faint); }
   background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
   font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums;
 }
+
+/* Bouton « % mangé » des recettes : même gabarit que + et −, mais lisible
+   comme une action distincte — on saisit une fraction, pas une part. */
+.qty-pct {
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}

@@ -194,6 +194,35 @@ export const CATALOGUE = [
     { kcal: 93, prot: 1.9, glu: 19, lip: 0.9, ags: 0.15, agmi: 0.15, agpi: 0.45, sucres: 15, fibres: 2.2, na: 2124, k: 250, mg: 12, ca: 18, fe: 0.9, c: 15, vita: 60, b6: 0.1, b1: 0.04, b2: 0.06, b3: 0.5, b5: 0.1, b8: 1, phos: 30, cu: 0.08, mn: 0.15 }, { step: 5, serv: 10 }),
   f("nuoc-mam", "Nuoc-mâm (sauce de poisson)", "divers", "ml", 100,
     { kcal: 35, prot: 5, glu: 3.6, lip: 0, sucres: 3.6, na: 7851, k: 288, mg: 175, ca: 43, fe: 0.8, zn: 0.2, b12: 1.2, se: 1, iode: 25, b1: 0.01, b2: 0.1, b3: 2.3, b5: 0.3, b8: 1, phos: 10, cu: 0.03, mn: 0.05 }, { step: 5, serv: 10 }),
+
+  // ------------------------------------------- ajouts du 2026-09-22 (pâtisserie, pad thaï)
+  f("farine", "Farine de blé T55", "feculents", "g", 100,
+    { kcal: 350, prot: 12, glu: 73, lip: 1, ags: 0.2, agmi: 0.1, agpi: 0.5, sucres: 1.5, fibres: 3, k: 120, mg: 25, ca: 18, fe: 1.2, zn: 0.7, b9: 30, se: 25, na: 2, b1: 0.12, b2: 0.04, b3: 1.2, b5: 0.4, phos: 100, cu: 0.15, mn: 0.7 }),
+  f("nouilles-riz", "Nouilles de riz (sèches)", "feculents", "g", 100,
+    { kcal: 360, prot: 6, glu: 82, lip: 0.5, ags: 0.1, agmi: 0.1, agpi: 0.2, sucres: 0.2, fibres: 1.6, na: 10, k: 30, ca: 18, fe: 0.7, mg: 12, se: 15, phos: 60, mn: 0.5 }),
+
+  f("amande", "Poudre d'amande", "noix", "g", 100,
+    { kcal: 620, prot: 21, glu: 7, lip: 54, ags: 4.2, agmi: 34, agpi: 13, sucres: 4, fibres: 11, k: 730, mg: 270, ca: 260, fe: 3.7, zn: 3.1, e: 26, b9: 44, cu: 1, mn: 2.2, phos: 480, se: 4, b2: 1.1, b3: 3.6, b5: 0.5, b6: 0.14 }),
+  f("noisette", "Noisettes", "noix", "g", 100,
+    { kcal: 640, prot: 15, glu: 7, lip: 61, ags: 4.5, agmi: 46, agpi: 8, sucres: 4.3, fibres: 10, k: 680, mg: 160, ca: 114, fe: 4.7, zn: 2.5, e: 15, b9: 113, cu: 1.7, mn: 6.2, phos: 290, se: 2.4, b1: 0.64, b2: 0.11, b3: 1.8, b5: 0.9, b6: 0.56 }),
+
+  f("petit-suisse", "Petit-suisse (nature)", "laitiers", "g", 100,
+    { kcal: 140, prot: 8.5, glu: 3.4, lip: 9, ags: 6, agmi: 2.5, agpi: 0.3, sucres: 3.4, ca: 110, phos: 130, k: 110, na: 40, b2: 0.2, b12: 0.5, b5: 0.4, zn: 0.5, se: 4, iode: 20 }),
+  f("fromage-blanc-0", "Fromage blanc 0 %", "laitiers", "g", 100,
+    { kcal: 47, prot: 8, glu: 4, lip: 0.2, sucres: 4, ca: 120, phos: 140, k: 150, na: 45, b2: 0.25, b12: 0.6, b5: 0.4, zn: 0.5, se: 5, iode: 25 }),
+
+  f("sucre", "Sucre blanc", "divers", "g", 100,
+    { kcal: 400, glu: 100, sucres: 100 }, { step: 5 }),
+  f("cassonade", "Cassonade", "divers", "g", 100,
+    { kcal: 395, glu: 98, sucres: 97, k: 130, ca: 35, fe: 0.7, mg: 15 }, { step: 5 }),
+  f("cacao-poudre", "Cacao en poudre non sucré", "divers", "g", 100,
+    { kcal: 350, prot: 20, glu: 9, lip: 13, ags: 7.8, agmi: 4.3, agpi: 0.4, sucres: 1, fibres: 29, k: 1500, mg: 500, ca: 130, fe: 13, zn: 6.8, cu: 3.8, mn: 3.8, phos: 730, se: 14, b9: 32, b2: 0.24, b3: 2.2 }, { step: 5 }),
+  f("pepites-chocolat", "Pépites de chocolat noir", "divers", "g", 100,
+    { kcal: 540, prot: 5, glu: 55, lip: 31, ags: 18, agmi: 10, agpi: 1, sucres: 50, fibres: 6, k: 350, mg: 120, ca: 30, fe: 5, zn: 1.5, phos: 150, cu: 0.8, mn: 0.8 }, { step: 5 }),
+  f("biscuit-sec", "Biscuits secs (petit-beurre)", "divers", "g", 100,
+    { kcal: 450, prot: 7, glu: 75, lip: 12, ags: 6, agmi: 4, agpi: 1, sucres: 23, fibres: 2, na: 400, k: 120, ca: 60, fe: 1.8, mg: 20, phos: 100 }),
+  f("tamarin", "Pâte de tamarin", "divers", "g", 100,
+    { kcal: 240, prot: 2.8, glu: 60, lip: 0.6, sucres: 50, fibres: 5, k: 630, mg: 92, ca: 74, fe: 2.8, phos: 113, b1: 0.43, b3: 1.9, mn: 0.1 }, { step: 5, serv: 15 }),
 ];
 
 export const CAT_MAP = FOOD_CATS.reduce(function (a, c) { a[c.key] = c; return a; }, {});

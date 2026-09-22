@@ -13,7 +13,7 @@ import {
 } from "./exercises.js";
 import {
   allExercises, exerciseById, addCustomExercise, searchExercises,
-  workouts, workoutById, addWorkout, removeWorkout,
+  workouts, workoutById, workoutsOn, addWorkout, removeWorkout,
   estimate1RM, setVolume, exerciseHistory, exercisesPracticed,
   weeklySummary, runStats, fmtDuration, fmtClock,
   allTemplates, templateByKey, upsertTemplate, removeTemplate,
@@ -161,21 +161,23 @@ function bindRpe(body) {
   return () => { const a = box.querySelector(".chip.is-active"); return a ? parseInt(a.dataset.rpe, 10) : null; };
 }
 
-function sportTabs(active) {
+function sportTabs(active, day) {
+  const d = day ? "&d=" + esc(day) : "";
   return '<nav class="tabs nut-tabs">' +
-    '<a class="tab' + (active === "muscu" ? " is-active" : "") + '" href="#/sport?t=muscu">🏋️ Muscu</a>' +
-    '<a class="tab' + (active === "circuit" ? " is-active" : "") + '" href="#/sport?t=circuit">🔥 Circuit</a>' +
-    '<a class="tab' + (active === "course" ? " is-active" : "") + '" href="#/sport?t=course">🏃 Course</a>' +
-    '<a class="tab' + (active === "mobilite" ? " is-active" : "") + '" href="#/sport?t=mobilite">🌬️ Mobilité</a>' +
+    '<a class="tab' + (active === "muscu" ? " is-active" : "") + '" href="#/sport?t=muscu' + d + '">🏋️ Muscu</a>' +
+    '<a class="tab' + (active === "circuit" ? " is-active" : "") + '" href="#/sport?t=circuit' + d + '">🔥 Circuit</a>' +
+    '<a class="tab' + (active === "course" ? " is-active" : "") + '" href="#/sport?t=course' + d + '">🏃 Course</a>' +
+    '<a class="tab' + (active === "mobilite" ? " is-active" : "") + '" href="#/sport?t=mobilite' + d + '">🌬️ Mobilité</a>' +
+    '<a class="tab' + (active === "autre" ? " is-active" : "") + '" href="#/sport?t=autre' + d + '">🥊 Autre</a>' +
     "</nav>";
 }
 
 // Objectifs de la semaine : les cases d'entraînement à fréquence réglable.
 // Un tap ouvre la fiche, où la fréquence se change.
-function goalsStrip() {
+function goalsStrip(ref) {
   const short = { "entr-muscu": "Muscu", "entr-cardio": "Cardio", "entr-cou": "Cou", "entr-machoire": "Mâchoire" };
   const chips = Object.keys(short).map(byId).filter((i) => i && i.recurrence).map(function (i) {
-    const p = weekProgress(i);
+    const p = weekProgress(i, ref);
     return '<button type="button" class="goal-chip' + (p.done >= p.target ? " is-done" : "") +
       '" data-act="open-item" data-target="' + esc(i.id) + '">' +
       "<strong>" + p.done + "/" + p.target + "</strong> " + esc(short[i.id]) + "</button>";
@@ -204,6 +206,9 @@ function workoutRow(w) {
     detail = w.rounds + " tour" + (w.rounds > 1 ? "s" : "") +
       (w.stationsDone ? " + " + w.stationsDone + " station" + (w.stationsDone > 1 ? "s" : "") : "") +
       " · " + fmtDuration(w.duration) + (w.mode === "amrap" ? " · AMRAP" : "");
+  } else if (w.type === "autre") {
+    title = "🥊 " + w.activity;
+    detail = fmtDuration(w.duration);
   } else {
     const r = ROUTINE_MAP[w.routine];
     title = (r ? r.icon + " " + r.label : "Routine");
@@ -227,27 +232,64 @@ function recentList(type, limit) {
   return '<ul class="nut-foods">' + list.map(workoutRow).join("") + "</ul>";
 }
 
+// Un jour au format YYYY-MM-DD valide et rien d'autre : un paramètre
+// d'URL trafiqué ne doit pas planter la vue, juste retomber sur aujourd'hui.
+function shiftDayKey(key, delta) {
+  const d = new Date(key + "T12:00:00");
+  d.setDate(d.getDate() + delta);
+  return dayKey(d);
+}
+
+function fmtDayLabel(viewDate) {
+  const s = viewDate.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 // ------------------------------------------------------------------ vue
 
-export function viewSport(tab) {
-  const t = ["muscu", "circuit", "course", "mobilite"].indexOf(tab) >= 0 ? tab : "muscu";
-  const s = weeklySummary();
+export function viewSport(tab, dateKey) {
+  const t = ["muscu", "circuit", "course", "mobilite", "autre"].indexOf(tab) >= 0 ? tab : "muscu";
+  const todayKey = dayKey();
+  const key = /^\d{4}-\d{2}-\d{2}$/.test(dateKey || "") ? dateKey : todayKey;
+  const isToday = key === todayKey;
+  const viewDate = new Date(key + "T12:00:00");
+  const s = weeklySummary(viewDate);
 
   let html = '<div class="view">';
   html += '<header class="view-head"><h1>Entraînement</h1><p class="sub">' +
     (s.total
-      ? "Cette semaine : " + s.total + " séance" + (s.total > 1 ? "s" : "") + " · " + s.minutes + " min" +
+      ? "Cette semaine-là : " + s.total + " séance" + (s.total > 1 ? "s" : "") + " · " + s.minutes + " min" +
         (s.km ? " · " + s.km + " km" : "")
-      : "Rien d'enregistré cette semaine.") +
+      : "Rien d'enregistré cette semaine-là.") +
     "</p></header>";
-  html += goalsStrip();
+  html += goalsStrip(viewDate);
   html += sportForme();
-  html += sportTabs(t);
 
-  if (t === "muscu") html += tabMuscu();
-  else if (t === "circuit") html += tabCircuit();
-  else if (t === "course") html += tabCourse();
-  else html += tabMobilite();
+  // Corriger ou compléter un autre jour : mêmes flèches que sur Jour et
+  // Diète. Ce qui se démarre ou s'enregistre depuis cet écran se date sur
+  // le jour affiché, pas forcément sur l'instant présent.
+  html += '<nav class="week-nav">' +
+    '<a class="btn btn-small" href="#/sport?t=' + t + '&d=' + esc(shiftDayKey(key, -1)) + '" aria-label="Jour précédent">←</a>' +
+    '<span class="week-label">' + esc(isToday ? "Aujourd'hui" : fmtDayLabel(viewDate)) + "</span>" +
+    '<a class="btn btn-small" href="#/sport?t=' + t + '&d=' + esc(shiftDayKey(key, 1)) + '" aria-label="Jour suivant">→</a>' +
+    (isToday ? "" : '<a class="btn btn-small btn-ghost" href="#/sport?t=' + t + '">Aujourd\'hui</a>') +
+  "</nav>";
+
+  const onDay = workoutsOn(key).sort((a, b) => b.at - a.at);
+  if (onDay.length) {
+    html += '<div class="block-head"><h2>' + (isToday ? "Aujourd'hui" : "Ce jour-là") + "</h2></div>" +
+      '<ul class="nut-foods">' + onDay.map(workoutRow).join("") + "</ul>";
+  } else if (!isToday) {
+    html += '<p class="empty">Rien enregistré ce jour-là. Ce qui est démarré ou noté ci-dessous s\'y ajoutera.</p>';
+  }
+
+  html += sportTabs(t, isToday ? null : key);
+
+  if (t === "muscu") html += tabMuscu(key);
+  else if (t === "circuit") html += tabCircuit(key);
+  else if (t === "course") html += tabCourse(key);
+  else if (t === "mobilite") html += tabMobilite(key);
+  else html += tabAutre(key);
 
   html += "</div>";
   return html;
@@ -264,7 +306,7 @@ function fmtLastUsed(dateKey) {
   return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 }
 
-function tabMuscu() {
+function tabMuscu(day) {
   const sort = templateSort();
   const hidden = hiddenTemplates();
 
@@ -284,7 +326,7 @@ function tabMuscu() {
     const plan = names.slice(0, 3).join(" · ") + (names.length > 3 ? " · +" + (names.length - 3) : "");
     const isLibre = tpl.key === "libre";
     html += '<li class="start-row' + (isLibre ? " is-libre" : "") + '">' +
-      '<button type="button" class="start-row-main" data-act="start-muscu" data-template="' + esc(tpl.key) + '">' +
+      '<button type="button" class="start-row-main" data-act="start-muscu" data-template="' + esc(tpl.key) + '" data-day="' + esc(day) + '">' +
         '<span class="start-title">' + esc(tpl.label) + "</span>" +
         '<span class="start-detail">' + (plan ? esc(plan) : "Compose au fur et à mesure") + "</span>" +
         (isLibre ? "" : '<span class="start-last">' + esc(fmtLastUsed(tpl.lastUsed)) + "</span>") +
@@ -357,20 +399,20 @@ function tabMuscu() {
   return html;
 }
 
-function tabCourse() {
+function tabCourse(day) {
   let html = '<div class="block-head"><h2>Minuteurs</h2></div>';
   html += '<div class="start-grid">';
   for (const p of RUN_PRESETS) {
-    html += '<button type="button" class="start-card" data-act="start-run" data-preset="' + p.key + '">' +
+    html += '<button type="button" class="start-card" data-act="start-run" data-preset="' + p.key + '" data-day="' + esc(day) + '">' +
       '<span class="start-title">' + esc(p.label) + "</span>" +
       '<span class="start-detail">' + esc(RUN_MODES[p.mode].label) + " · " + fmtDuration(p.rounds * (p.work + p.rest)) + "</span>" +
       "</button>";
   }
-  html += '<button type="button" class="start-card" data-act="start-run" data-preset="custom">' +
+  html += '<button type="button" class="start-card" data-act="start-run" data-preset="custom" data-day="' + esc(day) + '">' +
     '<span class="start-title">Personnalisé</span><span class="start-detail">Travail / repos / tours au choix</span></button>';
   html += "</div>";
 
-  html += '<button type="button" class="btn btn-block btn-ghost" data-act="log-run">+ Enregistrer une sortie sans minuteur (LISS, course libre)</button>';
+  html += '<button type="button" class="btn btn-block btn-ghost" data-act="log-run" data-day="' + esc(day) + '">+ Enregistrer une sortie sans minuteur (LISS, course libre)</button>';
   html += '<p class="hint">' + esc(RUN_MODES.liss.hint) + " " + esc(RUN_MODES.hiit.hint) + "</p>";
 
   const stats = runStats(8);
@@ -390,10 +432,10 @@ function tabCourse() {
   return html;
 }
 
-function tabMobilite() {
+function tabMobilite(day) {
   let html = '<div class="block-head"><h2>Routines guidées</h2></div><div class="start-grid">';
   for (const r of ROUTINES) {
-    html += '<button type="button" class="start-card" data-act="start-routine" data-routine="' + r.key + '">' +
+    html += '<button type="button" class="start-card" data-act="start-routine" data-routine="' + r.key + '" data-day="' + esc(day) + '">' +
       '<span class="start-title">' + r.icon + " " + esc(r.label) + "</span>" +
       '<span class="start-detail">' + Math.round(routineSeconds(r) / 60) + " min · " + r.phases.length + " phases</span>" +
       "</button>";
@@ -405,17 +447,27 @@ function tabMobilite() {
   return html;
 }
 
+function tabAutre(day) {
+  let html = '<div class="block-head"><h2>Autre activité</h2></div>' +
+    '<p class="hint">Sport de combat, natation, vélo, randonnée… tout ce qui n\'a pas sa rubrique. Juste un nom, une durée, un ressenti.</p>';
+  html += '<button type="button" class="btn btn-block btn-primary" data-act="log-activity" data-day="' + esc(day) + '">+ Enregistrer une activité</button>';
+  html += '<div class="block-head"><h2>Dernières activités</h2></div>';
+  html += recentList("autre");
+  return html;
+}
+
 export function mountSport() { /* délégation dans app.js */ }
 
 // ------------------------------------------------------- séance de muscu
 
 let session = null;   // séance en cours : survit à la fermeture de la feuille
 
-export function openMuscuSession(templateKey, resume) {
+export function openMuscuSession(templateKey, resume, dateKey) {
   const tpl = templateByKey(templateKey) || templateByKey("libre");
   if (!resume || !session) {
     session = {
       template: tpl.key, label: tpl.label,
+      date: dateKey,   // le jour affiché sur Entraînement au moment du lancement
       // Rien ne tourne tant que « Commencer » n'a pas été touché : le temps
       // de séance doit être celui de l'effort, pas celui de la feuille ouverte.
       startedAt: null,
@@ -737,6 +789,7 @@ function openFinishMuscu() {
         type: "muscu", template: tpl ? tpl.id : session.template,
         label: tpl ? tpl.label : session.label,
         exercises: session.exercises, duration: dur, rpe: getRpe(),
+        date: session.date,
         note: body.querySelector("#sess-note").value
       });
       session = null;
@@ -1056,17 +1109,17 @@ export function openExerciseHistory(exId) {
 
 // ------------------------------------------------------- minuteur course
 
-export function openIntervalTimer(presetKey) {
+export function openIntervalTimer(presetKey, dateKey) {
   const preset = RUN_PRESETS.find((p) => p.key === presetKey);
-  if (presetKey === "custom" || !preset) { openCustomInterval(); return; }
-  runInterval(preset);
+  if (presetKey === "custom" || !preset) { openCustomInterval(dateKey); return; }
+  runInterval(preset, dateKey);
 }
 
-function openCustomInterval() {
+function openCustomInterval(dateKey) {
   openSheet("Minuteur personnalisé", function (body, close) {
     body.innerHTML =
       '<label class="field"><span>Mode</span><select id="ci-mode" class="input">' +
-        '<option value="hiit">HIIT</option><option value="fractionne">Fractionné</option></select></label>' +
+        '<option value="hiit">HIIT</option><option value="fractionne">Fractionné</option><option value="sprint">Sprint</option></select></label>' +
       '<div class="nf-grid">' +
         '<input type="number" id="ci-work" inputmode="numeric" placeholder="Travail (s)" min="5" max="1800" value="30">' +
         '<input type="number" id="ci-rest" inputmode="numeric" placeholder="Repos (s)" min="5" max="1800" value="30">' +
@@ -1080,14 +1133,14 @@ function openCustomInterval() {
         rest: parseInt(body.querySelector("#ci-rest").value, 10) || 30,
         rounds: parseInt(body.querySelector("#ci-rounds").value, 10) || 8
       };
-      cfg.label = (cfg.mode === "hiit" ? "HIIT " : "Fractionné ") + cfg.work + "/" + cfg.rest + " × " + cfg.rounds;
+      cfg.label = RUN_MODES[cfg.mode].label + " " + cfg.work + "/" + cfg.rest + " × " + cfg.rounds;
       close();
-      runInterval(cfg);
+      runInterval(cfg, dateKey);
     });
   });
 }
 
-function runInterval(cfg) {
+function runInterval(cfg, dateKey) {
   // Phases : échauffement implicite non compté ; travail / repos × tours.
   const phases = [];
   for (let r = 1; r <= cfg.rounds; r++) {
@@ -1098,7 +1151,7 @@ function runInterval(cfg) {
     subtitle: RUN_MODES[cfg.mode].label,
     onDone: function (elapsed, completed) {
       openRunForm({ mode: cfg.mode, duration: elapsed, work: cfg.work, rest: cfg.rest,
-        rounds: completed ? cfg.rounds : Math.max(0, phases.filter((p) => p.done && p.kind === "work").length) });
+        rounds: completed ? cfg.rounds : Math.max(0, phases.filter((p) => p.done && p.kind === "work").length) }, dateKey);
     }
   });
 }
@@ -1183,7 +1236,7 @@ function runPhases(title, phases, opts) {
   }, { onClose: function () { if (!finished) { finished = true; cd.stop(); releaseAwake(); } } });
 }
 
-export function openRunForm(prefill) {
+export function openRunForm(prefill, dateKey) {
   const p = prefill || {};
   openSheet("Enregistrer la sortie", function (body, close) {
     body.innerHTML =
@@ -1208,7 +1261,7 @@ export function openRunForm(prefill) {
         type: "course", mode: body.querySelector("#rf-mode").value,
         duration: Math.round(min * 60), distance: body.querySelector("#rf-km").value,
         work: p.work, rest: p.rest, rounds: p.rounds, rpe: getRpe(),
-        note: body.querySelector("#rf-note").value
+        note: body.querySelector("#rf-note").value, date: dateKey
       });
       close();
       if (w) toast("Sortie enregistrée" + (w.linked ? " — cardio du jour coché" : ""));
@@ -1218,7 +1271,7 @@ export function openRunForm(prefill) {
 
 // ------------------------------------------------------ routines guidées
 
-export function openRoutine(key) {
+export function openRoutine(key, dateKey) {
   const r = ROUTINE_MAP[key];
   if (!r) return;
   const phases = r.phases.map((p) => Object.assign({}, p));
@@ -1226,7 +1279,7 @@ export function openRoutine(key) {
     intro: r.intro,
     caution: r.caution,
     onDone: function (elapsed, completed) {
-      const w = addWorkout({ type: "mobilite", routine: r.key, duration: elapsed, completed: completed });
+      const w = addWorkout({ type: "mobilite", routine: r.key, duration: elapsed, completed: completed, date: dateKey });
       if (!completed) { toast("Routine interrompue à " + fmtDuration(elapsed)); return; }
       if (w) toast(r.label + " terminée" + (w.linked ? " — case du jour cochée" : ""));
     }
@@ -1242,7 +1295,7 @@ function stationLabel(p) {
   return (ex ? ex.label : p.ex) + " · " + p.qty + " " + (p.unit === "reps" ? "reps" : p.unit);
 }
 
-function tabCircuit() {
+function tabCircuit(day) {
   const list = visibleCircuits();
   const hiddenCount = hiddenTemplates().filter((k) => circuitTemplates().some((t) => t.key === k)).length;
   let html = '<div class="block-head"><h2>Circuits</h2></div>';
@@ -1253,7 +1306,7 @@ function tabCircuit() {
       : t.rounds + " tours" + (t.cap ? " · limite " + Math.round(t.cap / 60) + " min" : "");
     const last = workouts().filter((w) => w.template === t.key).map((w) => w.date).sort().pop() || null;
     return '<li class="start-row">' +
-      '<button type="button" class="start-row-main" data-act="start-circuit" data-template="' + esc(t.key) + '">' +
+      '<button type="button" class="start-row-main" data-act="start-circuit" data-template="' + esc(t.key) + '" data-day="' + esc(day) + '">' +
         '<span class="start-title">' + esc(t.label) + "</span>" +
         '<span class="start-detail">' + esc(head + " · " + names.slice(0, 3).join(" · ") + (names.length > 3 ? " · +" + (names.length - 3) : "")) + "</span>" +
         '<span class="start-last">' + esc(fmtLastUsed(last)) + "</span>" +
@@ -1406,7 +1459,7 @@ export function openCircuitEditor(key, resume) {
   });
 }
 
-export function openCircuitRun(key) {
+export function openCircuitRun(key, dateKey) {
   const t = circuitByKey(key);
   if (!t) return;
   const amrap = t.mode === "amrap";
@@ -1427,7 +1480,7 @@ export function openCircuitRun(key) {
       if (completed) cueDone();
       const dur = elapsed();
       close();
-      openFinishCircuit(t, dur, roundsDone, station, completed);
+      openFinishCircuit(t, dur, roundsDone, station, completed, dateKey);
     }
     function tick() {
       const el = body.querySelector("#ci-clock");
@@ -1491,11 +1544,11 @@ export function openCircuitRun(key) {
     if (finished) return;
     finished = true;
     clearInterval(timer); releaseAwake();
-    if (startedAt) openFinishCircuit(t, elapsed(), roundsDone, station, false);
+    if (startedAt) openFinishCircuit(t, elapsed(), roundsDone, station, false, dateKey);
   } });
 }
 
-function openFinishCircuit(t, duration, roundsDone, stationsDone, completed) {
+function openFinishCircuit(t, duration, roundsDone, stationsDone, completed, dateKey) {
   openSheet("Terminer le circuit", function (body, close) {
     const summary = roundsDone + " tour" + (roundsDone > 1 ? "s" : "") +
       (stationsDone ? " + " + stationsDone + " station" + (stationsDone > 1 ? "s" : "") : "") + " en " + fmtDuration(duration);
@@ -1511,7 +1564,7 @@ function openFinishCircuit(t, duration, roundsDone, stationsDone, completed) {
       const w = addWorkout({
         type: "circuit", template: t.key, label: t.label, mode: t.mode,
         rounds: roundsDone, stationsDone: stationsDone, stations: t.plan,
-        duration: duration, rpe: getRpe(), note: body.querySelector("#cf-note").value
+        duration: duration, rpe: getRpe(), date: dateKey, note: body.querySelector("#cf-note").value
       });
       close();
       if (!w) { toast("Rien à enregistrer", "error"); return; }

@@ -6,6 +6,17 @@ import { exportMarkdown, exportJSON, importJSON, download, stamp } from "./io.js
 import { applyTheme, scheduleReminders } from "./notify.js";
 import { migrateNutritionLogs } from "./nutrition.js";
 
+// Actions ponctuelles encore à faire : une tâche sans récurrence, ni terminée,
+// ni déjà en file. C'est ce que le ménage propose de ranger.
+function oneShots() {
+  return (state.items || []).filter(function (i) {
+    return i.kind === "task" && !i.recurrence && !i.keep &&
+      i.status !== "done" && i.status !== "queue" && i.status !== "rejected";
+  });
+}
+
+function pendingOneShots() { return oneShots().length; }
+
 function canNotify() {
   return typeof window !== "undefined" && "Notification" in window;
 }
@@ -44,6 +55,17 @@ export function viewSettings() {
           "à froid sans serveur de push.</p>"
         : '<p class="hint">Ce navigateur n\'expose pas les notifications — sur iPhone, ' +
           "installe d'abord l'app sur l'écran d'accueil (Partager → Sur l'écran d'accueil).</p>") +
+    "</section>" +
+
+    '<section class="panel">' +
+      "<h2>Faire le ménage</h2>" +
+      '<p class="hint">' + pendingOneShots() + ' action' + (pendingOneShots() > 1 ? 's' : '') +
+        ' ponctuelle' + (pendingOneShots() > 1 ? 's' : '') + ' encore en attente. ' +
+        "Les mettre en file d'attente les sort des listes du jour sans les effacer — " +
+        "elles restent consultables et se réactivent une par une.</p>" +
+      '<button type="button" class="btn btn-block btn-ghost" data-act="purge-ponctuelles">' +
+        "Mettre les actions ponctuelles en file d'attente</button>" +
+      "<p class=\"hint\">Les habitudes récurrentes et les fiches d'info ne sont pas touchées.</p>" +
     "</section>" +
 
     '<section class="panel">' +
@@ -182,6 +204,24 @@ export function mountSettings() {
     reader.onerror = function () { toast("Lecture impossible", "error"); };
     reader.readAsText(f);
     jsonFile.value = "";
+  });
+
+  const purgeBtn = document.querySelector('[data-act="purge-ponctuelles"]');
+  if (purgeBtn) purgeBtn.addEventListener("click", function () {
+    const list = oneShots();
+    if (!list.length) { toast("Rien à ranger"); return; }
+    confirmSheet(
+      "Ranger " + list.length + " action" + (list.length > 1 ? "s" : ""),
+      "Elles passent en file d'attente. Rien n'est effacé : tu les retrouves dans chaque section, " +
+        "et tu peux en réactiver une quand elle redevient d'actualité.",
+      "Ranger",
+      function () {
+        list.forEach(function (i) { i.status = "queue"; });
+        save();
+        toast(list.length + " action" + (list.length > 1 ? "s rangées" : " rangée"));
+        location.reload();
+      }
+    );
   });
 
   document.querySelector('[data-act="reset"]').addEventListener("click", function () {

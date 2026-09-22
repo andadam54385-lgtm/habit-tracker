@@ -4,7 +4,7 @@
 import { esc, openSheet, toast, confirmSheet } from "./ui.js";
 import {
   recipes, recipeById, upsertRecipe, removeRecipe, recipePerPart,
-  foodById, searchFoods, nutrientMap, FOOD_CATS, addRecipeParts, logFor
+  foodById, searchFoods, nutrientMap, FOOD_CATS, addRecipeParts, logFor, setRecipeParts
 } from "./nutrition.js";
 
 function fmtN(v) {
@@ -55,6 +55,8 @@ export function viewRecipes() {
           '<span class="qty-val is-static">' + fmtN(parts) + "</span>" +
           '<button type="button" class="qty-btn" data-act="rec-plus" data-recipe="' + esc(r.id) +
             '" aria-label="Ajouter une part">+</button>' +
+          '<button type="button" class="qty-btn qty-pct" data-act="rec-pct" data-recipe="' + esc(r.id) +
+            '" aria-label="Saisir un pourcentage">%</button>' +
         "</div>" +
       "</li>";
     }
@@ -266,3 +268,81 @@ function openIngredientQuantity(foodId) {
 }
 
 export function mountRecipes() { /* délégation dans app.js */ }
+
+// ------------------------------------------------- pourcentage consommé
+//
+// Les boutons + et − ajoutent des parts entières, ce qui ne suffit pas :
+// une fournée de brownie se mange rarement en parts rondes, et une pâte à
+// tartiner encore moins. Ici on saisit directement la fraction de la
+// recette entière qui a été mangée. Le journal stocke un nombre de parts
+// décimal — setRecipeParts l'accepte déjà, c'est seulement la saisie qui
+// manquait.
+
+export function openRecipePercent(recipeId) {
+  const r = recipeById(recipeId);
+  if (!r) return;
+  const per = recipePerPart(r);
+  const parts = Math.max(1, r.portions || 1);
+  const current = (logFor().recipes || {})[recipeId] || 0;
+  const curPct = Math.round((current / parts) * 1000) / 10;
+
+  openSheet(r.label, function (body, close) {
+    body.innerHTML =
+      '<p class="hint">Part de la recette entière que tu as mangée. ' +
+        "La recette fait " + parts + " part" + (parts > 1 ? "s" : "") + ".</p>" +
+      '<div class="chips">' +
+        [10, 25, 50, 75, 100].map(function (v) {
+          return '<button type="button" class="chip" data-pct="' + v + '">' + v + " %</button>";
+        }).join("") +
+        '<button type="button" class="chip" data-pct="' + Math.round(1000 / parts) / 10 +
+          '">1 part</button>' +
+      "</div>" +
+      '<label class="field"><span>Pourcentage mangé</span>' +
+        '<input type="number" id="pct-input" class="input input-lg" inputmode="decimal" ' +
+          'min="0" max="400" step="5" value="' + esc(curPct || 100) + '"></label>' +
+      '<div id="pct-preview" class="q-preview"></div>' +
+      '<div class="sheet-actions">' +
+        (current ? '<button type="button" class="btn btn-danger-ghost" data-act="pct-remove">Retirer</button>' : "") +
+        '<button type="button" class="btn btn-primary" data-act="pct-save">' +
+          (current ? "Mettre à jour" : "Ajouter") + "</button>" +
+      "</div>";
+
+    const input = body.querySelector("#pct-input");
+    const prev = body.querySelector("#pct-preview");
+
+    function refresh() {
+      const pct = Math.max(0, parseFloat(String(input.value).replace(",", ".")) || 0);
+      const p = pct / 100 * parts; // en parts
+      prev.innerHTML =
+        '<div class="q-macros">' +
+          "<span><strong>" + fmtN((per.kcal || 0) * p) + "</strong> kcal</span>" +
+          "<span><strong>" + fmtN((per.prot || 0) * p) + "</strong> g P</span>" +
+          "<span><strong>" + fmtN((per.glu || 0) * p) + "</strong> g G</span>" +
+          "<span><strong>" + fmtN((per.lip || 0) * p) + "</strong> g L</span>" +
+        "</div>" +
+        '<p class="hint">= ' + fmtN(Math.round(p * 100) / 100) + " part" + (p > 1 ? "s" : "") + "</p>";
+    }
+
+    input.addEventListener("input", refresh);
+    refresh();
+
+    body.addEventListener("click", function (ev) {
+      const chip = ev.target.closest("[data-pct]");
+      if (chip) { input.value = chip.dataset.pct; refresh(); return; }
+      const act = ev.target.closest("[data-act]");
+      if (!act) return;
+      if (act.dataset.act === "pct-remove") {
+        setRecipeParts(recipeId, 0);
+        toast("Retiré de la journée");
+        close();
+        return;
+      }
+      if (act.dataset.act === "pct-save") {
+        const pct = Math.max(0, parseFloat(String(input.value).replace(",", ".")) || 0);
+        setRecipeParts(recipeId, pct / 100 * parts);
+        toast(pct ? fmtN(pct) + " % enregistré" : "Retiré de la journée");
+        close();
+      }
+    });
+  });
+}

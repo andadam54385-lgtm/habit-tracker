@@ -281,6 +281,7 @@ export function viewNutrition() {
           '<button type="button" class="qty-btn" data-act="rec-minus" data-recipe="' + esc(rid) + '" aria-label="Retirer une part">−</button>' +
           '<span class="qty-val is-static">' + fmtN(parts) + " p</span>" +
           '<button type="button" class="qty-btn" data-act="rec-plus" data-recipe="' + esc(rid) + '" aria-label="Ajouter une part">+</button>' +
+          '<button type="button" class="qty-btn qty-pct" data-act="rec-pct" data-recipe="' + esc(rid) + '" aria-label="Saisir un pourcentage">%</button>' +
         "</div>" +
       "</li>";
     }

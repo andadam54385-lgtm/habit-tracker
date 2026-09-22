@@ -174,13 +174,16 @@ export const RUN_PRESETS = [
   { key: "hiit-40", label: "HIIT 40/20 × 10", mode: "hiit", work: 40, rest: 20, rounds: 10 },
   { key: "frac-1", label: "Fractionné 1'/1' × 6", mode: "fractionne", work: 60, rest: 60, rounds: 6 },
   { key: "frac-2", label: "Fractionné 2'/1' × 5", mode: "fractionne", work: 120, rest: 60, rounds: 5 },
-  { key: "frac-3", label: "Fractionné 3'/1'30 × 4", mode: "fractionne", work: 180, rest: 90, rounds: 4 }
+  { key: "frac-3", label: "Fractionné 3'/1'30 × 4", mode: "fractionne", work: 180, rest: 90, rounds: 4 },
+  { key: "sprint-6", label: "Sprints 15 s / 45 s × 6", mode: "sprint", work: 15, rest: 45, rounds: 6 },
+  { key: "sprint-10", label: "Sprints 20 s / 60 s × 10", mode: "sprint", work: 20, rest: 60, rounds: 10 }
 ];
 
 export const RUN_MODES = {
   liss: { label: "LISS — endurance", icon: "🚶", hint: "Tu dois pouvoir tenir une conversation. 30 à 45 min, 2 à 3 fois par semaine." },
   hiit: { label: "HIIT", icon: "⚡", hint: "Efforts courts et intenses. Pas plus de 2 par semaine pendant la reprise." },
-  fractionne: { label: "Fractionné", icon: "🏃", hint: "Alternance allure rapide / récupération active. Échauffe-toi 10 min avant." }
+  fractionne: { label: "Fractionné", icon: "🏃", hint: "Alternance allure rapide / récupération active. Échauffe-toi 10 min avant." },
+  sprint: { label: "Sprint", icon: "💨", hint: "Effort maximal sur quelques secondes, récupération longue. Échauffe-toi bien avant, arrête au moindre tiraillement." }
 };
 
 // ------------------------------------------------------ routines guidées

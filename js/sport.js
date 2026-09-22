@@ -382,7 +382,7 @@ export function addWorkout(w) {
   if (!state.workouts) state.workouts = [];
   const entry = {
     id: makeId("w"),
-    type: ["muscu", "course", "mobilite", "circuit"].indexOf(w.type) >= 0 ? w.type : "muscu",
+    type: ["muscu", "course", "mobilite", "circuit", "autre"].indexOf(w.type) >= 0 ? w.type : "muscu",
     date: /^\d{4}-\d{2}-\d{2}$/.test(w.date || "") ? w.date : dayKey(),
     at: Date.now(),
     duration: Math.max(0, Math.round(num(w.duration))),   // secondes
@@ -416,7 +416,7 @@ export function addWorkout(w) {
   }
 
   if (entry.type === "course") {
-    entry.mode = ["liss", "hiit", "fractionne"].indexOf(w.mode) >= 0 ? w.mode : "liss";
+    entry.mode = ["liss", "hiit", "fractionne", "sprint"].indexOf(w.mode) >= 0 ? w.mode : "liss";
     entry.distance = w.distance ? Math.max(0, Math.round(num(w.distance) * 100) / 100) : null;
     if (entry.mode !== "liss") {
       entry.work = Math.max(0, Math.round(num(w.work)));
@@ -441,6 +441,13 @@ export function addWorkout(w) {
     entry.stationsDone = Math.max(0, Math.round(num(w.stationsDone))); // stations du tour entamé
     entry.stations = cleanStations(w.stations || (t ? t.plan : []));
     if (!entry.duration && !entry.rounds) return null;
+  }
+
+  // Activité libre : sport de combat, natation… tout ce qui n'a pas sa
+  // propre rubrique. Juste un nom, une durée, un ressenti.
+  if (entry.type === "autre") {
+    entry.activity = String(w.activity || "Activité").slice(0, 40);
+    if (!entry.duration) return null;
   }
 
   state.workouts.push(entry);
@@ -468,7 +475,7 @@ export function linkedItemFor(w) {
     // « auto » : n'importe quelle séance compte pour la case Musculation.
     return byId("entr-muscu") ? "entr-muscu" : null;
   }
-  if (w.type === "course") return byId("entr-cardio") ? "entr-cardio" : null;
+  if (w.type === "course" || w.type === "autre") return byId("entr-cardio") ? "entr-cardio" : null;
   if (w.type === "mobilite") {
     const r = ROUTINE_MAP[w.routine];
     if (!r) return null;
@@ -566,17 +573,18 @@ export function weekWorkouts(ref) {
   return workouts().filter((w) => keys.indexOf(w.date) >= 0);
 }
 
-export function weeklySummary() {
-  const ws = weekWorkouts();
+export function weeklySummary(ref) {
+  const ws = weekWorkouts(ref);
   const out = {
     muscu: ws.filter((w) => w.type === "muscu").length,
     course: ws.filter((w) => w.type === "course").length,
     mobilite: ws.filter((w) => w.type === "mobilite").length,
     circuit: ws.filter((w) => w.type === "circuit").length,
+    autre: ws.filter((w) => w.type === "autre").length,
     minutes: Math.round(ws.reduce((a, w) => a + (w.duration || 0), 0) / 60),
     km: Math.round(ws.filter((w) => w.type === "course").reduce((a, w) => a + (w.distance || 0), 0) * 10) / 10
   };
-  out.total = out.muscu + out.course + out.mobilite + out.circuit;
+  out.total = out.muscu + out.course + out.mobilite + out.circuit + out.autre;
   return out;
 }
 

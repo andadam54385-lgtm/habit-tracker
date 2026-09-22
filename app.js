@@ -16,14 +16,15 @@ import {
   viewNutrition, mountNutrition, openFoodSearch, openQuantity,
   openTargets, openSupplements, openLibre, openGapFiller
 } from "./js/nutritionview.js";
-import { viewRecipes, mountRecipes, openRecipeEditor } from "./js/recipes.js";
+import { viewRecipes, mountRecipes, openRecipeEditor, openRecipePercent } from "./js/recipes.js";
 import {
   viewSport, mountSport, openMuscuSession, openIntervalTimer, openRunForm,
   openRoutine, openWorkout, openExerciseHistory, confirmDeleteWorkout,
   openTemplateEditor, confirmDeleteTemplate, changeTemplateSort, restoreHiddenTemplates,
   openCircuitEditor, openCircuitRun
 } from "./js/sportview.js";
-import { addRecipeParts } from "./js/nutrition.js";
+import { addRecipeParts, upsertRecipe, recipeById } from "./js/nutrition.js";
+import { SEED_RECIPES } from "./js/seedrecipes.js";
 import {
   removeLibre, addQuantity, addSupplementUnits, foodById,
   SEED_SUPPLEMENTS, migrateNutritionLogs, upsertSupplement
@@ -246,6 +247,7 @@ function onClick(e) {
     if (act === "fill-gap") { openGapFiller(nutAct.dataset.nut, nutAct.dataset.period); return; }
     if (act === "new-recipe") { openRecipeEditor(null); return; }
     if (act === "edit-recipe") { openRecipeEditor(nutAct.dataset.recipe); return; }
+    if (act === "rec-pct") { openRecipePercent(nutAct.dataset.recipe); return; }
     if (act === "rec-plus" || act === "rec-minus") {
       addRecipeParts(nutAct.dataset.recipe, act === "rec-plus" ? 1 : -1);
       return;
@@ -400,6 +402,22 @@ function boot() {
       state.recipes = state.recipes.filter((r) => GUIDE_RECIPE_IDS.indexOf(r.id) < 0);
       if (state.recipes.length !== before) save();
     }
+  }
+
+  // Recettes construites avec Claude les 21-22 sept. 2026 : pâtisseries,
+  // pâte à tartiner maison, pad thaï, sauces. Injectées UNE fois, puis
+  // elles t'appartiennent — l'app ne les réécrit jamais, les grammages
+  // bougent avec les tests en cuisine.
+  if (!state.seededPatisseries) {
+    state.seededPatisseries = true;
+    let added = 0;
+    for (const r of SEED_RECIPES) {
+      if (recipeById(r.id)) continue;
+      upsertRecipe(r);
+      added++;
+    }
+    if (added) console.info("Recettes : " + added + " ajoutée(s).");
+    save();
   }
 
   applyTheme();

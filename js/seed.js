@@ -56,7 +56,8 @@ function it(o) {
     source: "seed",
     createdAt: 0,
     doneAt: null,
-    pinned: false
+    pinned: false,
+    keep: false      // true = jamais rangé par le ménage des actions ponctuelles
   }, o);
 }
 
@@ -610,7 +611,80 @@ export const SEED_ITEMS = [
   it({ id: "app-file-charisme", section: "apprentissage", group: "File d'attente", title: "Charisme", detail: "Porté par le mentalisme.", kind: "queue", status: "queue" }),
   it({ id: "app-file-mensonge", section: "apprentissage", group: "File d'attente", title: "Détection du mensonge", kind: "queue", status: "queue" }),
   it({ id: "app-file-peptides", section: "apprentissage", group: "File d'attente", title: "Peptides", kind: "queue", status: "queue" }),
-  it({ id: "app-file-reste", section: "apprentissage", group: "File d'attente", title: "Le reste", kind: "queue", status: "queue" })
+  it({ id: "app-file-reste", section: "apprentissage", group: "File d'attente", title: "Le reste", kind: "queue", status: "queue" }),
+
+  // ====================================================== I. DÉMARCHES 2026-09-22
+  // Objectifs courts arrêtés avec Claude le 22 sept. Ils sont classés par
+  // ce qui débloque le reste : la BMW commande la trésorerie de novembre,
+  // le RIB commande la paye du 10.
+  it({
+    id: "dem-bmw-prejudice", section: "suivi", keep: true, group: "Démarches",
+    title: "1 · Faire chiffrer le préjudice de la BMW",
+    priority: "critical",
+    detail: "Devis garage ou expert automobile indépendant (~150-300 €, récupérables sur le responsable). Sans montant opposable, il n'y a rien à réclamer.",
+    warn: "À FAIRE AVANT LA VENTE. Véhicule vendu, le préjudice ne se chiffre plus et le recours tombe."
+  }),
+  it({
+    id: "dem-bmw-vente", section: "suivi", keep: true, group: "Démarches",
+    title: "2 · Vendre la BMW",
+    priority: "critical", blockedBy: "dem-bmw-prejudice",
+    detail: "~1 000 € en l'état, plus 52 €/mois d'assurance qui tombent. Avec la sortie de 800 € pour sa sœur, c'est ce qui tient novembre et décembre.",
+    warn: "Avant novembre. Sans cette vente, les deux mois repassent en négatif."
+  }),
+  it({
+    id: "dem-caf", section: "suivi", keep: true, group: "Démarches",
+    title: "3 · CAF — argent dû et prime recalculée",
+    priority: "critical",
+    detail: "Deux choses dans le même appel : le remboursement de leur erreur, et les 3 mois de RSA manquants dans le calcul de la prime d'activité.",
+    warn: "Demander une trace écrite de la réclamation — c'est ce qui protège la date de la demande."
+  }),
+  it({
+    id: "dem-pacifica", section: "suivi", keep: true, group: "Démarches",
+    title: "4 · LRAR à Pacifica — accident du 21/01",
+    detail: "Trois questions dans le même courrier : nom du gestionnaire adverse, démarches datées depuis janvier, et la garantie défense-recours est-elle mobilisée. Demander aussi le relevé d'information.",
+    warn: "Six mois de silence. Sans réponse sous 2 mois : Médiation de l'Assurance."
+  }),
+  it({
+    id: "dem-matmut", section: "sante", keep: true, group: "Démarches",
+    title: "5 · Rappeler la Matmut — mutuelle",
+    priority: "critical",
+    detail: "La CSS n'ouvrira pas avant le 1er décembre : il est sans couverture sur octobre et novembre.",
+    warn: "Obtenir la CSS permettra ensuite de résilier le contrat privé, même avant un an."
+  }),
+  it({
+    id: "dem-banque-rib", section: "suivi", keep: true, group: "Démarches",
+    title: "6 · Nouveau RIB à l'employeur — avant le 10",
+    priority: "critical",
+    detail: "Ouvrir le compte au Crédit Agricole, puis donner le RIB à l'employeur. C'est le seul geste qui protège la paye, et il ne dépend d'aucun délai bancaire.",
+    warn: "La mobilité bancaire prend 22 jours ouvrés — bien trop long. Et une paye qui tombe sur un compte débiteur peut être absorbée."
+  }),
+  it({
+    id: "dem-banque-dette", section: "suivi", keep: true, group: "Démarches",
+    title: "7 · Appeler la SG pour un échéancier",
+    blockedBy: "dem-banque-rib",
+    detail: "Partir n'efface pas la dette. La laisser courir expose au recouvrement et au fichage Banque de France — ce qui bloquerait justement l'ouverture au Crédit Agricole.",
+    warn: "Un compte débiteur ne peut pas être clôturé : la banque exige un solde à zéro."
+  }),
+  it({
+    id: "dem-romain", section: "suivi", keep: true, group: "Démarches",
+    title: "8 · Contacter Romain — Vinted",
+    detail: "Commande groupée ou solo : c'est le blocage identifié le 17/09, et un seul message le lève.",
+    warn: "Rien d'autre n'avance sur cette ligne tant que la question n'est pas posée."
+  }),
+  it({
+    id: "dem-psy-rdv", section: "sante", sub: "rendezvous", keep: true, group: "Démarches",
+    title: "9 · Prendre rendez-vous — Mon soutien psy",
+    priority: "critical",
+    detail: "12 séances par année civile, 50 € la séance, 60 % remboursés — et gratuit dès que la CSS est ouverte. Pas de lettre d'adressage nécessaire. Annuaire : monsoutienpsy.ameli.fr/recherche-psychologue",
+    warn: "Accepté depuis le 30 août, toujours pas pris. La 1re séance est obligatoirement en présentiel, le suivi peut passer en visio. L'annuaire n'affiche aucune disponibilité : chercher les noms sur Doctolib."
+  }),
+  it({
+    id: "dem-post-polygraphie", section: "sante", keep: true, group: "Démarches",
+    title: "10 · Fixer les actions suivantes après le résultat de la polygraphie",
+    blockedBy: "rdv-polygraphie",
+    detail: "Pose de l'appareil le jeudi 24/09, nuit d'enregistrement du jeudi au vendredi. Selon l'IAH : orthèse d'avancée mandibulaire entre 15 et 30, PPC au-delà. Débloque aussi la reprise du cou et l'intensité à l'entraînement.",
+    warn: "Apporter le bilan sanguin du 12/09 à la pose."
+  }),
 ];
 
 // Correctifs d'items DÉJÀ injectés sur un appareil. applySeed() n'ajoute que
