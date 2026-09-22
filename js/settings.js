@@ -66,11 +66,22 @@ export function viewSettings() {
       '<button type="button" class="btn btn-block btn-danger-ghost" data-act="reset">Tout effacer</button>' +
     "</section>" +
 
-    '<p class="version">Suivi personnel · données stockées uniquement sur cet appareil.</p>' +
+    '<p class="version">Suivi personnel <span id="app-version"></span><br>' +
+      "Données stockées uniquement sur cet appareil.</p>" +
     "</div>";
 }
 
 export function mountSettings() {
+  // Pas de numéro dupliqué à maintenir en JS : on lit le nom du cache
+  // actif, que le service worker nomme déjà d'après sa propre VERSION.
+  const verEl = document.getElementById("app-version");
+  if (verEl && typeof caches !== "undefined") {
+    caches.keys().then(function (keys) {
+      const v = keys.find((k) => /^suivi-v\d+$/.test(k));
+      verEl.textContent = v ? "· " + v.replace("suivi-", "") : "";
+    }).catch(function () { /* pas de service worker actif ici */ });
+  }
+
   const themeBox = document.getElementById("set-theme");
   themeBox.addEventListener("click", function (e) {
     const chip = e.target.closest(".chip");

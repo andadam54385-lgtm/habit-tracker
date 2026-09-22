@@ -26,7 +26,8 @@ import {
 import { addRecipeParts } from "./js/nutrition.js";
 import {
   removeLibre, addQuantity, addSupplementUnits, foodById,
-  SEED_SUPPLEMENTS, migrateNutritionLogs, upsertSupplement
+  SEED_SUPPLEMENTS, SEED_RECIPES, migrateNutritionLogs, upsertSupplement,
+  upsertRecipe, recipeById
 } from "./js/nutrition.js";
 import { state, save } from "./js/state.js";
 import { viewObjectives, mountObjectives, toggleObjective, removeObjective } from "./js/objectives.js";
@@ -386,6 +387,17 @@ function boot() {
   if (!state.seededSupplements) {
     state.seededSupplements = true;
     if (!state.supplements.length) SEED_SUPPLEMENTS.forEach((s) => upsertSupplement(s));
+    save();
+  }
+
+  // Les repas du guide diète, une seule fois : ensuite tu peux les modifier
+  // ou les supprimer, rien ne les réinjecte. Indépendant du flag ci-dessus
+  // pour ne pas dépendre de si les compléments existaient déjà.
+  if (!state.seededGuideRecipes) {
+    state.seededGuideRecipes = true;
+    for (const r of SEED_RECIPES) {
+      if (!recipeById(r.id)) upsertRecipe(r);
+    }
     save();
   }
 

@@ -268,6 +268,36 @@ export function searchFoods(query, cat) {
 
 // --------------------------------------------------------- compléments
 
+// Les repas du guide diète (seed.js, groupe « Guide — journée de
+// référence ») repris en recettes : une part = le repas entier tel que
+// décrit, pas une portion à multiplier. Ajoutées une seule fois, à part
+// des recettes créées à la main ensuite — jamais réécrites par-dessus.
+export const SEED_RECIPES = [
+  {
+    id: "rec-guide-matin", label: "7 h · Petit-déjeuner + smoothie", portions: 1,
+    items: {
+      oeuf: 3, avoine: 80, "puree-amande": 30, miel: 12, "chocolat-noir": 15, "lait-entier": 150,
+      "jus-orange": 100, "jus-citron": 30, kiwi: 75, banane: 120, "lait-poudre-ecreme": 20
+    }
+  },
+  {
+    id: "rec-guide-sac", label: "Sac du camion", portions: 1,
+    items: { "lait-entier": 150, pomme: 150 }
+  },
+  {
+    id: "rec-guide-pause", label: "Pause · Pâtes aux œufs (au thon)", portions: 1,
+    items: { "semoule-crue": 150, oeuf: 2, "thon-naturel": 100, "huile-olive": 10 }
+  },
+  {
+    id: "rec-guide-pause-poulet", label: "Pause · Pâtes aux œufs (au poulet)", portions: 1,
+    items: { "semoule-crue": 150, oeuf: 2, "poulet-blanc": 100, "huile-olive": 10 }
+  },
+  {
+    id: "rec-guide-soir", label: "18 h · Dîner", portions: 1,
+    items: { "boeuf-5": 200, "frites-air-fryer": 250, courgette: 150, flageolets: 100, "huile-olive": 5 }
+  }
+];
+
 export const SEED_SUPPLEMENTS = [
   { id: "sup-magnesium", label: "Magnésium bisglycinate", unit: "gélule", n: { mg: 100 } },
   { id: "sup-creatine", label: "Créatine monohydrate", unit: "dose 5 g", n: {} },
@@ -351,8 +381,14 @@ export function upsertRecipe(rec) {
     save();
     return existing;
   }
+  // Un id explicite (graine rec-*) est conservé s'il est libre : sert au
+  // seed des recettes du guide, pour qu'elles restent reconnaissables
+  // et ne se dupliquent pas d'un chargement à l'autre. L'éditeur, lui, ne
+  // passe jamais d'id à la création — ce chemin ne le concerne pas.
   const entry = {
-    id: "rec_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+    id: (typeof rec.id === "string" && rec.id && !recipeById(rec.id))
+      ? rec.id
+      : "rec_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
     label: label.slice(0, 80),
     portions: parts,
     items: items
