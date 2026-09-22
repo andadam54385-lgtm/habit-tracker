@@ -21,7 +21,7 @@ import {
   viewSport, mountSport, openMuscuSession, openIntervalTimer, openRunForm,
   openRoutine, openWorkout, openExerciseHistory, confirmDeleteWorkout,
   openTemplateEditor, confirmDeleteTemplate, changeTemplateSort, restoreHiddenTemplates,
-  openCircuitEditor, openCircuitRun
+  openCircuitEditor, openCircuitRun, openActivityForm
 } from "./js/sportview.js";
 import { addRecipeParts, upsertRecipe, recipeById } from "./js/nutrition.js";
 import { SEED_RECIPES } from "./js/seedrecipes.js";
@@ -88,7 +88,7 @@ function renderRoute(route) {
     case "bilan": return viewBilan(route.params.get("w") || 0);
     case "corps": return viewCorps();
     case "recipes": return viewRecipes();
-    case "sport": return viewSport(route.params.get("t") || "muscu");
+    case "sport": return viewSport(route.params.get("t") || "muscu", route.params.get("d"));
     case "search": return viewSearch(route.params.get("q") || "");
     case "import": return viewImport();
     case "settings": return viewSettings();
@@ -210,7 +210,7 @@ function onClick(e) {
 
   // ---- entraînement
   const sportAct = e.target.closest('[data-act="start-muscu"], [data-act="start-run"], [data-act="log-run"],' +
-    '[data-act="start-routine"], [data-act="open-workout"], [data-act="del-workout"], [data-act="open-exercise"],' +
+    '[data-act="start-routine"], [data-act="log-activity"], [data-act="open-workout"], [data-act="del-workout"], [data-act="open-exercise"],' +
     '[data-act="new-template"], [data-act="edit-template"], [data-act="del-template"],' +
     '[data-act="tpl-sort"], [data-act="unhide-templates"], [data-act="tpl-move-up"], [data-act="tpl-move-down"],' +
     '[data-act="start-circuit"], [data-act="new-circuit"], [data-act="edit-circuit"]');
@@ -219,7 +219,7 @@ function onClick(e) {
     if (act === "new-template") { openTemplateEditor(null); return; }
     if (act === "new-circuit") { openCircuitEditor(null); return; }
     if (act === "edit-circuit") { openCircuitEditor(sportAct.dataset.template); return; }
-    if (act === "start-circuit") { openCircuitRun(sportAct.dataset.template); return; }
+    if (act === "start-circuit") { openCircuitRun(sportAct.dataset.template, sportAct.dataset.day); return; }
     if (act === "edit-template") { openTemplateEditor(sportAct.dataset.template); return; }
     if (act === "del-template") { confirmDeleteTemplate(sportAct.dataset.template); return; }
     if (act === "tpl-sort") { changeTemplateSort(sportAct.dataset.sort); return; }
@@ -228,10 +228,11 @@ function onClick(e) {
       return;
     }
     if (act === "unhide-templates") { restoreHiddenTemplates(); return; }
-    if (act === "start-muscu") openMuscuSession(sportAct.dataset.template);
-    else if (act === "start-run") openIntervalTimer(sportAct.dataset.preset);
-    else if (act === "log-run") openRunForm({ mode: "liss" });
-    else if (act === "start-routine") openRoutine(sportAct.dataset.routine);
+    if (act === "start-muscu") openMuscuSession(sportAct.dataset.template, false, sportAct.dataset.day);
+    else if (act === "start-run") openIntervalTimer(sportAct.dataset.preset, sportAct.dataset.day);
+    else if (act === "log-run") openRunForm({ mode: "liss" }, sportAct.dataset.day);
+    else if (act === "start-routine") openRoutine(sportAct.dataset.routine, sportAct.dataset.day);
+    else if (act === "log-activity") openActivityForm(sportAct.dataset.day);
     else if (act === "open-workout") openWorkout(sportAct.dataset.workout);
     else if (act === "del-workout") confirmDeleteWorkout(sportAct.dataset.workout);
     else if (act === "open-exercise") openExerciseHistory(sportAct.dataset.ex);

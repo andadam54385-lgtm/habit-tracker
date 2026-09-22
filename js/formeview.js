@@ -229,6 +229,7 @@ export function weeklyReview(offset) {
     total: computeTotalRate(items, dates), sections: sections,
     sessions: { total: ws.length, muscu: ws.filter((w) => w.type === "muscu").length, circuit: ws.filter((w) => w.type === "circuit").length,
       course: ws.filter((w) => w.type === "course").length, mobilite: ws.filter((w) => w.type === "mobilite").length,
+      autre: ws.filter((w) => w.type === "autre").length,
       minutes: Math.round(ws.reduce((a, w) => a + (w.duration || 0), 0) / 60) },
     load: load, loadStatus: ls,
     forme: averageOf("forme", keys), sommeil: averageOf("sommeil", keys), journee: averageOf("journee", keys),
@@ -252,7 +253,7 @@ export function viewBilan(offset) {
     '<div class="rate-tile ' + rateClass(r.total) + '"><span class="rate-label">Réussite</span><span class="rate-value">' + formatPercent(r.total) + "</span></div>" +
     '<div class="rate-tile rate-none"><span class="rate-label">Séances · charge</span><span class="rate-value">' + r.sessions.total + " · " + r.load + "</span></div>" +
   "</section>";
-  html += '<p class="hint">' + r.sessions.muscu + " muscu · " + r.sessions.circuit + " circuit · " + r.sessions.course + " course · " + r.sessions.mobilite + " mobilité · " + r.sessions.minutes + " min" +
+  html += '<p class="hint">' + r.sessions.muscu + " muscu · " + r.sessions.circuit + " circuit · " + r.sessions.course + " course · " + r.sessions.mobilite + " mobilité · " + r.sessions.autre + " autre · " + r.sessions.minutes + " min" +
     (r.loadStatus && r.loadStatus.mean ? " · charge " + (r.loadStatus.ratio >= 1 ? "+" : "") + Math.round((r.loadStatus.ratio - 1) * 100) + " % vs 4 dernières semaines" : "") +
     (r.forme ? " · forme " + r.forme + "/10" : "") + (r.sommeil ? " · sommeil " + r.sommeil + " h" : "") + (r.journee ? " · journées " + r.journee + "/10" : "") +
     (r.poids.current !== null ? " · poids " + r.poids.current + " kg" + (r.poids.delta !== null ? " (" + (r.poids.delta > 0 ? "+" : "") + r.poids.delta + " vs 7 j avant)" : "") : "") + "</p>";
@@ -317,7 +318,7 @@ export function bilanMarkdown(offset) {
   const r = weeklyReview(offset);
   const out = ["# Bilan de la semaine — " + r.label, ""];
   out.push("- Réussite globale : " + formatPercent(r.total));
-  out.push("- Séances : " + r.sessions.total + " (" + r.sessions.muscu + " muscu, " + r.sessions.circuit + " circuit, " + r.sessions.course + " course, " + r.sessions.mobilite + " mobilité), " + r.sessions.minutes + " min, charge " + r.load +
+  out.push("- Séances : " + r.sessions.total + " (" + r.sessions.muscu + " muscu, " + r.sessions.circuit + " circuit, " + r.sessions.course + " course, " + r.sessions.mobilite + " mobilité, " + r.sessions.autre + " autre), " + r.sessions.minutes + " min, charge " + r.load +
     (r.loadStatus && r.loadStatus.mean ? " (" + (r.loadStatus.ratio >= 1 ? "+" : "") + Math.round((r.loadStatus.ratio - 1) * 100) + " % vs 4 dernières semaines)" : ""));
   if (r.poids.current !== null) {
     out.push("- Poids moyen : " + r.poids.current + " kg sur " + r.poids.n + " pesée" + (r.poids.n > 1 ? "s" : "") +

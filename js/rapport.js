@@ -99,7 +99,7 @@ export function rapportMarkdown(days) {
   const ws = workouts().filter((w) => keys.indexOf(w.date) >= 0);
   const byType = (t) => ws.filter((w) => w.type === t).length;
   out.push("- Séances sur " + n + " jours : **" + ws.length + "** (" + byType("muscu") + " muscu, " + byType("circuit") + " circuit, " +
-    byType("course") + " course, " + byType("mobilite") + " mobilité)");
+    byType("course") + " course, " + byType("mobilite") + " mobilité, " + byType("autre") + " autre)");
   out.push("- Volume horaire : " + Math.round(ws.reduce((a, w) => a + (w.duration || 0), 0) / 60) + " min · charge cumulée (RPE × min) : " +
     ws.reduce((a, w) => a + sessionLoad(w), 0));
   const ls = loadStatus();

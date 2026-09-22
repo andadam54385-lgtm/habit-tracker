@@ -1269,6 +1269,46 @@ export function openRunForm(prefill, dateKey) {
   });
 }
 
+// --------------------------------------------------------- autre activité
+
+const ACTIVITY_QUICK = ["Sport de combat", "Natation", "Vélo", "Randonnée", "Escalade"];
+
+export function openActivityForm(dateKey) {
+  openSheet("Enregistrer une activité", function (body, close) {
+    body.innerHTML =
+      '<label class="field"><span>Activité</span>' +
+        '<input type="text" id="af-label" class="input" maxlength="40" placeholder="Ex : Sport de combat"></label>' +
+      '<div class="chips">' + ACTIVITY_QUICK.map((a) =>
+        '<button type="button" class="chip" data-fill="' + esc(a) + '">' + esc(a) + "</button>").join("") + "</div>" +
+      '<div class="nf-grid">' +
+        '<input type="number" id="af-min" inputmode="numeric" placeholder="Durée (min)" min="1" max="600">' +
+      "</div>" +
+      '<div class="field"><span>Effort ressenti (RPE)</span>' + rpeChips(null) + "</div>" +
+      '<label class="field"><span>Note</span><input type="text" id="af-note" class="input" maxlength="300" placeholder="Sensations…"></label>' +
+      '<div class="sheet-actions"><button type="button" class="btn btn-ghost" data-act="c">Annuler</button>' +
+      '<button type="button" class="btn btn-primary" data-act="ok">Enregistrer</button></div>';
+    const getRpe = bindRpe(body);
+    const label = body.querySelector("#af-label");
+    body.querySelectorAll("[data-fill]").forEach(function (chip) {
+      chip.addEventListener("click", function () { label.value = chip.dataset.fill; label.focus(); });
+    });
+    body.querySelector('[data-act="c"]').addEventListener("click", close);
+    body.querySelector('[data-act="ok"]').addEventListener("click", function () {
+      const min = parseFloat(body.querySelector("#af-min").value) || 0;
+      if (!label.value.trim()) { label.focus(); return; }
+      if (min <= 0) { body.querySelector("#af-min").focus(); return; }
+      const w = addWorkout({
+        type: "autre", activity: label.value.trim(),
+        duration: Math.round(min * 60), rpe: getRpe(),
+        note: body.querySelector("#af-note").value, date: dateKey
+      });
+      close();
+      if (w) toast("Activité enregistrée" + (w.linked ? " — cardio du jour coché" : ""));
+    });
+    label.focus();
+  });
+}
+
 // ------------------------------------------------------ routines guidées
 
 export function openRoutine(key, dateKey) {
@@ -1596,6 +1636,8 @@ export function openWorkout(id) {
         w.rounds + " tour" + (w.rounds > 1 ? "s" : "") + (w.stationsDone ? " + " + w.stationsDone + " station" + (w.stationsDone > 1 ? "s" : "") : "") +
         " · " + fmtDuration(w.duration) + "</p>" +
         "<p>" + (w.stations || []).map((p) => esc(stationLabel(p))).join(" · ") + "</p>";
+    } else if (w.type === "autre") {
+      inner = "<p><strong>" + esc(w.activity) + "</strong> · " + fmtDuration(w.duration) + "</p>";
     } else {
       const r = ROUTINE_MAP[w.routine];
       inner = "<p>" + esc(r ? r.label : w.routine) + " · " + fmtDuration(w.duration) + (w.completed === false ? " · interrompue" : "") + "</p>";
