@@ -38,7 +38,7 @@ function macroTile(n, value) {
     "</div>";
 }
 
-function bar(n, value, period) {
+function bar(n, value, period, day) {
   const pct = Math.min(100, (value / n.target) * 100);
   const over = n.ceil && value > n.ceil;
   const full = !over && isMet(n, value);
@@ -55,22 +55,23 @@ function bar(n, value, period) {
     (n.note ? '<p class="nut-note">' + esc(n.note) + "</p>" : "") +
     (!full && !over && !n.sparse
       ? '<button type="button" class="nut-fill" data-act="fill-gap" data-nut="' + esc(n.key) +
-        '" data-period="' + esc(period || n.period) + '">Quoi manger pour combler ? →</button>'
+        '" data-period="' + esc(period || n.period) + '" data-day="' + esc(day) + '">Quoi manger pour combler ? →</button>'
       : "") +
     "</div>";
 }
 
 // « Quel plat manger pour augmenter ce qui manque » : on classe aliments et
 // recettes par teneur pour une portion réaliste, et on dit combien il en faut.
-export function openGapFiller(nutKey, period) {
+export function openGapFiller(nutKey, period, day) {
   const nmap = nutrientMap();
   const n = nmap[nutKey];
   if (!n) return;
   const per = period || n.period;
-  const value = (per === "week" ? weekTotals() : dayTotals())[nutKey] || 0;
+  const value = (per === "week" ? weekTotals(day) : dayTotals(day))[nutKey] || 0;
   const min = n.min !== undefined ? n.min : n.target;
   const gap = Math.max(0, min - value);
-  const perLabel = per === "week" ? "sur la semaine" : "aujourd'hui";
+  const isToday = !day || day === dayKey();
+  const perLabel = per === "week" ? "sur la semaine" : (isToday ? "aujourd'hui" : "ce jour-là");
 
   openSheet("Combler : " + n.label, function (body) {
     const sources = bestSourcesFor(nutKey, gap).slice(0, 12);
@@ -101,8 +102,8 @@ export function openGapFiller(nutKey, period) {
 }
 
 // Les plus gros manques, périodes confondues, en tête de section.
-function gapsBanner() {
-  const top = topGaps(4);
+function gapsBanner(day) {
+  const top = topGaps(4, day);
   if (!top.length) {
     return '<p class="callout callout-static">Toutes tes cibles en minéraux et ' +
       "vitamines sont tenues.</p>";
@@ -112,7 +113,7 @@ function gapsBanner() {
     '<div class="gaps-row">' + top.map(function (g) {
       const per = g.period === "week" ? "semaine" : "jour";
       return '<button type="button" class="gap-chip' + (g.over ? " is-over" : "") +
-        '" data-act="fill-gap" data-nut="' + esc(g.n.key) + '" data-period="' + g.period + '">' +
+        '" data-act="fill-gap" data-nut="' + esc(g.n.key) + '" data-period="' + g.period + '" data-day="' + esc(day) + '">' +
         "<span class=\"gap-chip-name\">" + esc(g.n.label) + "</span>" +
         '<span class="gap-chip-pct">' + (g.over ? "trop" : Math.round(g.share * 100) + " %") + "</span>" +
         '<span class="gap-chip-per">/ ' + per + "</span></button>";
@@ -124,8 +125,8 @@ function gapsBanner() {
 
 // Moyenne de la semaine : une journée basse ou haute ne veut rien dire,
 // c'est la moyenne des jours saisis qui se compare à la cible.
-function weekAverageBlock(nmap) {
-  const avg = weekAverages();
+function weekAverageBlock(nmap, day) {
+  const avg = weekAverages(day ? new Date(day + "T12:00:00") : undefined);
   if (!avg.days) {
     return '<p class="hint week-avg-empty">Aucune journée saisie cette semaine : la moyenne apparaîtra ici.</p>';
   }
@@ -142,7 +143,7 @@ function weekAverageBlock(nmap) {
 
 // Répartition des lipides : le total de gras ne dit pas s'il est bon.
 // Les saturés ont un plafond, le reste sert de repère.
-function fatBlock(day, nmap) {
+function fatBlock(day, nmap, key) {
   const fats = nutrients().filter((n) => n.fat);
   const total = fats.reduce((a, n) => a + (day[n.key] || 0), 0);
   const lip = day.lip || 0;
@@ -152,7 +153,7 @@ function fatBlock(day, nmap) {
   if (!total && !lip) return "";
   // Le reliquat n'est un trou de catalogue que si un aliment du jour n'a
   // aucun détail : sinon c'est l'écart normal entre lipides et acides gras.
-  const log = logFor();
+  const log = logFor(key);
   const unknown = Object.entries(log.items || {}).reduce(function (a, [id, qty]) {
     const f = foodById(id);
     if (!f || !f.n.lip) return a;
@@ -180,7 +181,7 @@ function fatBlock(day, nmap) {
 }
 
 // Bloc repliable des micronutriments, séparé par période.
-function microFold(title, period, totals, foldKey, gapsCount) {
+function microFold(title, period, totals, foldKey, gapsCount, day) {
   // Les lipides détaillés ont leur propre bloc, en haut : pas de doublon ici.
   const list = nutrients().filter((n) => n.period === period && !n.main && !n.fat);
   const met = list.filter((n) => !n.sparse && isMet(n, totals[n.key])).length;
@@ -196,45 +197,73 @@ function microFold(title, period, totals, foldKey, gapsCount) {
       "</span>" +
     "</summary>" +
     '<div class="fold-body"><div class="nuts">' +
-      list.map((n) => bar(n, totals[n.key], period)).join("") +
+      list.map((n) => bar(n, totals[n.key], period, day)).join("") +
     "</div></div></details>";
+}
+
+// Un jour au format YYYY-MM-DD valide et rien d'autre : un paramètre
+// d'URL trafiqué ne doit pas planter la vue, juste retomber sur aujourd'hui.
+function shiftDayKey(key, delta) {
+  const d = new Date(key + "T12:00:00");
+  d.setDate(d.getDate() + delta);
+  return dayKey(d);
+}
+
+function fmtDayLabel(viewDate) {
+  const s = viewDate.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 // ----------------------------------------------------------------- vue
 
-export function viewNutrition() {
-  const day = dayTotals();
-  const log = logFor();
+export function viewNutrition(dateKey) {
+  const todayKey = dayKey();
+  const key = /^\d{4}-\d{2}-\d{2}$/.test(dateKey || "") ? dateKey : todayKey;
+  const isToday = key === todayKey;
+  const viewDate = new Date(key + "T12:00:00");
+
+  const day = dayTotals(key);
+  const log = logFor(key);
   const nuts = nutrients();
   const nmap = nutrientMap();
   const t = targets();
 
   let html = '<div class="view">';
   html += '<header class="view-head"><h1>Diète</h1><p class="sub">' +
-    esc(new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })) +
+    esc(viewDate.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })) +
     "</p></header>";
 
   html += nutritionTabs("jour");
+
+  // Corriger ou compléter un autre jour : mêmes flèches que sur Jour et
+  // Entraînement. Ce qui s'ajoute ci-dessous rejoint le journal du jour
+  // affiché, pas forcément celui d'aujourd'hui.
+  html += '<nav class="week-nav">' +
+    '<a class="btn btn-small" href="#/nutrition?d=' + esc(shiftDayKey(key, -1)) + '" aria-label="Jour précédent">←</a>' +
+    '<span class="week-label">' + esc(isToday ? "Aujourd'hui" : fmtDayLabel(viewDate)) + "</span>" +
+    '<a class="btn btn-small" href="#/nutrition?d=' + esc(shiftDayKey(key, 1)) + '" aria-label="Jour suivant">→</a>' +
+    (isToday ? "" : '<a class="btn btn-small btn-ghost" href="#/nutrition">Aujourd\'hui</a>') +
+  "</nav>";
 
   html += '<div class="nut-tiles">' +
     macroTile(nmap.kcal, day.kcal) + macroTile(nmap.prot, day.prot) +
     macroTile(nmap.glu, day.glu) + macroTile(nmap.lip, day.lip) +
     "</div>";
 
-  html += weekAverageBlock(nmap);
-  html += fatBlock(day, nmap);
+  html += weekAverageBlock(nmap, key);
+  html += fatBlock(day, nmap, key);
 
   html += '<button type="button" class="btn btn-block btn-ghost" data-act="edit-targets">' +
     "🎯 Mes cibles : " + t.prot + " P · " + t.glu + " G · " + t.lip + " L " +
     "<span class=\"target-kcal\">→ " + esc(fmtRange(nmap.kcal)) + " kcal</span></button>";
 
   // ---- journal du jour
-  html += '<div class="block-head"><h2>Ma journée</h2>' +
-    '<button type="button" class="btn btn-small btn-primary" data-act="open-search">+ Aliment</button></div>';
+  html += '<div class="block-head"><h2>' + (isToday ? "Ma journée" : "Ce jour-là") + "</h2>" +
+    '<button type="button" class="btn btn-small btn-primary" data-act="open-search" data-day="' + esc(key) + '">+ Aliment</button></div>';
 
   const entries = Object.entries(log.items || {});
   if (!entries.length) {
-    html += '<p class="empty">Rien de saisi aujourd\'hui. Cherche un aliment pour commencer.</p>';
+    html += '<p class="empty">' + (isToday ? "Rien de saisi aujourd'hui." : "Rien de saisi ce jour-là.") + " Cherche un aliment pour commencer.</p>";
   } else {
     html += '<ul class="nut-foods">';
     for (const [id, qty] of entries) {
@@ -243,18 +272,18 @@ export function viewNutrition() {
       const p = preview(f, qty);
       const over = f.warnPer && qty > f.warnPer;
       html += '<li class="nut-food has-qty">' +
-        '<div class="nut-food-main" data-act="edit-qty" data-food="' + esc(id) + '" role="button" tabindex="0">' +
+        '<div class="nut-food-main" data-act="edit-qty" data-food="' + esc(id) + '" data-day="' + esc(key) + '" role="button" tabindex="0">' +
           '<span class="nut-food-label">' + esc(f.label) + "</span>" +
           '<span class="nut-food-detail">' + fmtN(p.kcal || 0) + " kcal · " +
             fmtN(p.prot || 0) + " P · " + fmtN(p.glu || 0) + " G · " + fmtN(p.lip || 0) + " L</span>" +
           (over ? '<span class="nut-warn">⚠️ ' + esc(f.warnText) + "</span>" : "") +
         "</div>" +
         '<div class="qty-box">' +
-          '<button type="button" class="qty-btn" data-act="qty-minus" data-food="' + esc(id) +
+          '<button type="button" class="qty-btn" data-act="qty-minus" data-food="' + esc(id) + '" data-day="' + esc(key) +
             '" aria-label="Diminuer">−</button>' +
-          '<button type="button" class="qty-val" data-act="edit-qty" data-food="' + esc(id) + '">' +
+          '<button type="button" class="qty-val" data-act="edit-qty" data-food="' + esc(id) + '" data-day="' + esc(key) + '">' +
             fmtN(qty) + " " + esc(unitOf(f)) + "</button>" +
-          '<button type="button" class="qty-btn" data-act="qty-plus" data-food="' + esc(id) +
+          '<button type="button" class="qty-btn" data-act="qty-plus" data-food="' + esc(id) + '" data-day="' + esc(key) +
             '" aria-label="Augmenter">+</button>' +
         "</div>" +
       "</li>";
@@ -278,10 +307,10 @@ export function viewNutrition() {
             fmtN((per.lip || 0) * parts) + " L</span>" +
         "</div>" +
         '<div class="qty-box">' +
-          '<button type="button" class="qty-btn" data-act="rec-minus" data-recipe="' + esc(rid) + '" aria-label="Retirer une part">−</button>' +
+          '<button type="button" class="qty-btn" data-act="rec-minus" data-recipe="' + esc(rid) + '" data-day="' + esc(key) + '" aria-label="Retirer une part">−</button>' +
           '<span class="qty-val is-static">' + fmtN(parts) + " p</span>" +
-          '<button type="button" class="qty-btn" data-act="rec-plus" data-recipe="' + esc(rid) + '" aria-label="Ajouter une part">+</button>' +
-          '<button type="button" class="qty-btn qty-pct" data-act="rec-pct" data-recipe="' + esc(rid) + '" aria-label="Saisir un pourcentage">%</button>' +
+          '<button type="button" class="qty-btn" data-act="rec-plus" data-recipe="' + esc(rid) + '" data-day="' + esc(key) + '" aria-label="Ajouter une part">+</button>' +
+          '<button type="button" class="qty-btn qty-pct" data-act="rec-pct" data-recipe="' + esc(rid) + '" data-day="' + esc(key) + '" aria-label="Saisir un pourcentage">%</button>' +
         "</div>" +
       "</li>";
     }
@@ -309,10 +338,10 @@ export function viewNutrition() {
             (units ? "" : " / " + esc(s.unit)) + "</span>" +
         "</div>" +
         '<div class="qty-box">' +
-          '<button type="button" class="qty-btn" data-act="sup-minus" data-sup="' + esc(s.id) +
+          '<button type="button" class="qty-btn" data-act="sup-minus" data-sup="' + esc(s.id) + '" data-day="' + esc(key) +
             '" aria-label="Diminuer"' + (units ? "" : " disabled") + ">−</button>" +
           '<span class="qty-val is-static">' + fmtN(units) + "</span>" +
-          '<button type="button" class="qty-btn" data-act="sup-plus" data-sup="' + esc(s.id) +
+          '<button type="button" class="qty-btn" data-act="sup-plus" data-sup="' + esc(s.id) + '" data-day="' + esc(key) +
             '" aria-label="Augmenter">+</button>' +
         "</div>" +
       "</li>";
@@ -330,19 +359,19 @@ export function viewNutrition() {
           '<span class="nut-food-detail">' + fmtN(l.kcal) + " kcal · " + fmtN(l.prot) + " P · " +
             fmtN(l.glu || 0) + " G · " + fmtN(l.lip || 0) + " L</span>" +
         "</div>" +
-        '<button type="button" class="nut-del" data-act="nut-del" data-idx="' + idx + '" aria-label="Supprimer">✕</button>' +
+        '<button type="button" class="nut-del" data-act="nut-del" data-idx="' + idx + '" data-day="' + esc(key) + '" aria-label="Supprimer">✕</button>' +
       "</li>";
     });
     html += "</ul>";
   }
-  html += '<button type="button" class="btn btn-block btn-ghost" data-act="add-libre">+ Ajout libre (kcal / macros)</button>';
+  html += '<button type="button" class="btn btn-block btn-ghost" data-act="add-libre" data-day="' + esc(key) + '">+ Ajout libre (kcal / macros)</button>';
 
   // ---- minéraux & vitamines, repliables et séparés par période
   html += '<div class="block-head"><h2>Minéraux & vitamines</h2></div>';
-  html += gapsBanner();
-  const week = weekTotals();
-  html += microFold("Cibles du jour", "day", day, "nut:jour", gapsToday().length);
-  html += microFold("Cibles de la semaine", "week", week, "nut:semaine", gapsThisWeek().length);
+  html += gapsBanner(key);
+  const week = weekTotals(key);
+  html += microFold("Cibles du jour", "day", day, "nut:jour", gapsToday(key).length, key);
+  html += microFold("Cibles de la semaine", "week", week, "nut:semaine", gapsThisWeek(key).length, key);
 
   html += '<p class="hint nut-disclaimer">Valeurs pour 100 g / 100 ml, moyennes arrondies ' +
     "(CIQUAL / USDA). L'outil suit des tendances — il ne remplace ni une pesée ni un avis médical.</p>";
@@ -355,7 +384,7 @@ export function viewNutrition() {
 
 let searchState = { q: "", cat: "all" };
 
-export function openFoodSearch() {
+export function openFoodSearch(day) {
   openSheet("Chercher un aliment", function (body, close) {
     function render() {
       const results = searchFoods(searchState.q, searchState.cat);
@@ -409,7 +438,7 @@ export function openFoodSearch() {
       });
       body.querySelector('[data-act="new-food"]').addEventListener("click", function () {
         close();
-        openNewFood();
+        openNewFood(day);
       });
       body.querySelector('[data-act="my-foods"]').addEventListener("click", function () {
         close();
@@ -418,7 +447,7 @@ export function openFoodSearch() {
       body.querySelectorAll('[data-act="pick-food"]').forEach(function (row) {
         row.addEventListener("click", function () {
           close();
-          openQuantity(row.dataset.food);
+          openQuantity(row.dataset.food, day);
         });
       });
     }
@@ -427,10 +456,10 @@ export function openFoodSearch() {
 }
 
 // Saisie de la quantité, dans l'unité de l'aliment.
-export function openQuantity(foodId) {
+export function openQuantity(foodId, day) {
   const f = foodById(foodId);
   if (!f) return;
-  const current = (logFor().items || {})[foodId] || 0;
+  const current = (logFor(day).items || {})[foodId] || 0;
   const unit = unitOf(f) || "pièce";
 
   openSheet(f.label, function (body, close) {
@@ -482,12 +511,12 @@ export function openQuantity(foodId) {
       });
     });
     body.querySelector('[data-act="q-save"]').addEventListener("click", function () {
-      setQuantity(foodId, input.value);
+      setQuantity(foodId, input.value, day);
       close();
       toast(f.label + " · " + fmtN(input.value) + " " + unit);
     });
     const rm = body.querySelector('[data-act="q-remove"]');
-    if (rm) rm.addEventListener("click", function () { setQuantity(foodId, 0); close(); });
+    if (rm) rm.addEventListener("click", function () { setQuantity(foodId, 0, day); close(); });
 
     refresh();
     input.focus();
@@ -560,7 +589,7 @@ export function openMyFoods() {
 
 // ------------------------------------------------------- créer un aliment
 
-export function openNewFood() {
+export function openNewFood(day) {
   openSheet("Créer un aliment", function (body, close) {
     body.innerHTML =
       '<label class="field"><span>Nom</span>' +
@@ -624,20 +653,20 @@ export function openNewFood() {
               '<button type="button" class="btn btn-primary" data-act="copy">📋 Copier la demande</button>' +
             "</div>";
           b2.querySelector('[data-act="skip"]').addEventListener("click", function () {
-            close2(); openQuantity(created.id);
+            close2(); openQuantity(created.id, day);
           });
           b2.querySelector('[data-act="copy"]').addEventListener("click", function () {
             navigator.clipboard.writeText(buildCompletionRequest([foodById(created.id)]) || "")
               .then(() => toast("Demande copiée — colle-la à Claude"))
               .catch(() => toast("Copie impossible", "error"));
             close2();
-            openQuantity(created.id);
+            openQuantity(created.id, day);
           });
         });
         return;
       }
       toast(label + " créé");
-      openQuantity(created.id);
+      openQuantity(created.id, day);
     });
     body.querySelector("#nf-label").focus();
   });
@@ -794,7 +823,7 @@ export function openSupplementEditor(id) {
 
 // ---------------------------------------------------------- ajout libre
 
-export function openLibre() {
+export function openLibre(day) {
   openSheet("Ajout libre", function (body, close) {
     body.innerHTML =
       '<p class="hint">Pour un plat dont tu connais seulement les calories et les macros.</p>' +
@@ -814,7 +843,7 @@ export function openLibre() {
     body.querySelector('[data-act="lb-cancel"]').addEventListener("click", close);
     body.querySelector('[data-act="lb-save"]').addEventListener("click", function () {
       const v = (id) => body.querySelector(id).value;
-      if (addLibre(v("#lb-label"), v("#lb-kcal"), v("#lb-prot"), v("#lb-glu"), v("#lb-lip")) === false) {
+      if (addLibre(v("#lb-label"), v("#lb-kcal"), v("#lb-prot"), v("#lb-glu"), v("#lb-lip"), day) === false) {
         body.querySelector("#lb-label").focus();
         return;
       }

@@ -538,7 +538,7 @@ export function totalsFor(keys) {
 }
 
 export function dayTotals(key) { return totalsFor([key || dayKey()]); }
-export function weekTotals() { return totalsFor(weekDayKeys()); }
+export function weekTotals(key) { return totalsFor(weekDayKeys(key ? new Date(key + "T12:00:00") : undefined)); }
 
 // Ce qu'un aliment apporterait pour une quantité donnée — sert à l'aperçu.
 export function preview(food, qty) {
@@ -606,7 +606,7 @@ export function bestSourcesFor(key, gap) {
 // rater la vitamine D un mardi ne veut rien dire, la rater sur la semaine si.
 export function gapsFor(period, key) {
   const totals = period === "week"
-    ? totalsFor(weekDayKeys())
+    ? totalsFor(weekDayKeys(key ? new Date(key + "T12:00:00") : undefined))
     : totalsFor([key || dayKey()]);
 
   return nutrients()
@@ -642,11 +642,11 @@ export function weekAverages(ref) {
 }
 
 export function gapsToday(key) { return gapsFor("day", key); }
-export function gapsThisWeek() { return gapsFor("week"); }
+export function gapsThisWeek(key) { return gapsFor("week", key); }
 
 // Les manques les plus criants, périodes confondues.
-export function topGaps(limit) {
-  return gapsToday().concat(gapsThisWeek())
+export function topGaps(limit, key) {
+  return gapsToday(key).concat(gapsThisWeek(key))
     // Un nutriment à donnée partielle affiche toujours un manque : le mettre
     // en tête ferait passer un trou de catalogue pour un trou d'assiette.
     .filter((g) => !g.n.sparse)

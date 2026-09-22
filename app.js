@@ -83,7 +83,7 @@ function renderRoute(route) {
     case "sections": return viewSections();
     case "section": return viewSection(route.key, route.sub);
     case "daily": return viewDaily();
-    case "nutrition": return viewNutrition();
+    case "nutrition": return viewNutrition(route.params.get("d"));
     case "objectives": return viewObjectives(route.params.get("w") || 0);
     case "bilan": return viewBilan(route.params.get("w") || 0);
     case "corps": return viewCorps();
@@ -245,26 +245,27 @@ function onClick(e) {
     '[data-act="fill-gap"], [data-act="new-recipe"], [data-act="edit-recipe"]');
   if (nutAct) {
     const act = nutAct.dataset.act;
-    if (act === "fill-gap") { openGapFiller(nutAct.dataset.nut, nutAct.dataset.period); return; }
+    const day = nutAct.dataset.day || undefined;
+    if (act === "fill-gap") { openGapFiller(nutAct.dataset.nut, nutAct.dataset.period, day); return; }
     if (act === "new-recipe") { openRecipeEditor(null); return; }
     if (act === "edit-recipe") { openRecipeEditor(nutAct.dataset.recipe); return; }
-    if (act === "rec-pct") { openRecipePercent(nutAct.dataset.recipe); return; }
+    if (act === "rec-pct") { openRecipePercent(nutAct.dataset.recipe, day); return; }
     if (act === "rec-plus" || act === "rec-minus") {
-      addRecipeParts(nutAct.dataset.recipe, act === "rec-plus" ? 1 : -1);
+      addRecipeParts(nutAct.dataset.recipe, act === "rec-plus" ? 1 : -1, day);
       return;
     }
-    if (act === "open-search") { openFoodSearch(); return; }
+    if (act === "open-search") { openFoodSearch(day); return; }
     if (act === "edit-targets") { openTargets(); return; }
     if (act === "manage-supps") { openSupplements(); return; }
-    if (act === "add-libre") { openLibre(); return; }
-    if (act === "edit-qty") { openQuantity(nutAct.dataset.food); return; }
+    if (act === "add-libre") { openLibre(day); return; }
+    if (act === "edit-qty") { openQuantity(nutAct.dataset.food, day); return; }
     if (act === "qty-plus" || act === "qty-minus") {
       const f = foodById(nutAct.dataset.food);
-      if (f) addQuantity(f.id, act === "qty-plus" ? f.step : -f.step);
+      if (f) addQuantity(f.id, act === "qty-plus" ? f.step : -f.step, day);
       return;
     }
     if (act === "sup-plus" || act === "sup-minus") {
-      addSupplementUnits(nutAct.dataset.sup, act === "sup-plus" ? 1 : -1);
+      addSupplementUnits(nutAct.dataset.sup, act === "sup-plus" ? 1 : -1, day);
       return;
     }
   }
@@ -283,7 +284,7 @@ function onClick(e) {
 
   const libreDel = e.target.closest('[data-act="nut-del"]');
   if (libreDel) {
-    removeLibre(parseInt(libreDel.dataset.idx, 10));
+    removeLibre(parseInt(libreDel.dataset.idx, 10), libreDel.dataset.day || undefined);
     return;
   }
 

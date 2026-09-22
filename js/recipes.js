@@ -278,12 +278,12 @@ export function mountRecipes() { /* délégation dans app.js */ }
 // décimal — setRecipeParts l'accepte déjà, c'est seulement la saisie qui
 // manquait.
 
-export function openRecipePercent(recipeId) {
+export function openRecipePercent(recipeId, day) {
   const r = recipeById(recipeId);
   if (!r) return;
   const per = recipePerPart(r);
   const parts = Math.max(1, r.portions || 1);
-  const current = (logFor().recipes || {})[recipeId] || 0;
+  const current = (logFor(day).recipes || {})[recipeId] || 0;
   const curPct = Math.round((current / parts) * 1000) / 10;
 
   openSheet(r.label, function (body, close) {
@@ -332,14 +332,14 @@ export function openRecipePercent(recipeId) {
       const act = ev.target.closest("[data-act]");
       if (!act) return;
       if (act.dataset.act === "pct-remove") {
-        setRecipeParts(recipeId, 0);
+        setRecipeParts(recipeId, 0, day);
         toast("Retiré de la journée");
         close();
         return;
       }
       if (act.dataset.act === "pct-save") {
         const pct = Math.max(0, parseFloat(String(input.value).replace(",", ".")) || 0);
-        setRecipeParts(recipeId, pct / 100 * parts);
+        setRecipeParts(recipeId, pct / 100 * parts, day);
         toast(pct ? fmtN(pct) + " % enregistré" : "Retiré de la journée");
         close();
       }
