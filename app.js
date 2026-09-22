@@ -77,7 +77,7 @@ let sharedPrefill = null;
 
 function renderRoute(route) {
   switch (route.name) {
-    case "today": return viewToday();
+    case "today": return viewToday(route.params.get("d"));
     case "blocked": return viewBlocked();
     case "sections": return viewSections();
     case "section": return viewSection(route.key, route.sub);
@@ -303,7 +303,9 @@ function onClick(e) {
   const toggleBtn = e.target.closest('[data-act="toggle"]');
   if (toggleBtn) {
     const li = toggleBtn.closest("[data-id]");
-    if (li) toggle(li.dataset.id);
+    // data-day porte le jour affiché : coché depuis un jour passé, la case
+    // se coche ce jour-là, pas aujourd'hui.
+    if (li) toggle(li.dataset.id, li.dataset.day || undefined);
     return;
   }
 

@@ -43,7 +43,10 @@ export function renderItem(item, opts) {
   const badges = [];
 
   if (isRecurring(item)) {
-    const p = weekProgress(item);
+    // En consultant un autre jour, le badge doit compter la semaine de CE
+    // jour-là, pas la semaine réelle en cours — sinon le chiffre affiché
+    // pour un jeudi passé mélangerait deux semaines différentes.
+    const p = weekProgress(item, o.weekRef);
     const cls = p.done >= p.target ? "badge badge-ok" : "badge";
     badges.push('<span class="' + cls + '">' + p.done + " sur " + p.target + " cette semaine</span>");
     // Série en cours : visible, c'est ce qui donne envie de ne pas la casser.
@@ -87,7 +90,9 @@ export function renderItem(item, opts) {
     : '<span class="check check-static" aria-hidden="true"></span>';
 
   return '' +
-    '<li class="' + itemClasses(item, key) + '" data-id="' + esc(item.id) + '">' +
+    // data-day porte la date affichée : c'est elle que le clic sur la case
+    // doit cocher, pas la date du jour réel.
+    '<li class="' + itemClasses(item, key) + '" data-id="' + esc(item.id) + '" data-day="' + esc(key) + '">' +
       box +
       '<div class="item-main" data-act="open" role="button" tabindex="0">' +
         '<div class="item-title">' + esc(item.title) + "</div>" +

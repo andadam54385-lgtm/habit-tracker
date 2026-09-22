@@ -71,20 +71,48 @@ function foldBlock(foldKey, title, doneCount, total, body) {
   "</details>";
 }
 
-export function viewToday() {
-  const key = dayKey();
+// Un jour au format YYYY-MM-DD valide et rien d'autre : un paramètre
+// d'URL trafiqué ne doit pas planter la vue, juste retomber sur aujourd'hui.
+function shiftDayKey(key, delta) {
+  const d = new Date(key + "T12:00:00");
+  d.setDate(d.getDate() + delta);
+  return dayKey(d);
+}
+
+export function viewToday(dateKey) {
+  const todayKey = dayKey();
+  const key = /^\d{4}-\d{2}-\d{2}$/.test(dateKey || "") ? dateKey : todayKey;
+  const isToday = key === todayKey;
+  const viewDate = new Date(key + "T12:00:00");
+  // Le badge « N sur M cette semaine » doit compter la semaine de CE
+  // jour-là — un jeudi de la semaine passée n'a rien à voir avec celle-ci.
+  const opts = { dayKey: key, weekRef: viewDate };
+
   const today = dueToday(key);
   const lone = loneTasks();
 
   let html = '<div class="view">';
 
   const doneAll = today.filter((i) => isDone(i, key)).length;
-  html += '<header class="view-head"><h1>Aujourd\'hui</h1><p class="sub">' +
-    esc(fmtDate(new Date())) +
+  const titleDate = fmtDate(viewDate);
+  html += '<header class="view-head"><h1>' +
+    (isToday ? "Aujourd'hui" : esc(titleDate.charAt(0).toUpperCase() + titleDate.slice(1))) +
+    "</h1><p class=\"sub\">" +
+    esc(isToday ? titleDate : "Modifier ce jour") +
     (today.length ? " · " + (today.length - doneAll) + " case" +
       (today.length - doneAll > 1 ? "s" : "") + " restante" +
       (today.length - doneAll > 1 ? "s" : "") : "") +
     "</p></header>";
+
+  // Corriger un oubli d'hier, ou vérifier un jour plus ancien : les mêmes
+  // flèches que sur Objectifs et Bilan, sans limite — les jours à venir
+  // n'ont juste rien à cocher.
+  html += '<nav class="week-nav">' +
+    '<a class="btn btn-small" href="#/jour?d=' + esc(shiftDayKey(key, -1)) + '" aria-label="Jour précédent">←</a>' +
+    '<span class="week-label">' + esc(titleDate) + "</span>" +
+    '<a class="btn btn-small" href="#/jour?d=' + esc(shiftDayKey(key, 1)) + '" aria-label="Jour suivant">→</a>' +
+    (isToday ? "" : '<a class="btn btn-small btn-ghost" href="#/jour">Aujourd\'hui</a>') +
+  "</nav>";
 
   const bySection = new Map();
   for (const i of today) {
@@ -111,7 +139,7 @@ export function viewToday() {
       esc(sec.icon + " " + sec.label),
       done,
       items.length,
-      renderList(items, {})
+      renderList(items, opts)
     );
   }
 
@@ -121,7 +149,7 @@ export function viewToday() {
       "Actions ponctuelles",
       0,
       lone.length,
-      renderList(lone, { showSectionName: true })
+      renderList(lone, Object.assign({ showSectionName: true }, opts))
     );
   }
 
