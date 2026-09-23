@@ -221,6 +221,10 @@ export const CATALOGUE = [
     { kcal: 540, prot: 5, glu: 55, lip: 31, ags: 18, agmi: 10, agpi: 1, sucres: 50, fibres: 6, k: 350, mg: 120, ca: 30, fe: 5, zn: 1.5, phos: 150, cu: 0.8, mn: 0.8 }, { step: 5 }),
   f("biscuit-sec", "Biscuits secs (petit-beurre)", "divers", "g", 100,
     { kcal: 450, prot: 7, glu: 75, lip: 12, ags: 6, agmi: 4, agpi: 1, sucres: 23, fibres: 2, na: 400, k: 120, ca: 60, fe: 1.8, mg: 20, phos: 100 }),
+  f("paprika", "Paprika (poudre)", "divers", "g", 100,
+    { kcal: 280, prot: 14, glu: 54, lip: 13, ags: 2.1, agmi: 1.7, agpi: 7.8, sucres: 10, fibres: 35, k: 2280, mg: 178, ca: 229, fe: 21, zn: 4.3, e: 29, vita: 2463, b6: 2.1, b3: 10, b2: 1.2, phos: 314, cu: 0.7, mn: 1.6, se: 6 }, { step: 1, serv: 2 }),
+  f("moutarde", "Moutarde", "divers", "g", 100,
+    { kcal: 150, prot: 7, glu: 5, lip: 9, ags: 0.5, agmi: 6, agpi: 2, sucres: 2, fibres: 3, na: 1500, k: 150, mg: 50, ca: 60, fe: 1.7, zn: 0.6, se: 25, phos: 110, mn: 0.4 }, { step: 5, serv: 10 }),
   f("tamarin", "Pâte de tamarin", "divers", "g", 100,
     { kcal: 240, prot: 2.8, glu: 60, lip: 0.6, sucres: 50, fibres: 5, k: 630, mg: 92, ca: 74, fe: 2.8, phos: 113, b1: 0.43, b3: 1.9, mn: 0.1 }, { step: 5, serv: 15 }),
 ];

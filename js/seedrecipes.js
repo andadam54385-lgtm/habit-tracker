@@ -97,9 +97,9 @@ export const SEED_RECIPES = [
   // Le pot fait ~70 g : 2 parts, la dose pour deux personnes de frites.
   {
     id: "rec-sauce-miel-moutarde",
-    label: "Sauce crémeuse miel-moutarde (2 parts)",
+    label: "Sauce crémeuse asiatique réduite (2 parts)",
     portions: 2,
-    items: { creme: 45, miel: 7 }
+    items: { creme: 45, "sauce-huitre": 15, "sauce-soja": 10, miel: 7, "sauce-sriracha": 5, paprika: 2, "jus-citron": 5 }
   },
   {
     id: "rec-sauce-legere",
