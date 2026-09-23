@@ -1,7 +1,7 @@
 /* Service worker : coquille hors ligne + réception du partage système.
    Pas de push, pas de serveur — l'app reste entièrement locale. */
 
-const VERSION = "suivi-v41";
+const VERSION = "suivi-v42";
 const SHELL = [
   "./",
   "./index.html",
@@ -43,8 +43,13 @@ const SHELL = [
 self.addEventListener("install", function (event) {
   event.waitUntil(
     caches.open(VERSION)
-      // addAll échoue en bloc dès qu'un fichier manque : on tolère les absents.
-      .then((cache) => Promise.all(SHELL.map((url) => cache.add(url).catch(() => null))))
+      // cache: "reload" force le réseau — sinon cache.add() peut se
+      // contenter du cache HTTP du navigateur et figer une version périmée
+      // sous le nom de la nouvelle, qui ne se corrige plus jamais toute
+      // seule. addAll échoue en bloc dès qu'un fichier manque : on tolère
+      // les absents.
+      .then((cache) => Promise.all(SHELL.map((url) =>
+        cache.add(new Request(url, { cache: "reload" })).catch(() => null))))
       .then(() => self.skipWaiting())
   );
 });
