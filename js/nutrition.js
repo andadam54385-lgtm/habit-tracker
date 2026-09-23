@@ -348,6 +348,7 @@ export function upsertRecipe(rec) {
     existing.label = label.slice(0, 80);
     existing.portions = parts;
     existing.items = items;
+    existing.notes = String(rec.notes || "").slice(0, 2000);
     save();
     return existing;
   }
@@ -361,7 +362,8 @@ export function upsertRecipe(rec) {
       : "rec_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
     label: label.slice(0, 80),
     portions: parts,
-    items: items
+    items: items,
+    notes: String(rec.notes || "").slice(0, 2000)
   };
   state.recipes.push(entry);
   save();

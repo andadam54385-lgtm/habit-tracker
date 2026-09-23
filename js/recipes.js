@@ -81,8 +81,8 @@ export function openRecipeEditor(id, resume) {
   if (!resume && !existing) draft = null;
   if (!draft || draft.id !== (existing ? existing.id : null)) {
     draft = existing
-      ? { id: existing.id, label: existing.label, portions: existing.portions, items: Object.assign({}, existing.items) }
-      : { id: null, label: "", portions: 4, items: {} };
+      ? { id: existing.id, label: existing.label, portions: existing.portions, items: Object.assign({}, existing.items), notes: existing.notes || "" }
+      : { id: null, label: "", portions: 4, items: {}, notes: "" };
   }
 
   openSheet(existing ? "Modifier la recette" : "Nouvelle recette", function (body, close) {
@@ -134,12 +134,18 @@ export function openRecipeEditor(id, resume) {
         '</div><p class="q-micros">par part · total ' + fmtN(t.kcal || 0) + " kcal pour " +
           parts + " part" + (parts > 1 ? "s" : "") + "</p></div>" +
 
+        '<label class="field" style="margin-top:14px"><span>Préparation et cuisson</span>' +
+          '<textarea id="rc-notes" class="input rc-notes" rows="6" ' +
+            'placeholder="Température, durée, ordre des étapes, ce qui rate la recette…">' +
+            esc(draft.notes || "") + "</textarea></label>" +
+
         '<div class="sheet-actions">' +
           (existing ? '<button type="button" class="btn btn-danger-ghost" data-act="rc-remove">Supprimer</button>' : "") +
           '<button type="button" class="btn btn-primary" data-act="rc-save">Enregistrer</button>' +
         "</div>";
 
       body.querySelector("#rc-label").addEventListener("input", (e) => { draft.label = e.target.value; });
+      body.querySelector("#rc-notes").addEventListener("input", (e) => { draft.notes = e.target.value; });
       body.querySelector("#rc-parts").addEventListener("input", function (e) {
         draft.portions = parseInt(e.target.value, 10) || 1;
         const caret = e.target.selectionStart;

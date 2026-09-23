@@ -428,6 +428,20 @@ function boot() {
     save();
   }
 
+  // Les recettes avaient été semées sans préparation écrite. On pose les notes
+  // une fois, et seulement sur celles qui n'en ont pas : si tu as déjà écrit la
+  // tienne, elle est prioritaire et rien ne l'écrase.
+  if (!state.seededRecipeNotes) {
+    state.seededRecipeNotes = true;
+    let filled = 0;
+    for (const seed of SEED_RECIPES) {
+      const mine = recipeById(seed.id);
+      if (mine && !mine.notes && seed.notes) { mine.notes = seed.notes; filled++; }
+    }
+    if (filled) console.info("Recettes : préparation ajoutée sur " + filled + ".");
+    save();
+  }
+
   applyTheme();
   scheduleReminders();
 

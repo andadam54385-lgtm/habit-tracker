@@ -1173,3 +1173,12 @@ td.rate-none { color: var(--text-faint); }
   font-weight: 700;
   letter-spacing: -.02em;
 }
+
+/* Notes de recette : la préparation ne tient pas sur une ligne, et on la lit
+   au moment de cuisiner — donc un champ haut, dans la fiche, pas dans la liste. */
+.rc-notes {
+  min-height: 120px;
+  line-height: 1.5;
+  resize: vertical;
+  font-family: inherit;
+}
