@@ -300,10 +300,10 @@ export function viewSection(key, subKey) {
     html += "</nav>";
 
     const items = all.filter((i) => i.sub === active);
-    html += renderGrouped(items, { empty: "Rien dans cette sous-rubrique." });
+    html += renderGrouped(items, { empty: "Rien dans cette sous-rubrique.", reorder: true });
     html += noteBlock(key + "/" + active);
   } else {
-    html += renderGrouped(all, { empty: "Rien dans cette rubrique." });
+    html += renderGrouped(all, { empty: "Rien dans cette rubrique.", reorder: true });
     html += noteBlock(key);
   }
 

@@ -449,6 +449,26 @@ export function updateItem(id, fields) {
   return item;
 }
 
+// Réordonne un item parmi ses voisins visuels (même rubrique, même
+// sous-rubrique, même groupe) — pas parmi tout state.items, sinon
+// « monter » un item de Sport pourrait le faire sauter au milieu de Santé.
+export function moveItem(id, dir) {
+  const item = byId(id);
+  if (!item) return false;
+  const siblings = state.items.filter((i) =>
+    i.section === item.section && i.sub === item.sub && (i.group || "") === (item.group || ""));
+  const i = siblings.indexOf(item);
+  const j = i + (dir < 0 ? -1 : 1);
+  if (i < 0 || j < 0 || j >= siblings.length) return false;
+  const other = siblings[j];
+  const ai = state.items.indexOf(item);
+  const bi = state.items.indexOf(other);
+  state.items[ai] = other;
+  state.items[bi] = item;
+  save();
+  return true;
+}
+
 export function removeItem(id) {
   const idx = state.items.findIndex((i) => i.id === id);
   if (idx < 0) return;

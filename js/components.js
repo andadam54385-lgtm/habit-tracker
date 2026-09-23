@@ -89,6 +89,17 @@ export function renderItem(item, opts) {
       (done ? "true" : "false") + '" aria-label="' + esc(item.title) + '"></button>'
     : '<span class="check check-static" aria-hidden="true"></span>';
 
+  // Réordonner : seulement là où l'appelant le demande (parcourir une
+  // rubrique), jamais sur Jour où la liste change de contenu chaque jour.
+  const reorder = o.reorderPos
+    ? '<span class="row-act-group">' +
+      (o.reorderPos.first ? "" : '<button type="button" class="row-act" data-act="item-move-up" data-id="' +
+        esc(item.id) + '" aria-label="Monter ' + esc(item.title) + '">↑</button>') +
+      (o.reorderPos.last ? "" : '<button type="button" class="row-act" data-act="item-move-down" data-id="' +
+        esc(item.id) + '" aria-label="Descendre ' + esc(item.title) + '">↓</button>') +
+      "</span>"
+    : "";
+
   return '' +
     // data-day porte la date affichée : c'est elle que le clic sur la case
     // doit cocher, pas la date du jour réel.
@@ -100,6 +111,7 @@ export function renderItem(item, opts) {
         (item.warn ? '<div class="item-warn">⚠️ ' + escLines(item.warn) + "</div>" : "") +
         (badges.length ? '<div class="item-badges">' + badges.join("") + "</div>" : "") +
       "</div>" +
+      reorder +
     "</li>";
 }
 
@@ -115,6 +127,7 @@ export function renderGrouped(items, opts) {
   if (!items.length) {
     return '<p class="empty">' + esc((opts && opts.empty) || "Rien ici.") + "</p>";
   }
+  const o = opts || {};
   const groups = new Map();
   for (const i of items) {
     const g = i.group || "";
@@ -124,7 +137,9 @@ export function renderGrouped(items, opts) {
   let html = "";
   for (const [group, list] of groups) {
     if (group) html += '<h3 class="group-title">' + esc(group) + "</h3>";
-    html += '<ul class="items">' + list.map((i) => renderItem(i, opts)).join("") + "</ul>";
+    html += '<ul class="items">' + list.map((i, idx) => renderItem(i, o.reorder
+      ? Object.assign({}, o, { reorderPos: { first: idx === 0, last: idx === list.length - 1 } })
+      : o)).join("") + "</ul>";
   }
   return html;
 }

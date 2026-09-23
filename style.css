@@ -266,6 +266,9 @@ svg { display: block; }
 .item.is-optional { border-left-style: dashed; border-left-color: var(--border-strong); }
 .item.kind-info { background: var(--surface-2); box-shadow: none; }
 
+.row-act-group { display: flex; flex-direction: column; gap: 4px; flex: 0 0 auto; }
+.row-act-group .row-act { width: 32px; height: 32px; font-size: 12px; }
+
 .check {
   flex: 0 0 auto;
   width: 28px;

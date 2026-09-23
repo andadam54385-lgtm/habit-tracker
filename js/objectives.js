@@ -8,7 +8,7 @@
 // les semaines et les mois en cours restent justes.
 
 import { state, save, makeId, dayKey, weekStart, isRecurring } from "./state.js";
-import { esc } from "./ui.js";
+import { esc, openSheet, toast } from "./ui.js";
 import { SECTION_MAP } from "./seed.js";
 
 const MONTHS = [
@@ -90,6 +90,26 @@ export function removeObjective(scope, periodKey, id) {
   root[periodKey] = root[periodKey].filter((o) => o.id !== id);
   if (!root[periodKey].length) delete root[periodKey];
   save();
+}
+
+export function updateObjective(scope, periodKey, id, text) {
+  text = String(text || "").trim();
+  if (!text) return false;
+  const obj = readObjectives(scope, periodKey).find((o) => o.id === id);
+  if (!obj) return false;
+  obj.text = text.slice(0, 200);
+  save();
+  return true;
+}
+
+export function moveObjective(scope, periodKey, id, dir) {
+  const list = bucket(scope, periodKey);
+  const i = list.findIndex((o) => o.id === id);
+  const j = i + (dir < 0 ? -1 : 1);
+  if (i < 0 || j < 0 || j >= list.length) return false;
+  list.splice(j, 0, list.splice(i, 1)[0]);
+  save();
+  return true;
 }
 
 // ------------------------------------------------------------- réussite
@@ -231,17 +251,47 @@ export function allSectionTrends(weeks) {
 function objectiveList(scope, periodKey, emptyText) {
   const list = readObjectives(scope, periodKey);
   if (!list.length) return '<p class="empty">' + esc(emptyText) + "</p>";
-  return '<ul class="objectives">' + list.map(function (o) {
+  return '<ul class="objectives">' + list.map(function (o, idx) {
     return '<li class="objective' + (o.done ? " is-done" : "") + '">' +
       '<button type="button" class="check" role="checkbox" aria-checked="' + (o.done ? "true" : "false") +
         '" data-act="obj-toggle" data-scope="' + scope + '" data-period="' + esc(periodKey) +
         '" data-obj="' + esc(o.id) + '" aria-label="' + esc(o.text) + '"></button>' +
-      '<span class="objective-text">' + esc(o.text) + "</span>" +
+      '<span class="objective-text" data-act="obj-edit" data-scope="' + scope + '" data-period="' + esc(periodKey) +
+        '" data-obj="' + esc(o.id) + '" role="button" tabindex="0">' + esc(o.text) + "</span>" +
+      '<span class="row-act-group">' +
+        (idx === 0 ? "" : '<button type="button" class="row-act" data-act="obj-move-up" data-scope="' + scope +
+          '" data-period="' + esc(periodKey) + '" data-obj="' + esc(o.id) + '" aria-label="Monter">↑</button>') +
+        (idx === list.length - 1 ? "" : '<button type="button" class="row-act" data-act="obj-move-down" data-scope="' + scope +
+          '" data-period="' + esc(periodKey) + '" data-obj="' + esc(o.id) + '" aria-label="Descendre">↓</button>') +
+      "</span>" +
       '<button type="button" class="obj-del" data-act="obj-del" data-scope="' + scope +
         '" data-period="' + esc(periodKey) + '" data-obj="' + esc(o.id) +
         '" aria-label="Supprimer">✕</button>' +
     "</li>";
   }).join("") + "</ul>";
+}
+
+export function openObjectiveEdit(scope, periodKey, id) {
+  const obj = readObjectives(scope, periodKey).find((o) => o.id === id);
+  if (!obj) return;
+  openSheet("Modifier l'objectif", function (body, close) {
+    body.innerHTML =
+      '<label class="field"><span>Texte</span>' +
+        '<input type="text" id="oe-text" class="input input-lg" maxlength="200" value="' + esc(obj.text) + '"></label>' +
+      '<div class="sheet-actions">' +
+        '<button type="button" class="btn btn-ghost" data-act="oe-cancel">Annuler</button>' +
+        '<button type="button" class="btn btn-primary" data-act="oe-save">Enregistrer</button>' +
+      "</div>";
+    const input = body.querySelector("#oe-text");
+    body.querySelector('[data-act="oe-cancel"]').addEventListener("click", close);
+    body.querySelector('[data-act="oe-save"]').addEventListener("click", function () {
+      if (updateObjective(scope, periodKey, id, input.value) === false) { input.focus(); return; }
+      close();
+      toast("Objectif modifié");
+    });
+    input.focus();
+    input.select();
+  });
 }
 
 // Texte en cours de saisie dans les formulaires d'ajout : cocher un objectif
