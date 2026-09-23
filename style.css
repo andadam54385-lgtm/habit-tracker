@@ -266,8 +266,24 @@ svg { display: block; }
 .item.is-optional { border-left-style: dashed; border-left-color: var(--border-strong); }
 .item.kind-info { background: var(--surface-2); box-shadow: none; }
 
-.row-act-group { display: flex; flex-direction: column; gap: 4px; flex: 0 0 auto; }
-.row-act-group .row-act { width: 32px; height: 32px; font-size: 12px; }
+.drag-handle {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  color: var(--text-soft);
+  font-size: 18px;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.drag-handle:active { cursor: grabbing; background: var(--surface-2); }
+.is-dragging { position: relative; z-index: 5; background: var(--surface-2); box-shadow: 0 6px 16px rgb(0 0 0 / .3); }
 
 .check {
   flex: 0 0 auto;

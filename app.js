@@ -1,7 +1,7 @@
 // Point d'entrée : routage par hash, rendu, délégation d'événements.
 // Toute la logique métier vit dans js/ ; ce fichier ne fait que brancher.
 
-import { load, subscribe, toggle, setStatus, byId, moveItem } from "./js/state.js";
+import { load, subscribe, toggle, setStatus, byId } from "./js/state.js";
 import { el, toast } from "./js/ui.js";
 import { download, stamp } from "./js/io.js";
 import { openQuickAdd, openItem, openHowto } from "./js/sheets.js";
@@ -30,7 +30,7 @@ import {
   SEED_SUPPLEMENTS, migrateNutritionLogs, upsertSupplement
 } from "./js/nutrition.js";
 import { state, save } from "./js/state.js";
-import { viewObjectives, mountObjectives, toggleObjective, removeObjective, openObjectiveEdit, moveObjective } from "./js/objectives.js";
+import { viewObjectives, mountObjectives, toggleObjective, removeObjective, openObjectiveEdit } from "./js/objectives.js";
 import { openCheckin, openJournal, viewBilan, bilanMarkdown, setRapportPeriod, rapportPeriod } from "./js/formeview.js";
 import { viewCorps, mountCorps, openWeighIn, openMeasure, setPhotoKind, pickPhoto, confirmDeletePhoto } from "./js/corpsview.js";
 import { rapportMarkdown } from "./js/rapport.js";
@@ -288,13 +288,6 @@ function onClick(e) {
     return;
   }
 
-  const objMove = e.target.closest('[data-act="obj-move-up"], [data-act="obj-move-down"]');
-  if (objMove) {
-    moveObjective(objMove.dataset.scope, objMove.dataset.period, objMove.dataset.obj,
-      objMove.dataset.act === "obj-move-up" ? -1 : 1);
-    return;
-  }
-
   const libreDel = e.target.closest('[data-act="nut-del"]');
   if (libreDel) {
     removeLibre(parseInt(libreDel.dataset.idx, 10), libreDel.dataset.day || undefined);
@@ -323,12 +316,6 @@ function onClick(e) {
     // data-day porte le jour affiché : coché depuis un jour passé, la case
     // se coche ce jour-là, pas aujourd'hui.
     if (li) toggle(li.dataset.id, li.dataset.day || undefined);
-    return;
-  }
-
-  const itemMove = e.target.closest('[data-act="item-move-up"], [data-act="item-move-down"]');
-  if (itemMove) {
-    moveItem(itemMove.dataset.id, itemMove.dataset.act === "item-move-up" ? -1 : 1);
     return;
   }
 

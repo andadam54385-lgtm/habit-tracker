@@ -1,7 +1,7 @@
 /* Service worker : coquille hors ligne + réception du partage système.
    Pas de push, pas de serveur — l'app reste entièrement locale. */
 
-const VERSION = "suivi-v43";
+const VERSION = "suivi-v44";
 const SHELL = [
   "./",
   "./index.html",

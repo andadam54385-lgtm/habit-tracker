@@ -1,14 +1,14 @@
 // Les vues produisent du HTML. Le câblage se fait par délégation dans app.js,
 // sauf pour les champs de saisie, montés par `mount` après l'injection.
 
-import { esc, escLines, fmtDate, fmtShort } from "./ui.js";
+import { esc, escLines, fmtDate, fmtShort, initSortable } from "./ui.js";
 import { renderList, renderGrouped } from "./components.js";
 import { SECTIONS, SECTION_MAP } from "./seed.js";
 import { weekSuccess, pendingObjectives, formatPercent, rateClass } from "./objectives.js";
 import { homeForme } from "./formeview.js";
 import {
   state, isDone, isRecurring, weekProgress, rootBlocker, dependentCount,
-  dayKey, dailyHistory, setDaily, setNote, saveQuiet
+  dayKey, dailyHistory, setDaily, setNote, saveQuiet, reorderItems
 } from "./state.js";
 
 // ------------------------------------------------------------- sélecteurs
@@ -498,6 +498,13 @@ export function mount() {
   }
   if (foldAll) foldAll.addEventListener("click", () => setAll(false));
   if (unfoldAll) unfoldAll.addEventListener("click", () => setAll(true));
+
+  // Réordonner une rubrique (viewSection) : repéré à la présence d'une
+  // poignée, pas au nom de la route — mount() sert à plusieurs vues.
+  document.querySelectorAll("ul.items").forEach(function (list) {
+    if (!list.querySelector(".drag-handle")) return;
+    initSortable(list, "data-id", function (order) { reorderItems(order); });
+  });
 
   document.querySelectorAll("[data-metric]").forEach(function (input) {
     input.addEventListener("change", function () {

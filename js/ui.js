@@ -92,6 +92,81 @@ export function closeSheet() {
 
 // ------------------------------------------------------- confirmation
 
+// ----------------------------------------------- glisser pour réordonner
+
+// Un doigt sur la poignée .drag-handle d'un <li> déplace la ligne parmi ses
+// sœurs dans la même <ul> ; au lâcher, `onDrop` reçoit l'ordre final des
+// valeurs de l'attribut `idAttr` — à l'appelant de le persister. Le
+// glisser-déposer HTML5 se prête mal au tactile ; les pointer events
+// couvrent souris et doigt avec le même code.
+export function initSortable(list, idAttr, onDrop) {
+  if (!list) return;
+  list.querySelectorAll(".drag-handle").forEach(function (handle) {
+    handle.addEventListener("pointerdown", function (e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      startDrag(e, list, handle, idAttr, onDrop);
+    });
+  });
+}
+
+function startDrag(e, list, handle, idAttr, onDrop) {
+  const row = handle.closest("li");
+  if (!row) return;
+  e.preventDefault();
+  row.classList.add("is-dragging");
+
+  const pointerId = e.pointerId;
+  const startY = e.clientY;
+  // Centres de toutes les lignes gelés une fois pour toutes au début du
+  // geste : comparer à des mesures qui bougent à chaque déplacement (une
+  // ligne déjà réinsérée) ne fait avancer la ligne tirée que d'un cran par
+  // évènement, ce qui la fait rater sa place sur un glissé rapide.
+  const rows = Array.from(list.children);
+  const others = rows.filter((r) => r !== row);
+  const centers = rows.map(function (r) {
+    const rc = r.getBoundingClientRect();
+    return rc.top + rc.height / 2;
+  });
+  const startIndex = rows.indexOf(row);
+
+  function onMove(ev) {
+    if (ev.pointerId !== pointerId) return;
+    const dy = ev.clientY - startY;
+    row.style.transform = "translateY(" + dy + "px)";
+    const center = centers[startIndex] + dy;
+
+    // Combien des AUTRES lignes le centre courant a-t-il dépassées ? C'est
+    // la place cible parmi elles — leur ordre entre elles ne bouge jamais,
+    // seule la ligne tirée se déplace parmi elles.
+    let target = 0;
+    for (let i = 0; i < rows.length; i++) {
+      if (i !== startIndex && center > centers[i]) target++;
+    }
+    target = Math.max(0, Math.min(others.length, target));
+
+    const anchor = others[target] || null;
+    if (row.nextSibling !== anchor) list.insertBefore(row, anchor);
+  }
+
+  // Écouteurs posés sur document, pas sur la poignée : une capture de
+  // pointeur qui ne « prend » pas (vu en pratique avec certains pilotes
+  // tactiles/automatisations) laisserait sinon la ligne bloquée à mi-glisser,
+  // avec sa transformation jamais nettoyée et rien de persisté.
+  function finish(ev) {
+    if (ev && ev.pointerId !== undefined && ev.pointerId !== pointerId) return;
+    document.removeEventListener("pointermove", onMove);
+    document.removeEventListener("pointerup", finish);
+    document.removeEventListener("pointercancel", finish);
+    row.classList.remove("is-dragging");
+    row.style.transform = "";
+    onDrop(Array.from(list.children).map((li) => li.getAttribute(idAttr)).filter(Boolean));
+  }
+
+  document.addEventListener("pointermove", onMove);
+  document.addEventListener("pointerup", finish);
+  document.addEventListener("pointercancel", finish);
+}
+
 export function confirmSheet(title, message, confirmLabel, onConfirm) {
   openSheet(title, function (body, close) {
     body.innerHTML =

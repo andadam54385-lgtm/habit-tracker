@@ -91,13 +91,8 @@ export function renderItem(item, opts) {
 
   // Réordonner : seulement là où l'appelant le demande (parcourir une
   // rubrique), jamais sur Jour où la liste change de contenu chaque jour.
-  const reorder = o.reorderPos
-    ? '<span class="row-act-group">' +
-      (o.reorderPos.first ? "" : '<button type="button" class="row-act" data-act="item-move-up" data-id="' +
-        esc(item.id) + '" aria-label="Monter ' + esc(item.title) + '">↑</button>') +
-      (o.reorderPos.last ? "" : '<button type="button" class="row-act" data-act="item-move-down" data-id="' +
-        esc(item.id) + '" aria-label="Descendre ' + esc(item.title) + '">↓</button>') +
-      "</span>"
+  const reorder = o.reorder
+    ? '<span class="drag-handle" aria-hidden="true" title="Glisser pour réordonner">⠿</span>'
     : "";
 
   return '' +
@@ -137,9 +132,7 @@ export function renderGrouped(items, opts) {
   let html = "";
   for (const [group, list] of groups) {
     if (group) html += '<h3 class="group-title">' + esc(group) + "</h3>";
-    html += '<ul class="items">' + list.map((i, idx) => renderItem(i, o.reorder
-      ? Object.assign({}, o, { reorderPos: { first: idx === 0, last: idx === list.length - 1 } })
-      : o)).join("") + "</ul>";
+    html += '<ul class="items">' + list.map((i) => renderItem(i, o)).join("") + "</ul>";
   }
   return html;
 }

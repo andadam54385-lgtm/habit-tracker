@@ -8,7 +8,7 @@
 // les semaines et les mois en cours restent justes.
 
 import { state, save, makeId, dayKey, weekStart, isRecurring } from "./state.js";
-import { esc, openSheet, toast } from "./ui.js";
+import { esc, openSheet, toast, initSortable } from "./ui.js";
 import { SECTION_MAP } from "./seed.js";
 
 const MONTHS = [
@@ -102,12 +102,14 @@ export function updateObjective(scope, periodKey, id, text) {
   return true;
 }
 
-export function moveObjective(scope, periodKey, id, dir) {
-  const list = bucket(scope, periodKey);
-  const i = list.findIndex((o) => o.id === id);
-  const j = i + (dir < 0 ? -1 : 1);
-  if (i < 0 || j < 0 || j >= list.length) return false;
-  list.splice(j, 0, list.splice(i, 1)[0]);
+// Glisser-déposer : `ids` porte l'ordre final complet de la liste.
+export function reorderObjectives(scope, periodKey, ids) {
+  const root = scope === "weekly" ? state.objectives.weekly : state.objectives.monthly;
+  const list = root[periodKey] || [];
+  const map = new Map(list.map((o) => [o.id, o]));
+  const reordered = ids.map((id) => map.get(id)).filter(Boolean);
+  if (reordered.length !== list.length) return false;
+  root[periodKey] = reordered;
   save();
   return true;
 }
@@ -251,19 +253,14 @@ export function allSectionTrends(weeks) {
 function objectiveList(scope, periodKey, emptyText) {
   const list = readObjectives(scope, periodKey);
   if (!list.length) return '<p class="empty">' + esc(emptyText) + "</p>";
-  return '<ul class="objectives">' + list.map(function (o, idx) {
-    return '<li class="objective' + (o.done ? " is-done" : "") + '">' +
+  return '<ul class="objectives" data-scope="' + scope + '" data-period="' + esc(periodKey) + '">' + list.map(function (o) {
+    return '<li class="objective' + (o.done ? " is-done" : "") + '" data-obj="' + esc(o.id) + '">' +
       '<button type="button" class="check" role="checkbox" aria-checked="' + (o.done ? "true" : "false") +
         '" data-act="obj-toggle" data-scope="' + scope + '" data-period="' + esc(periodKey) +
         '" data-obj="' + esc(o.id) + '" aria-label="' + esc(o.text) + '"></button>' +
       '<span class="objective-text" data-act="obj-edit" data-scope="' + scope + '" data-period="' + esc(periodKey) +
         '" data-obj="' + esc(o.id) + '" role="button" tabindex="0">' + esc(o.text) + "</span>" +
-      '<span class="row-act-group">' +
-        (idx === 0 ? "" : '<button type="button" class="row-act" data-act="obj-move-up" data-scope="' + scope +
-          '" data-period="' + esc(periodKey) + '" data-obj="' + esc(o.id) + '" aria-label="Monter">↑</button>') +
-        (idx === list.length - 1 ? "" : '<button type="button" class="row-act" data-act="obj-move-down" data-scope="' + scope +
-          '" data-period="' + esc(periodKey) + '" data-obj="' + esc(o.id) + '" aria-label="Descendre">↓</button>') +
-      "</span>" +
+      '<span class="drag-handle" aria-hidden="true" title="Glisser pour réordonner">⠿</span>' +
       '<button type="button" class="obj-del" data-act="obj-del" data-scope="' + scope +
         '" data-period="' + esc(periodKey) + '" data-obj="' + esc(o.id) +
         '" aria-label="Supprimer">✕</button>' +
@@ -474,6 +471,12 @@ export function mountObjectives() {
       } else {
         input.focus();
       }
+    });
+  });
+
+  document.querySelectorAll("ul.objectives").forEach(function (list) {
+    initSortable(list, "data-obj", function (order) {
+      reorderObjectives(list.dataset.scope, list.dataset.period, order);
     });
   });
 }
