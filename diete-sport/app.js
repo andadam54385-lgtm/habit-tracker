@@ -7,7 +7,7 @@ import { el, toast } from "./js/ui.js";
 import { openQuickAdd, openItem, openHowto } from "./js/sheets.js";
 import { applyTheme, scheduleReminders } from "./js/notify.js";
 import {
-  viewToday, viewBlocked, viewSections, viewSection,
+  viewToday, viewSections, viewSection,
   viewSearch, mount
 } from "./js/views.js";
 import { viewImport, mountImport } from "./js/importview.js";
@@ -39,8 +39,7 @@ const NAV = [
   { href: "#/", label: "Accueil", icon: "🏠", match: (r) => ["home", "sections", "section", "search", "import", "settings", "corps"].includes(r.name) },
   { href: "#/jour", label: "Jour", icon: "✅", match: (r) => r.name === "today" },
   { href: "#/nutrition", label: "Diète", icon: "🍽️", match: (r) => r.name === "nutrition" || r.name === "recipes" },
-  { href: "#/sport", label: "Sport", icon: "🏋️", match: (r) => r.name === "sport" },
-  { href: "#/bloque", label: "Bloqué", icon: "🔒", match: (r) => r.name === "blocked" }
+  { href: "#/sport", label: "Sport", icon: "🏋️", match: (r) => r.name === "sport" }
 ];
 
 // ------------------------------------------------------------- routage
@@ -54,7 +53,6 @@ function parseRoute() {
   if (!parts.length) return { name: "home", params };
   switch (parts[0]) {
     case "jour": return { name: "today", params };
-    case "bloque": return { name: "blocked", params };
     case "rubriques": return { name: "sections", params };
     case "s": return { name: "section", key: parts[1], sub: parts[2], params };
     case "nutrition": return { name: "nutrition", params };
@@ -73,7 +71,6 @@ let sharedPrefill = null;
 function renderRoute(route) {
   switch (route.name) {
     case "today": return viewToday(route.params.get("d"));
-    case "blocked": return viewBlocked();
     case "sections": return viewSections();
     case "section": return viewSection(route.key, route.sub);
     case "nutrition": return viewNutrition(route.params.get("d"));

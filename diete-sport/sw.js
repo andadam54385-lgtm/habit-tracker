@@ -2,7 +2,7 @@
    Pas de push, pas de serveur — l'app reste entièrement locale.
    App "Diète & Sport" — scindée de "Suivi personnel" le 2026-09-24. */
 
-const VERSION = "diete-sport-v1";
+const VERSION = "diete-sport-v2";
 // Préfixe propre à cette app : Cache Storage est partagé par origine, pas
 // par dossier — sans ce filtre, l'activation nettoierait aussi les caches
 // des PWA sœurs (racine, objectifs-routine/) servies depuis le même
