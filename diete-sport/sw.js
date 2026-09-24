@@ -1,12 +1,13 @@
 /* Service worker : coquille hors ligne + réception du partage système.
-   Pas de push, pas de serveur — l'app reste entièrement locale. */
+   Pas de push, pas de serveur — l'app reste entièrement locale.
+   App "Diète & Sport" — scindée de "Suivi personnel" le 2026-09-24. */
 
-const VERSION = "suivi-v45";
+const VERSION = "diete-sport-v1";
 // Préfixe propre à cette app : Cache Storage est partagé par origine, pas
 // par dossier — sans ce filtre, l'activation nettoierait aussi les caches
-// des PWA sœurs (diete-sport/, objectifs-routine/) servies depuis le même
+// des PWA sœurs (racine, objectifs-routine/) servies depuis le même
 // domaine GitHub Pages.
-const PREFIX = "suivi-v";
+const PREFIX = "diete-sport-v";
 const SHELL = [
   "./",
   "./index.html",
@@ -28,21 +29,18 @@ const SHELL = [
   "./js/settings.js",
   "./js/notify.js",
   "./js/nutrition.js",
-  "./js/objectives.js",
   "./js/foods.js",
   "./js/nutritionview.js",
   "./js/recipes.js",
   "./js/howto.js",
   "./js/exercises.js",
   "./js/sport.js",
-  "./js/forme.js",
   "./js/corps.js",
   "./js/photos.js",
   "./js/corpsview.js",
-  "./js/rapport.js",
   "./js/charge.js",
-  "./js/formeview.js",
-  "./js/sportview.js"
+  "./js/sportview.js",
+  "./js/seedrecipes.js"
 ];
 
 self.addEventListener("install", function (event) {
@@ -87,7 +85,7 @@ self.addEventListener("fetch", function (event) {
         payload = "";
       }
       if (payload) {
-        const cache = await caches.open("suivi-share");
+        const cache = await caches.open("diete-sport-share");
         await cache.put("shared-payload", new Response(payload, {
           headers: { "Content-Type": "text/plain; charset=utf-8" }
         }));

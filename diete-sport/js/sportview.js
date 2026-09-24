@@ -1,0 +1,1647 @@
+// Écran Entraînement : trois onglets et les feuilles qui font tourner les
+// minuteurs. Les minuteurs vivent dans des feuilles, hors de #app : un
+// enregistrement re-rend la vue principale sans les interrompre.
+
+import { esc, escLines, openSheet, toast, confirmSheet } from "./ui.js";
+import { state, dayKey, byId, weekProgress } from "./state.js";
+import { weighDue, daysSince } from "./corps.js";
+import { openWeighIn } from "./corpsview.js";
+import {
+  MUSCLE_GROUPS, GROUP_MAP, REST_DEFAULT,
+  RUN_PRESETS, RUN_MODES, ROUTINE_MAP,
+  CIRCUIT_MODES, CIRCUIT_UNITS
+} from "./exercises.js";
+import {
+  allExercises, exerciseById, addCustomExercise, searchExercises,
+  workouts, workoutById, workoutsOn, addWorkout, removeWorkout,
+  estimate1RM, setVolume, exerciseHistory, exercisesPracticed,
+  weeklySummary, runStats, fmtDuration, fmtClock,
+  allTemplates, templateByKey, upsertTemplate, removeTemplate,
+  sortedTemplates, templateSort, setTemplateSort, TEMPLATE_SORTS,
+  hiddenTemplates, hideTemplate, unhideTemplates,
+  lastWorkoutsForTemplate, lastSetsFor, tempoLabel, cleanTempo,
+  circuitTemplates, visibleCircuits, circuitByKey, upsertCircuit, anyTemplateByKey,
+  secondaryOf, updateExercise, resetExercise, removeCustomExercise, moveTemplate
+} from "./sport.js";
+import {
+  loadStatus, LOAD_RATIO_MAX, VOLUME_METRICS, volumeMetric, muscleVolume,
+  circuitBest, isCircuitPR, bestRmMap
+} from "./charge.js";
+
+// Charge d'entraînement : 8 semaines en barres, la semaine en cours
+// comparée à la moyenne des 4 précédentes.
+function loadBlock() {
+  const ls = loadStatus();
+  if (!ls.history.some((h) => h.load > 0)) return "";
+  const max = Math.max.apply(null, ls.history.map((h) => h.load).concat([1]));
+  const verdict = ls.level === "na" ? "Pas encore deux semaines de référence."
+    : ls.level === "high" ? "⚠️ +" + Math.round((ls.ratio - 1) * 100) + " % : lève le pied."
+    : ls.level === "low" ? "Semaine légère (" + Math.round(ls.ratio * 100) + " % de ta moyenne)."
+    : "Dans la zone : " + Math.round(ls.ratio * 100) + " % de ta moyenne.";
+  return '<div class="block-head"><h2>Charge d\'entraînement</h2><span class="counter">' + ls.current + (ls.mean ? " / moy. " + ls.mean : "") + "</span></div>" +
+    '<div class="load-bars">' + ls.history.map(function (h, i) {
+      const hh = Math.max(3, Math.round(h.load / max * 100));
+      const over = ls.mean && h.load > ls.mean * LOAD_RATIO_MAX;
+      return '<span class="load-bar' + (i === ls.history.length - 1 ? " is-current" : "") + (over ? " is-over" : "") + '" style="height:' + hh + '%" title="' + h.load + '"></span>';
+    }).join("") + "</div>" +
+    '<p class="load-verdict is-' + ls.level + '">' + esc(verdict) + "</p>" +
+    '<p class="hint">Charge = RPE × minutes, par semaine. Alerte au-delà de ' + Math.round(LOAD_RATIO_MAX * 100) + " % de la moyenne des 4 dernières semaines. " +
+      "En reprise, la 3e semaine dépasse par construction : la règle qui compte reste comment tu te sens 24-48 h après.</p>";
+}
+
+// Volume par groupe musculaire, au choix : tonnage, séries, reps ou RPE moyen.
+function volumeBlock() {
+  const metric = volumeMetric();
+  const m = VOLUME_METRICS.find((x) => x.key === metric);
+  const rows = muscleVolume();
+  let html = '<div class="block-head"><h2>Volume par muscle</h2><span class="counter">cette semaine</span></div>' +
+    '<div class="sort-row" role="group" aria-label="Mesure">' +
+      VOLUME_METRICS.map((x) => '<button type="button" class="sort-btn' + (x.key === metric ? " is-active" : "") + '" data-act="vol-metric" data-metric="' + x.key + '">' + esc(x.label) + "</button>").join("") +
+    "</div>";
+  if (!rows.length) return html + '<p class="empty">Aucune série cette semaine.</p>';
+  const max = Math.max.apply(null, rows.map((r) => r[metric] || 0).concat([1]));
+  html += '<div class="vol-list">' + rows.map(function (r) {
+    const v = r[metric];
+    const pct = metric === "rpe" ? (v ? v / 10 * 100 : 0) : (v / max * 100);
+    return '<div class="vol-row"><span class="vol-label">' + r.icon + " " + esc(r.label) + "</span>" +
+      '<div class="bar"><div class="bar-fill" style="width:' + pct.toFixed(0) + '%"></div></div>' +
+      '<span class="vol-val">' + (v === null || v === undefined ? "—" : v + (m.unit ? " " + m.unit : "")) + "</span></div>";
+  }).join("") + "</div>";
+  return html;
+}
+
+function fmtSet(s, ex) {
+  const load = ex ? ex.load : "kg";
+  return (load === "temps" ? s.reps + " s" : s.reps) + (load === "kg" ? "×" + s.weight : "") +
+    (s.rpe ? "@" + s.rpe : "");
+}
+
+// ------------------------------------------------------------ utilitaires
+
+let audioCtx = null;
+
+// Bip court : oscillateur WebAudio, créé au premier geste utilisateur
+// (iOS refuse de démarrer un contexte audio sans interaction).
+function beep(freq, ms) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = "sine";
+    o.frequency.value = freq || 880;
+    g.gain.value = 0.25;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start();
+    o.stop(audioCtx.currentTime + (ms || 150) / 1000);
+  } catch (e) { /* pas d'audio disponible */ }
+  try { if (navigator.vibrate) navigator.vibrate(ms || 150); } catch (e) { /* idem */ }
+}
+
+function cueStart() { beep(880, 180); }
+function cueRest() { beep(520, 220); }
+function cueDone() { beep(880, 120); setTimeout(() => beep(1100, 120), 160); setTimeout(() => beep(1320, 220), 320); }
+function cueTick() { beep(660, 60); }
+
+let wakeLock = null;
+function keepAwake() {
+  try {
+    if (navigator.wakeLock && !wakeLock) {
+      navigator.wakeLock.request("screen").then((l) => { wakeLock = l; }).catch(() => {});
+    }
+  } catch (e) { /* non supporté */ }
+}
+function releaseAwake() {
+  try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch (e) { /* rien */ }
+}
+
+// Compte à rebours basé sur des horodatages : setInterval dérive, pas Date.now().
+function makeCountdown(onTick, onEnd) {
+  let endAt = 0, remainingAtPause = 0, timer = null, running = false;
+  function loop() {
+    const left = (endAt - Date.now()) / 1000;
+    if (left <= 0) { stop(); onTick(0); onEnd(); return; }
+    onTick(left);
+  }
+  function start(seconds) {
+    endAt = Date.now() + seconds * 1000;
+    running = true;
+    clearInterval(timer);
+    timer = setInterval(loop, 200);
+    onTick(seconds);
+  }
+  function pause() {
+    if (!running) return;
+    remainingAtPause = Math.max(0, (endAt - Date.now()) / 1000);
+    clearInterval(timer); timer = null; running = false;
+  }
+  function resume() {
+    if (running) return;
+    start(remainingAtPause);
+  }
+  function stop() { clearInterval(timer); timer = null; running = false; }
+  return { start, pause, resume, stop, isRunning: () => running, left: () => Math.max(0, (endAt - Date.now()) / 1000) };
+}
+
+function rpeChips(selected) {
+  return '<div class="chips" id="rpe-chips">' + [5, 6, 7, 8, 9, 10].map(function (v) {
+    return '<button type="button" class="chip' + (selected === v ? " is-active" : "") + '" data-rpe="' + v + '">' + v + "</button>";
+  }).join("") + "</div>";
+}
+
+function bindRpe(body) {
+  const box = body.querySelector("#rpe-chips");
+  if (!box) return () => null;
+  box.addEventListener("click", function (e) {
+    const c = e.target.closest(".chip");
+    if (!c) return;
+    box.querySelectorAll(".chip").forEach((x) => x.classList.toggle("is-active", x === c));
+  });
+  return () => { const a = box.querySelector(".chip.is-active"); return a ? parseInt(a.dataset.rpe, 10) : null; };
+}
+
+function sportTabs(active, day) {
+  const d = day ? "&d=" + esc(day) : "";
+  return '<nav class="tabs nut-tabs">' +
+    '<a class="tab' + (active === "muscu" ? " is-active" : "") + '" href="#/sport?t=muscu' + d + '">🏋️ Muscu</a>' +
+    '<a class="tab' + (active === "circuit" ? " is-active" : "") + '" href="#/sport?t=circuit' + d + '">🔥 Circuit</a>' +
+    '<a class="tab' + (active === "course" ? " is-active" : "") + '" href="#/sport?t=course' + d + '">🏃 Course</a>' +
+    '<a class="tab' + (active === "autre" ? " is-active" : "") + '" href="#/sport?t=autre' + d + '">🥊 Autre</a>' +
+    "</nav>";
+}
+
+// Objectifs de la semaine : les cases d'entraînement à fréquence réglable.
+// Un tap ouvre la fiche, où la fréquence se change.
+function goalsStrip(ref) {
+  const short = { "entr-muscu": "Muscu", "entr-cardio": "Cardio" };
+  const chips = Object.keys(short).map(byId).filter((i) => i && i.recurrence).map(function (i) {
+    const p = weekProgress(i, ref);
+    return '<button type="button" class="goal-chip' + (p.done >= p.target ? " is-done" : "") +
+      '" data-act="open-item" data-target="' + esc(i.id) + '">' +
+      "<strong>" + p.done + "/" + p.target + "</strong> " + esc(short[i.id]) + "</button>";
+  });
+  return chips.length ? '<div class="goal-strip">' + chips.join("") + "</div>" : "";
+}
+
+function workoutRow(w) {
+  let title = "", detail = "";
+  if (w.type === "muscu") {
+    title = "🏋️ " + w.label;
+    const n = w.exercises.length;
+    const vol = w.exercises.reduce((a, e) => a + setVolume(e.sets), 0);
+    detail = n + " exercice" + (n > 1 ? "s" : "") + " · " +
+      w.exercises.reduce((a, e) => a + e.sets.length, 0) + " séries" +
+      (vol ? " · " + Math.round(vol) + " kg soulevés" : "") +
+      (w.duration ? " · " + fmtDuration(w.duration) : "");
+  } else if (w.type === "course") {
+    const m = RUN_MODES[w.mode];
+    title = (m ? m.icon + " " + m.label : "Course");
+    detail = fmtDuration(w.duration) +
+      (w.distance ? " · " + w.distance + " km" : "") +
+      (w.rounds ? " · " + w.rounds + " × " + w.work + "/" + w.rest + " s" : "");
+  } else if (w.type === "circuit") {
+    title = "🔥 " + w.label;
+    detail = w.rounds + " tour" + (w.rounds > 1 ? "s" : "") +
+      (w.stationsDone ? " + " + w.stationsDone + " station" + (w.stationsDone > 1 ? "s" : "") : "") +
+      " · " + fmtDuration(w.duration) + (w.mode === "amrap" ? " · AMRAP" : "");
+  } else if (w.type === "autre") {
+    title = "🥊 " + w.activity;
+    detail = fmtDuration(w.duration);
+  } else {
+    const r = ROUTINE_MAP[w.routine];
+    title = (r ? r.icon + " " + r.label : "Routine");
+    detail = fmtDuration(w.duration) + (w.completed === false ? " · interrompue" : " · complète");
+  }
+  if (w.rpe) detail += " · RPE " + w.rpe;
+  const d = new Date(w.date + "T12:00:00");
+  return '<li class="nut-food has-qty">' +
+    '<div class="nut-food-main" data-act="open-workout" data-workout="' + esc(w.id) + '" role="button" tabindex="0">' +
+      '<span class="nut-food-label">' + esc(title) + "</span>" +
+      '<span class="nut-food-detail">' + esc(detail) + "</span>" +
+      '<span class="nut-food-detail">' + esc(d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })) + "</span>" +
+    "</div>" +
+    '<button type="button" class="nut-del" data-act="del-workout" data-workout="' + esc(w.id) + '" aria-label="Supprimer">✕</button>' +
+  "</li>";
+}
+
+function recentList(type, limit) {
+  const list = workouts().filter((w) => w.type === type).sort((a, b) => b.at - a.at).slice(0, limit || 6);
+  if (!list.length) return '<p class="empty">Aucune séance enregistrée pour l\'instant.</p>';
+  return '<ul class="nut-foods">' + list.map(workoutRow).join("") + "</ul>";
+}
+
+// Un jour au format YYYY-MM-DD valide et rien d'autre : un paramètre
+// d'URL trafiqué ne doit pas planter la vue, juste retomber sur aujourd'hui.
+function shiftDayKey(key, delta) {
+  const d = new Date(key + "T12:00:00");
+  d.setDate(d.getDate() + delta);
+  return dayKey(d);
+}
+
+function fmtDayLabel(viewDate) {
+  const s = viewDate.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// ------------------------------------------------------------------ vue
+
+export function viewSport(tab, dateKey) {
+  const t = ["muscu", "circuit", "course", "autre"].indexOf(tab) >= 0 ? tab : "muscu";
+  const todayKey = dayKey();
+  const key = /^\d{4}-\d{2}-\d{2}$/.test(dateKey || "") ? dateKey : todayKey;
+  const isToday = key === todayKey;
+  const viewDate = new Date(key + "T12:00:00");
+  const s = weeklySummary(viewDate);
+
+  let html = '<div class="view">';
+  html += '<header class="view-head"><h1>Entraînement</h1><p class="sub">' +
+    (s.total
+      ? "Cette semaine-là : " + s.total + " séance" + (s.total > 1 ? "s" : "") + " · " + s.minutes + " min" +
+        (s.km ? " · " + s.km + " km" : "")
+      : "Rien d'enregistré cette semaine-là.") +
+    "</p></header>";
+  html += goalsStrip(viewDate);
+
+  // Corriger ou compléter un autre jour : mêmes flèches que sur Jour et
+  // Diète. Ce qui se démarre ou s'enregistre depuis cet écran se date sur
+  // le jour affiché, pas forcément sur l'instant présent.
+  html += '<nav class="week-nav">' +
+    '<a class="btn btn-small" href="#/sport?t=' + t + '&d=' + esc(shiftDayKey(key, -1)) + '" aria-label="Jour précédent">←</a>' +
+    '<span class="week-label">' + esc(isToday ? "Aujourd'hui" : fmtDayLabel(viewDate)) + "</span>" +
+    '<a class="btn btn-small" href="#/sport?t=' + t + '&d=' + esc(shiftDayKey(key, 1)) + '" aria-label="Jour suivant">→</a>' +
+    (isToday ? "" : '<a class="btn btn-small btn-ghost" href="#/sport?t=' + t + '">Aujourd\'hui</a>') +
+  "</nav>";
+
+  const onDay = workoutsOn(key).sort((a, b) => b.at - a.at);
+  if (onDay.length) {
+    html += '<div class="block-head"><h2>' + (isToday ? "Aujourd'hui" : "Ce jour-là") + "</h2></div>" +
+      '<ul class="nut-foods">' + onDay.map(workoutRow).join("") + "</ul>";
+  } else if (!isToday) {
+    html += '<p class="empty">Rien enregistré ce jour-là. Ce qui est démarré ou noté ci-dessous s\'y ajoutera.</p>';
+  }
+
+  html += sportTabs(t, isToday ? null : key);
+
+  if (t === "muscu") html += tabMuscu(key);
+  else if (t === "circuit") html += tabCircuit(key);
+  else if (t === "course") html += tabCourse(key);
+  else html += tabAutre(key);
+
+  html += "</div>";
+  return html;
+}
+
+function fmtLastUsed(dateKey) {
+  if (!dateKey) return "jamais faite";
+  const d = new Date(dateKey + "T12:00:00");
+  const today = new Date(); today.setHours(12, 0, 0, 0);
+  const days = Math.round((today - d) / 86400000);
+  if (days === 0) return "aujourd'hui";
+  if (days === 1) return "hier";
+  if (days < 7) return "il y a " + days + " jours";
+  return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+}
+
+function tabMuscu(day) {
+  const sort = templateSort();
+  const hidden = hiddenTemplates();
+
+  let html = '<div class="block-head"><h2>Séances</h2>' +
+    '<div class="sort-row" role="group" aria-label="Trier">' +
+      TEMPLATE_SORTS.map((s) =>
+        '<button type="button" class="sort-btn' + (sort === s.key ? " is-active" : "") +
+        '" data-act="tpl-sort" data-sort="' + s.key + '">' + esc(s.label) + "</button>").join("") +
+    "</div></div>";
+
+  // Une ligne par séance, pleine largeur : le nom, le contenu, quand elle a
+  // été faite en dernier, et les actions à droite.
+  html += '<ul class="start-list">';
+  for (const tpl of sortedTemplates()) {
+    // Trois noms au plus : au-delà, la ligne dit « +N » plutôt que tout lister.
+    const names = tpl.plan.map((p) => (exerciseById(p.ex) || {}).label).filter(Boolean);
+    const plan = names.slice(0, 3).join(" · ") + (names.length > 3 ? " · +" + (names.length - 3) : "");
+    const isLibre = tpl.key === "libre";
+    html += '<li class="start-row' + (isLibre ? " is-libre" : "") + '">' +
+      '<button type="button" class="start-row-main" data-act="start-muscu" data-template="' + esc(tpl.key) + '" data-day="' + esc(day) + '">' +
+        '<span class="start-title">' + esc(tpl.label) + "</span>" +
+        '<span class="start-detail">' + (plan ? esc(plan) : "Compose au fur et à mesure") + "</span>" +
+        (isLibre ? "" : '<span class="start-last">' + esc(fmtLastUsed(tpl.lastUsed)) + "</span>") +
+      "</button>" +
+      (isLibre ? "" :
+        '<span class="start-row-actions">' +
+          // Réordonner : visible seulement en tri « Ordre », sinon le
+          // déplacement serait invisible au rendu suivant.
+          (sort === "order"
+            ? '<button type="button" class="row-act" data-act="tpl-move-up" data-template="' + esc(tpl.key) +
+              '" aria-label="Monter ' + esc(tpl.label) + '">↑</button>' +
+              '<button type="button" class="row-act" data-act="tpl-move-down" data-template="' + esc(tpl.key) +
+              '" aria-label="Descendre ' + esc(tpl.label) + '">↓</button>'
+            : "") +
+          (tpl.builtin ? "" :
+            '<button type="button" class="row-act" data-act="edit-template" data-template="' + esc(tpl.key) +
+            '" aria-label="Modifier ' + esc(tpl.label) + '">✎</button>') +
+          '<button type="button" class="row-act is-danger" data-act="del-template" data-template="' + esc(tpl.key) +
+          '" aria-label="' + (tpl.builtin ? "Masquer" : "Supprimer") + " " + esc(tpl.label) + '">✕</button>' +
+        "</span>") +
+    "</li>";
+  }
+  html += "</ul>";
+
+  if (sort === "order") {
+    html += '<p class="hint">Les flèches changent l\'ordre des séances. Il ne s\'applique qu\'en tri « Ordre ».</p>';
+  }
+  html += '<button type="button" class="btn btn-block btn-ghost" data-act="new-template">+ Nouveau modèle</button>';
+  if (hidden.length) {
+    html += '<button type="button" class="linkish start-unhide" data-act="unhide-templates">' +
+      "Réafficher " + hidden.length + " séance" + (hidden.length > 1 ? "s masquées" : " masquée") + "</button>";
+  }
+  html += '<p class="hint">Reprise : RPE 6, charges à 50-60 %, 2 min de repos. Sortir en se sentant capable de refaire la séance.</p>';
+
+  html += loadBlock();
+  html += volumeBlock();
+
+  const practiced = exercisesPracticed();
+  if (practiced.length) {
+    html += '<div class="block-head"><h2>Progression</h2><span class="counter">1RM estimé</span></div>';
+    html += '<div class="trends">';
+    for (const p of practiced) {
+      const hist = p.history.slice(-8);
+      const max = Math.max.apply(null, hist.map((h) => h.best ? h.best.rm : 0).concat([1]));
+      const arrow = p.delta === null ? "" :
+        p.delta > 0 ? '<span class="trend-up">▲ +' + Math.round(p.delta * 10) / 10 + "</span>" :
+        p.delta < 0 ? '<span class="trend-down">▼ ' + Math.round(p.delta * 10) / 10 + "</span>" :
+        '<span class="trend-flat">=</span>';
+      const lastStr = p.last && p.last.best
+        ? (p.ex.load === "kg" ? p.last.best.weight + " kg × " + p.last.best.reps : p.last.best.reps + (p.ex.load === "temps" ? " s" : " reps"))
+        : "—";
+      html += '<div class="trend" data-act="open-exercise" data-ex="' + esc(p.ex.id) + '" role="button" tabindex="0">' +
+        '<div class="trend-head">' +
+          '<span class="trend-label">' + esc(p.ex.label) + "</span>" +
+          '<span class="trend-now">' + esc(lastStr) + " " + arrow + "</span>" +
+        "</div>" +
+        '<div class="trend-bars">' + hist.map(function (h, i) {
+          const v = h.best ? h.best.rm : 0;
+          const hh = Math.max(4, Math.round((v / max) * 100));
+          return '<span class="trend-bar' + (i === hist.length - 1 ? " is-current" : "") + '" style="height:' + hh + '%" title="' +
+            esc(h.date + " — " + (h.best ? h.best.weight + " kg × " + h.best.reps : "")) + '"></span>';
+        }).join("") + "</div>" +
+      "</div>";
+    }
+    html += "</div>";
+  }
+
+  html += '<div class="block-head"><h2>Dernières séances</h2></div>';
+  html += recentList("muscu");
+  return html;
+}
+
+function tabCourse(day) {
+  let html = '<div class="block-head"><h2>Minuteurs</h2></div>';
+  html += '<div class="start-grid">';
+  for (const p of RUN_PRESETS) {
+    html += '<button type="button" class="start-card" data-act="start-run" data-preset="' + p.key + '" data-day="' + esc(day) + '">' +
+      '<span class="start-title">' + esc(p.label) + "</span>" +
+      '<span class="start-detail">' + esc(RUN_MODES[p.mode].label) + " · " + fmtDuration(p.rounds * (p.work + p.rest)) + "</span>" +
+      "</button>";
+  }
+  html += '<button type="button" class="start-card" data-act="start-run" data-preset="custom" data-day="' + esc(day) + '">' +
+    '<span class="start-title">Personnalisé</span><span class="start-detail">Travail / repos / tours au choix</span></button>';
+  html += "</div>";
+
+  html += '<button type="button" class="btn btn-block btn-ghost" data-act="log-run" data-day="' + esc(day) + '">+ Enregistrer une sortie sans minuteur (LISS, course libre)</button>';
+  html += '<p class="hint">' + esc(RUN_MODES.liss.hint) + " " + esc(RUN_MODES.hiit.hint) + "</p>";
+
+  const stats = runStats(8);
+  if (stats.some((s) => s.sessions)) {
+    const maxMin = Math.max.apply(null, stats.map((s) => s.minutes).concat([1]));
+    html += '<div class="block-head"><h2>Volume</h2><span class="counter">8 semaines</span></div>';
+    html += '<div class="trend"><div class="trend-head"><span class="trend-label">Minutes de course</span>' +
+      '<span class="trend-now">' + stats[stats.length - 1].minutes + " min · " + stats[stats.length - 1].km + " km</span></div>" +
+      '<div class="trend-bars">' + stats.map((s, i) =>
+        '<span class="trend-bar' + (i === stats.length - 1 ? " is-current" : "") + (s.sessions ? "" : " is-empty") +
+        '" style="height:' + Math.max(4, Math.round((s.minutes / maxMin) * 100)) + '%" title="' + s.sessions + " séance(s), " + s.minutes + ' min"></span>').join("") +
+      "</div></div>";
+  }
+
+  html += '<div class="block-head"><h2>Dernières sorties</h2></div>';
+  html += recentList("course");
+  return html;
+}
+
+function tabAutre(day) {
+  let html = '<div class="block-head"><h2>Autre activité</h2></div>' +
+    '<p class="hint">Sport de combat, natation, vélo, randonnée… tout ce qui n\'a pas sa rubrique. Juste un nom, une durée, un ressenti.</p>';
+  html += '<button type="button" class="btn btn-block btn-primary" data-act="log-activity" data-day="' + esc(day) + '">+ Enregistrer une activité</button>';
+  html += '<div class="block-head"><h2>Dernières activités</h2></div>';
+  html += recentList("autre");
+  return html;
+}
+
+export function mountSport() { /* délégation dans app.js */ }
+
+// ------------------------------------------------------- séance de muscu
+
+let session = null;   // séance en cours : survit à la fermeture de la feuille
+
+export function openMuscuSession(templateKey, resume, dateKey) {
+  const tpl = templateByKey(templateKey) || templateByKey("libre");
+  if (!resume || !session) {
+    session = {
+      template: tpl.key, label: tpl.label,
+      date: dateKey,   // le jour affiché sur Entraînement au moment du lancement
+      // Rien ne tourne tant que « Commencer » n'a pas été touché : le temps
+      // de séance doit être celui de l'effort, pas celui de la feuille ouverte.
+      startedAt: null,
+      setStartAt: null,   // début de la série en cours
+      setEx: null,        // exercice de la série en cours
+      lastSetAt: null,    // fin de la dernière série validée : sert au repos
+      exercises: tpl.plan.map((p) => ({ ex: p.ex, target: p.sets + " × " + p.reps, tempo: p.tempo || "", sets: [] })),
+      restSeconds: REST_DEFAULT
+    };
+  }
+
+  // Les deux dernières fois avec ce modèle : ce qu'on a fait, pour savoir
+  // quoi viser aujourd'hui.
+  function lastSessionsBlock() {
+    const last = lastWorkoutsForTemplate(session.template, 2);
+    if (!last.length) return "";
+    return '<details class="fold last-sessions" open><summary class="fold-head">' +
+      '<span class="fold-caret" aria-hidden="true">›</span><h2>Les 2 dernières fois</h2></summary>' +
+      '<div class="fold-body">' + last.map(function (w) {
+        return '<div class="last-session">' +
+          '<span class="last-session-date">' + esc(fmtLastUsed(w.date)) +
+            (w.rpe ? " · RPE " + w.rpe : "") + (w.duration ? " · " + fmtDuration(w.duration) : "") + "</span>" +
+          w.exercises.map(function (e) {
+            const ex = exerciseById(e.ex);
+            return '<span class="last-session-ex"><strong>' + esc(ex ? ex.label : e.ex) + "</strong> " +
+              esc(e.sets.map((s) => fmtSet(s, ex)).join("  ")) + "</span>";
+          }).join("") +
+        "</div>";
+      }).join("") + "</div></details>";
+  }
+
+  // Déclarés hors du rendu : onClose (ci-dessous) doit pouvoir les arrêter.
+  let rest = null, tick = null;
+  openSheet(session.label, function (body, close) {
+    rest = makeCountdown(
+      (left) => { const el = body.querySelector("#rest-left"); if (el) el.textContent = fmtClock(left); },
+      () => { cueStart(); const bar = body.querySelector("#rest-bar"); if (bar) bar.classList.add("is-over"); }
+    );
+
+    // Horloges vivantes, mises à jour sans re-rendre : un rendu ferait perdre
+    // le focus et le contenu des champs en cours de saisie.
+    function refreshClocks() {
+      const s = body.querySelector("#sess-clock");
+      if (s && session.startedAt) s.textContent = fmtClock((Date.now() - session.startedAt) / 1000);
+      const w = body.querySelector("#set-clock");
+      if (w && session.setStartAt) w.textContent = fmtClock((Date.now() - session.setStartAt) / 1000);
+      const p = body.querySelector("#pause-clock");
+      if (p && !session.setStartAt && session.lastSetAt) p.textContent = fmtClock((Date.now() - session.lastSetAt) / 1000);
+    }
+
+    function render() {
+      const started = !!session.startedAt;
+      const running = !!session.setStartAt;
+      const weighNudge = started && state.settings.reminders && state.settings.reminders.peseeOn && weighDue();
+      body.innerHTML =
+        (started
+          ? '<div class="sess-bar">' +
+              '<span class="sess-label">Séance</span>' +
+              '<span class="sess-clock" id="sess-clock">' + fmtClock((Date.now() - session.startedAt) / 1000) + "</span>" +
+              '<button type="button" class="btn btn-small btn-danger-ghost" data-act="sess-finish">■ Terminer</button>' +
+            "</div>"
+          : '<button type="button" class="btn btn-primary btn-block sess-start" data-act="sess-start">▶ Commencer la séance</button>' +
+            '<p class="hint">Le chrono part maintenant. Ensuite, un tap sur « Je commence » avant chaque série : ' +
+              "l'app mesure le temps de la série et la pause entre deux, même sans minuteur.</p>") +
+
+        (weighNudge
+          ? '<button type="button" class="callout sess-weigh" data-act="sess-weigh"><strong>⚖️ Pesée à faire</strong>' +
+            "<span>" + (daysSince("poids") === null ? "Aucune mesure pour l'instant" : daysSince("poids") + " jour" + (daysSince("poids") > 1 ? "s" : "") + " sans pesée") +
+            " — la balance est sur place →</span></button>"
+          : "") +
+
+        (started
+          ? '<div class="rest-bar" id="rest-bar">' +
+              '<span class="rest-label">' + (running ? "Série" : session.lastSetAt ? "Pause" : "Repos") + "</span>" +
+              (running
+                ? '<span class="rest-left" id="set-clock">' + fmtClock((Date.now() - session.setStartAt) / 1000) + "</span>"
+                : session.lastSetAt
+                  ? '<span class="rest-left" id="pause-clock">' + fmtClock((Date.now() - session.lastSetAt) / 1000) + "</span>"
+                  : '<span class="rest-left" id="rest-left">' + fmtClock(session.restSeconds) + "</span>") +
+              '<button type="button" class="btn btn-small" data-act="rest-go">▶ ' + session.restSeconds + " s</button>" +
+              '<button type="button" class="btn btn-small btn-ghost" data-act="rest-cfg">' + session.restSeconds + " s</button>" +
+            "</div>"
+          : "") +
+        lastSessionsBlock() +
+
+        session.exercises.map(function (e, ei) {
+          const ex = exerciseById(e.ex) || { label: e.ex, load: "kg", cue: "" };
+          const isTime = ex.load === "temps";
+          const noLoad = ex.load !== "kg";
+          const prev = lastSetsFor(e.ex);
+          // Pré-remplissage : la dernière série de la séance, sinon la
+          // meilleure série de la séance précédente — pas 0 kg.
+          const prevBest = (function () {
+            const h = exerciseHistory(e.ex);
+            return h.length && h[h.length - 1].best ? h[h.length - 1].best : null;
+          })();
+          const last = e.sets[e.sets.length - 1] ||
+            (prevBest ? { reps: prevBest.reps, weight: prevBest.weight } : { reps: isTime ? 30 : 8, weight: 0 });
+          // Bloc compact : titre + objectif, une ligne tempo/dernière fois,
+          // les séries faites, puis reps · kg · RPE · ✓ sur une seule ligne.
+          const hasTempo = e.tempo && cleanTempo(e.tempo).length === 4;
+          return '<section class="ex-block">' +
+            '<div class="ex-head"><h2>' + esc(ex.label) + "</h2>" +
+              (e.target ? '<span class="ex-target">' + esc(e.target) + "</span>" : "") +
+              (hasTempo ? '<span class="tempo-badge" title="' + esc(tempoLabel(e.tempo)) + '">' + esc(cleanTempo(e.tempo)) + "</span>" : "") +
+            "</div>" +
+            (prev
+              ? '<p class="prev-line">' + esc(fmtLastUsed(prev.date)) + ' : ' +
+                esc(prev.sets.map((s) => fmtSet(s, ex)).join("  ")) + "</p>"
+              : "") +
+            (e.sets.length
+              ? '<ol class="set-list">' + e.sets.map(function (s, si) {
+                  return "<li><span>" + (isTime ? s.reps + " s" : s.reps) +
+                    (noLoad ? "" : " × " + s.weight + " kg") +
+                    (s.rpe ? ' <span class="set-rpe">RPE ' + s.rpe + "</span>" : "") +
+                    (s.dur ? ' <span class="set-time">' + fmtClock(s.dur) + "</span>" : "") +
+                    (s.rest ? ' <span class="set-time">pause ' + fmtClock(s.rest) + "</span>" : "") +
+                    (noLoad ? "" : ' <span class="set-rm">1RM ' + estimate1RM(s.weight, s.reps) + "</span>") +
+                    '</span><button type="button" class="set-del" data-act="set-del" data-ei="' + ei + '" data-si="' + si + '" aria-label="Retirer">✕</button></li>';
+                }).join("") + "</ol>"
+              : "") +
+            // « Je commence » borne la série : sans lui on garde quand même la
+            // pause, mais pas la durée de la série.
+            (started
+              ? (running && session.setEx === ei
+                  ? '<button type="button" class="btn btn-block set-go is-running" data-act="set-stop">⏱ Série en cours — ' +
+                    '<span id="set-clock-' + ei + '">' + fmtClock((Date.now() - session.setStartAt) / 1000) + "</span> · annuler</button>"
+                  : running
+                    ? ""
+                    : '<button type="button" class="btn btn-block btn-ghost set-go" data-act="set-go" data-ei="' + ei + '">▶ Je commence</button>')
+              : "") +
+            '<div class="set-form' + (noLoad ? " no-load" : "") + '">' +
+              '<input type="number" inputmode="numeric" min="1" max="500" placeholder="' + (isTime ? "sec" : "reps") + '" aria-label="' + (isTime ? "Secondes" : "Reps") + '" data-reps="' + ei + '" value="' + esc(last.reps) + '">' +
+              (noLoad ? "" :
+                '<input type="number" inputmode="decimal" min="0" max="500" step="0.5" placeholder="kg" aria-label="kg" data-weight="' + ei + '" value="' + esc(last.weight) + '">') +
+              '<input type="number" inputmode="numeric" min="1" max="10" placeholder="RPE" aria-label="RPE" data-rpe="' + ei + '" value="' + esc(last.rpe || "") + '">' +
+              '<button type="button" class="btn btn-primary" data-act="set-add" data-ei="' + ei + '" aria-label="Valider la série">✓</button>' +
+            "</div>" +
+          "</section>";
+        }).join("") +
+
+        '<button type="button" class="btn btn-block btn-ghost" data-act="ex-add">+ Ajouter un exercice</button>' +
+        '<div class="sheet-actions">' +
+          '<button type="button" class="btn btn-danger-ghost" data-act="sess-cancel">Abandonner</button>' +
+          '<button type="button" class="btn btn-primary" data-act="sess-finish">Terminer</button>' +
+        "</div>";
+
+      clearInterval(tick);
+      tick = setInterval(refreshClocks, 1000);
+
+      const startBtn = body.querySelector('[data-act="sess-start"]');
+      if (startBtn) startBtn.addEventListener("click", function () { startSession(); });
+
+      const weighBtn = body.querySelector('[data-act="sess-weigh"]');
+      if (weighBtn) weighBtn.addEventListener("click", function () {
+        rest.stop(); clearInterval(tick);
+        close();
+        openWeighIn(null, function () { openMuscuSession(session.template, true); });
+      });
+
+      body.querySelectorAll('[data-act="set-go"]').forEach(function (b) {
+        b.addEventListener("click", function () {
+          if (!session.startedAt) startSession(true);
+          session.setStartAt = Date.now();
+          session.setEx = parseInt(b.dataset.ei, 10);
+          rest.stop();
+          cueStart();
+          render();
+        });
+      });
+      const stopBtn = body.querySelector('[data-act="set-stop"]');
+      if (stopBtn) stopBtn.addEventListener("click", function () {
+        session.setStartAt = null; session.setEx = null;
+        render();
+      });
+
+      const restGo = body.querySelector('[data-act="rest-go"]');
+      if (restGo) restGo.addEventListener("click", function () {
+        body.querySelector("#rest-bar").classList.remove("is-over");
+        rest.start(session.restSeconds);
+        keepAwake();
+      });
+      const restCfg = body.querySelector('[data-act="rest-cfg"]');
+      if (restCfg) restCfg.addEventListener("click", function () {
+        const opts = [60, 90, 120, 150, 180];
+        session.restSeconds = opts[(opts.indexOf(session.restSeconds) + 1) % opts.length];
+        render();
+      });
+      body.querySelectorAll('[data-act="set-add"]').forEach(function (b) {
+        b.addEventListener("click", function () {
+          const ei = parseInt(b.dataset.ei, 10);
+          const reps = parseInt(body.querySelector('[data-reps="' + ei + '"]').value, 10) || 0;
+          const wEl = body.querySelector('[data-weight="' + ei + '"]');
+          const weight = wEl ? (parseFloat(String(wEl.value).replace(",", ".")) || 0) : 0;
+          const rEl = body.querySelector('[data-rpe="' + ei + '"]');
+          const rpe = rEl && rEl.value !== "" ? parseInt(rEl.value, 10) : null;
+          if (reps <= 0) return;
+          if (!session.startedAt) startSession(true);
+          const now = Date.now();
+          // Durée de la série : du « je commence » à la validation.
+          const dur = session.setStartAt ? Math.round((now - session.setStartAt) / 1000) : null;
+          // Pause : de la fin de la série précédente au « je commence »
+          // (ou à défaut à cette validation).
+          const pause = session.lastSetAt
+            ? Math.round(((session.setStartAt || now) - session.lastSetAt) / 1000) : null;
+          session.exercises[ei].sets.push({ reps: reps, weight: weight, rpe: rpe, dur: dur, rest: pause });
+          session.lastSetAt = now;
+          session.setStartAt = null;
+          session.setEx = null;
+          render();
+          // Le repos démarre tout seul après une série validée.
+          const bar = body.querySelector("#rest-bar");
+          if (bar) bar.classList.remove("is-over");
+          rest.start(session.restSeconds);
+          keepAwake();
+          cueRest();
+        });
+      });
+      body.querySelectorAll('[data-act="set-del"]').forEach(function (b) {
+        b.addEventListener("click", function () {
+          session.exercises[parseInt(b.dataset.ei, 10)].sets.splice(parseInt(b.dataset.si, 10), 1);
+          render();
+        });
+      });
+      body.querySelector('[data-act="ex-add"]').addEventListener("click", function () {
+        rest.stop(); clearInterval(tick);
+        close();
+        openExercisePicker(function (list) {
+          for (const ex of list || []) session.exercises.push({ ex: ex.id, target: "", sets: [] });
+          openMuscuSession(session.template, true);
+        }, function () { openMuscuSession(session.template, true); });
+      });
+      body.querySelector('[data-act="sess-cancel"]').addEventListener("click", function () {
+        rest.stop(); clearInterval(tick);
+        close();
+        confirmSheet("Abandonner la séance ?", "Les séries saisies seront perdues.", "Abandonner",
+          function () { session = null; toast("Séance abandonnée"); });
+      });
+      body.querySelectorAll('[data-act="sess-finish"]').forEach((b) => b.addEventListener("click", function () {
+        const done = session.exercises.filter((e) => e.sets.length);
+        if (!done.length) { toast("Aucune série validée", "error"); return; }
+        session.endedAt = Date.now();
+        rest.stop(); clearInterval(tick);
+        close();
+        openFinishMuscu();
+      }));
+
+      // Démarrage : le chrono part, et la pesée se rappelle ici plutôt qu'à
+      // une heure fixe — c'est le moment où tu es devant la balance.
+      function startSession(silent) {
+        session.startedAt = Date.now();
+        keepAwake();
+        if (!silent) cueStart();
+        render();
+        if (state.settings.reminders && state.settings.reminders.peseeOn && weighDue()) {
+          const since = daysSince("poids");
+          toast("⚖️ Pense à te peser" + (since ? " — " + since + " j sans mesure" : ""));
+        }
+      }
+    }
+
+    render();
+  }, { onClose: function () { if (rest) rest.stop(); clearInterval(tick); releaseAwake(); } });
+}
+
+function openFinishMuscu() {
+  openSheet("Terminer la séance", function (body, close) {
+    // Durée réelle : du « Commencer » au « Terminer ». Une séance saisie
+    // après coup (jamais démarrée) n'invente pas de durée.
+    const dur = session.startedAt
+      ? Math.round(((session.endedAt || Date.now()) - session.startedAt) / 1000) : 0;
+    const allSets = session.exercises.flatMap((e) => e.sets);
+    const work = allSets.reduce((a, s) => a + (s.dur || 0), 0);
+    const pauses = allSets.map((s) => s.rest).filter((r) => r);
+    const avgRest = pauses.length ? Math.round(pauses.reduce((a, r) => a + r, 0) / pauses.length) : null;
+    // RPE de séance proposé = moyenne des RPE de séries, sinon 6 (reprise).
+    const rpes = allSets.map((s) => s.rpe).filter((r) => r);
+    const suggested = rpes.length ? Math.round(rpes.reduce((a, r) => a + r, 0) / rpes.length) : 6;
+    body.innerHTML =
+      '<p class="sheet-text">' + (dur ? fmtDuration(dur) + " · " : "") +
+        session.exercises.filter((e) => e.sets.length).length + " exercices · " +
+        allSets.length + " séries</p>" +
+      (work || avgRest
+        ? '<p class="hint">' + (work ? "Temps sous tension : " + fmtDuration(work) + "." : "") +
+          (avgRest ? " Pause moyenne entre deux séries : " + fmtClock(avgRest) + "." : "") + "</p>"
+        : "") +
+      '<div class="field"><span>RPE de la séance' +
+        (rpes.length ? " — moyenne de tes séries : " + suggested : " — cible 6 en reprise") + "</span>" +
+        rpeChips(suggested) + "</div>" +
+      '<label class="field"><span>Note</span><input type="text" id="sess-note" class="input" maxlength="300" placeholder="Douleur, forme, remarque…"></label>' +
+      // Une séance improvisée qui te plaît mérite d'être réutilisable.
+      (session.template === "libre"
+        ? '<label class="field"><span>Garder comme modèle (facultatif)</span>' +
+          '<input type="text" id="sess-tpl" class="input" maxlength="60" placeholder="Nom du modèle, ex : Haut du corps"></label>'
+        : "") +
+      '<div class="sheet-actions">' +
+        '<button type="button" class="btn btn-ghost" data-act="back">Retour</button>' +
+        '<button type="button" class="btn btn-primary" data-act="save">Enregistrer</button>' +
+      "</div>";
+    const getRpe = bindRpe(body);
+    body.querySelector('[data-act="back"]').addEventListener("click", function () { close(); openMuscuSession(session.template, true); });
+    body.querySelector('[data-act="save"]').addEventListener("click", function () {
+      const done = session.exercises.filter((e) => e.sets.length);
+      const tplName = body.querySelector("#sess-tpl") ? body.querySelector("#sess-tpl").value.trim() : "";
+      let tpl = null;
+      if (tplName) {
+        tpl = upsertTemplate({
+          label: tplName, link: "auto",
+          plan: done.map((e) => ({
+            ex: e.ex, sets: e.sets.length,
+            reps: Math.round(e.sets.reduce((a, s) => a + s.reps, 0) / e.sets.length)
+          }))
+        });
+      }
+      // Records : 1RM estimé avant / après, exercice par exercice.
+      const exIds = session.exercises.filter((e) => e.sets.length).map((e) => e.ex);
+      const before = bestRmMap(exIds);
+      const w = addWorkout({
+        type: "muscu", template: tpl ? tpl.id : session.template,
+        label: tpl ? tpl.label : session.label,
+        exercises: session.exercises, duration: dur, rpe: getRpe(),
+        date: session.date,
+        note: body.querySelector("#sess-note").value
+      });
+      session = null;
+      close();
+      if (!w) return;
+      const after = bestRmMap(exIds);
+      const prs = exIds.filter((id) => before[id] > 0 && after[id] > before[id]).map((id) => (exerciseById(id) || { label: id }).label + " 1RM ≈ " + after[id]);
+      if (prs.length) toast("🏆 Record : " + prs.join(" · "));
+      else toast("Séance enregistrée" + (tpl ? " · modèle créé" : "") + (w.linked ? " — case cochée" : ""));
+    });
+  });
+}
+
+// ------------------------------------------------------ éditeur de modèle
+
+// Brouillon conservé entre deux ouvertures : la feuille se ferme et se
+// rouvre à chaque ajout d'exercice, comme pour les recettes.
+let tplDraft = null;
+
+export function openTemplateEditor(key, resume) {
+  const existing = key ? templateByKey(key) : null;
+  if (existing && existing.builtin) { toast("Les séances A et B viennent de ta spec", "error"); return; }
+  if (!resume && !existing) tplDraft = null;
+  if (!tplDraft || tplDraft.id !== (existing ? existing.key : null)) {
+    tplDraft = existing
+      ? { id: existing.key, label: existing.label, link: existing.link, plan: existing.plan.map((p) => Object.assign({}, p)) }
+      : { id: null, label: "", link: "auto", plan: [] };
+  }
+
+  openSheet(existing ? "Modifier le modèle" : "Nouveau modèle", function (body, close) {
+    const links = [
+      { v: "auto", l: "Compte comme une séance de musculation" },
+      { v: "entr-cardio", l: "Compte comme du cardio" },
+      { v: "entr-cou", l: "Compte comme une séance cou" },
+      { v: "none", l: "Ne rien cocher" }
+    ].filter((o) => o.v === "auto" || o.v === "none" || byId(o.v));
+
+    function render() {
+      body.innerHTML =
+        '<label class="field"><span>Nom de la séance</span>' +
+          '<input type="text" id="tpl-label" class="input" maxlength="60" placeholder="Ex : Haut du corps, Jambes lourdes" ' +
+            'value="' + esc(tplDraft.label) + '"></label>' +
+
+        '<div class="block-head" style="margin-top:14px"><h2>Exercices</h2>' +
+          '<button type="button" class="btn btn-small btn-primary" data-act="tpl-add">+ Ajouter</button></div>' +
+
+        (tplDraft.plan.length
+          ? '<ul class="nut-foods">' + tplDraft.plan.map(function (p, i) {
+              const ex = exerciseById(p.ex);
+              if (!ex) return "";
+              const isTime = ex.load === "temps";
+              return '<li class="nut-food has-qty">' +
+                '<div class="nut-food-main">' +
+                  '<span class="nut-food-label">' + esc(ex.label) + "</span>" +
+                  '<span class="nut-food-detail">' + esc((GROUP_MAP[ex.group] || {}).label || ex.group) + "</span>" +
+                  '<div class="tpl-target">' +
+                    '<label><span>Séries</span><input type="number" inputmode="numeric" min="1" max="12" data-sets="' + i + '" value="' + esc(p.sets) + '"></label>' +
+                    '<label><span>' + (isTime ? "Secondes" : "Reps") + '</span><input type="number" inputmode="numeric" min="1" max="300" data-reps="' + i + '" value="' + esc(p.reps) + '"></label>' +
+                    '<label><span>Tempo</span><input type="text" inputmode="numeric" maxlength="4" placeholder="0101" data-tempo="' + i + '" value="' + esc(p.tempo || "") + '"></label>' +
+                  "</div>" +
+                "</div>" +
+                '<div class="tpl-move">' +
+                  '<button type="button" data-act="tpl-up" data-i="' + i + '" aria-label="Monter"' + (i === 0 ? " disabled" : "") + ">↑</button>" +
+                  '<button type="button" data-act="tpl-down" data-i="' + i + '" aria-label="Descendre"' + (i === tplDraft.plan.length - 1 ? " disabled" : "") + ">↓</button>" +
+                  '<button type="button" class="nut-del" data-act="tpl-del" data-i="' + i + '" aria-label="Retirer">✕</button>' +
+                "</div>" +
+              "</li>";
+            }).join("") + "</ul>"
+          : '<p class="empty">Aucun exercice. Ajoute-en au moins un.</p>') +
+
+        '<p class="hint">Tempo, 4 chiffres : <strong>début du mouvement · montée · fin · descente</strong>, ' +
+          "en secondes, X pour explosif. Ex : 0101 = pas de pause, 1 s de montée, 1 s de descente ; " +
+          "3010 = 3 s de descente contrôlée.</p>" +
+
+        '<label class="field"><span>Case du jour à cocher</span><select id="tpl-link" class="input">' +
+          links.map((o) => '<option value="' + o.v + '"' + (tplDraft.link === o.v ? " selected" : "") + ">" + esc(o.l) + "</option>").join("") +
+        "</select></label>" +
+
+        '<div class="sheet-actions">' +
+          (existing ? '<button type="button" class="btn btn-danger-ghost" data-act="tpl-remove">Supprimer</button>' : "") +
+          '<button type="button" class="btn btn-primary" data-act="tpl-save">Enregistrer</button>' +
+        "</div>";
+
+      body.querySelector("#tpl-label").addEventListener("input", (e) => { tplDraft.label = e.target.value; });
+      body.querySelector("#tpl-link").addEventListener("change", (e) => { tplDraft.link = e.target.value; });
+      body.querySelectorAll("[data-sets]").forEach((el) => el.addEventListener("change", function () {
+        tplDraft.plan[parseInt(el.dataset.sets, 10)].sets = parseInt(el.value, 10) || 1;
+      }));
+      body.querySelectorAll("[data-reps]").forEach((el) => el.addEventListener("change", function () {
+        tplDraft.plan[parseInt(el.dataset.reps, 10)].reps = parseInt(el.value, 10) || 1;
+      }));
+      body.querySelectorAll("[data-tempo]").forEach((el) => el.addEventListener("input", function () {
+        tplDraft.plan[parseInt(el.dataset.tempo, 10)].tempo = cleanTempo(el.value);
+        el.value = tplDraft.plan[parseInt(el.dataset.tempo, 10)].tempo;
+      }));
+      body.querySelectorAll('[data-act="tpl-del"]').forEach((b) => b.addEventListener("click", function () {
+        tplDraft.plan.splice(parseInt(b.dataset.i, 10), 1); render();
+      }));
+      body.querySelectorAll('[data-act="tpl-up"], [data-act="tpl-down"]').forEach((b) => b.addEventListener("click", function () {
+        const i = parseInt(b.dataset.i, 10);
+        const j = b.dataset.act === "tpl-up" ? i - 1 : i + 1;
+        if (j < 0 || j >= tplDraft.plan.length) return;
+        const tmp = tplDraft.plan[i]; tplDraft.plan[i] = tplDraft.plan[j]; tplDraft.plan[j] = tmp;
+        render();
+      }));
+
+      body.querySelector('[data-act="tpl-add"]').addEventListener("click", function () {
+        close();
+        openExercisePicker(function (list) {
+          for (const ex of list || []) tplDraft.plan.push({ ex: ex.id, sets: 3, reps: ex.load === "temps" ? 30 : 8 });
+          openTemplateEditor(tplDraft.id, true);
+        }, function () { openTemplateEditor(tplDraft.id, true); });
+      });
+
+      body.querySelector('[data-act="tpl-save"]').addEventListener("click", function () {
+        if (!tplDraft.label.trim()) { body.querySelector("#tpl-label").focus(); return; }
+        if (!tplDraft.plan.length) { toast("Ajoute au moins un exercice", "error"); return; }
+        const saved = upsertTemplate(tplDraft);
+        tplDraft = null;
+        close();
+        if (saved) toast(saved.label + " enregistré");
+      });
+
+      const rm = body.querySelector('[data-act="tpl-remove"]');
+      if (rm) rm.addEventListener("click", function () {
+        const id = tplDraft.id, label = tplDraft.label;
+        tplDraft = null;
+        close();
+        confirmSheet("Supprimer ce modèle ?", "« " + label + " » sera retiré. Les séances déjà enregistrées restent.",
+          "Supprimer", function () { removeTemplate(id); toast("Modèle supprimé"); });
+      });
+    }
+
+    render();
+  });
+}
+
+// Sélecteur d'exercices : filtre par muscle mémorisé d'une fois sur
+// l'autre, sélection multiple, et modification sur place.
+let pickerQ = "", pickerGroup = "all";
+
+function openExercisePicker(onPick, onCancel) {
+  const chosen = [];
+  openSheet("Ajouter des exercices", function (body, close) {
+    let done = false;
+    function render() {
+      const results = searchExercises(pickerQ, pickerGroup);
+      body.innerHTML =
+        '<input type="search" id="ep-q" class="input input-lg" placeholder="Nom de l\'exercice…" value="' + esc(pickerQ) + '" autocomplete="off">' +
+        '<select id="ep-group" class="input"><option value="all">Tous les muscles</option>' +
+          MUSCLE_GROUPS.map((g) => '<option value="' + g.key + '"' + (pickerGroup === g.key ? " selected" : "") + ">" + esc(g.icon + " " + g.label) + "</option>").join("") +
+        "</select>" +
+        (results.length
+          ? '<ul class="food-results">' + results.map(function (e) {
+              const sec = secondaryOf(e).map((g) => (GROUP_MAP[g] || {}).label || g);
+              const on = chosen.indexOf(e.id) >= 0;
+              return '<li class="food-row ep-row' + (on ? " is-picked" : "") + '" data-ex="' + esc(e.id) + '">' +
+                '<span class="food-row-main" data-act="ep-toggle" role="button" tabindex="0">' +
+                  '<span class="food-row-label">' + esc(e.label) +
+                    (e.custom ? ' <span class="badge badge-quiet">perso</span>' : "") +
+                    (e.edited ? ' <span class="badge badge-quiet">modifié</span>' : "") +
+                    (e.asSecondary ? ' <span class="badge badge-quiet">secondaire</span>' : "") + "</span>" +
+                  '<span class="food-row-detail">' + esc((GROUP_MAP[e.group] || {}).label || e.group) +
+                    (sec.length ? " + " + esc(sec.join(", ")) : "") + " · " +
+                    (e.load === "kg" ? "charge" : e.load === "temps" ? "temps" : "poids du corps") + "</span>" +
+                "</span>" +
+                '<button type="button" class="row-act" data-act="ep-edit" aria-label="Modifier ' + esc(e.label) + '">✎</button>' +
+                '<span class="food-row-add" aria-hidden="true">' + (on ? "✓" : "+") + "</span></li>";
+            }).join("") + "</ul>"
+          : '<p class="empty">Aucun exercice pour ce muscle.</p>') +
+        '<button type="button" class="btn btn-block btn-ghost" data-act="ep-new">+ Créer un exercice</button>' +
+        (chosen.length
+          ? '<div class="sheet-actions"><button type="button" class="btn btn-primary btn-block" data-act="ep-ok">' +
+            "Ajouter " + chosen.length + " exercice" + (chosen.length > 1 ? "s" : "") + "</button></div>"
+          : '<p class="hint">Touche un exercice pour le cocher : tu peux en ajouter plusieurs d\'un coup. Le muscle choisi reste sélectionné.</p>');
+
+      const qi = body.querySelector("#ep-q");
+      let timer = null;
+      qi.addEventListener("input", function () {
+        clearTimeout(timer);
+        timer = setTimeout(function () {
+          pickerQ = qi.value; const caret = qi.selectionStart; render();
+          const nq = body.querySelector("#ep-q"); nq.focus(); nq.setSelectionRange(caret, caret);
+        }, 200);
+      });
+      body.querySelector("#ep-group").addEventListener("change", function (e) { pickerGroup = e.target.value; render(); });
+
+      body.querySelectorAll('[data-act="ep-toggle"]').forEach(function (el) {
+        el.addEventListener("click", function () {
+          const id = el.closest(".ep-row").dataset.ex;
+          const i = chosen.indexOf(id);
+          if (i >= 0) chosen.splice(i, 1); else chosen.push(id);
+          render();
+        });
+      });
+      body.querySelectorAll('[data-act="ep-edit"]').forEach(function (el) {
+        el.addEventListener("click", function () {
+          const id = el.closest(".ep-row").dataset.ex;
+          done = true; close();
+          openExerciseEditor(id, function () { openExercisePicker(onPick, onCancel); });
+        });
+      });
+      const ok = body.querySelector('[data-act="ep-ok"]');
+      if (ok) ok.addEventListener("click", function () {
+        done = true; close();
+        onPick(chosen.map(exerciseById).filter(Boolean));
+      });
+      body.querySelector('[data-act="ep-new"]').addEventListener("click", function () {
+        done = true; close();
+        openExerciseEditor(null, function (ex) {
+          if (ex) onPick([ex]); else if (onCancel) onCancel();
+        });
+      });
+    }
+    render();
+  }, { onClose: function () { /* fermé sans choix : le rappel se fait côté appelant */ } });
+}
+
+// Création et modification : même feuille. Un exercice du catalogue se
+// corrige sans se dupliquer, et se remet à l'original d'un bouton.
+export function openExerciseEditor(exId, done) {
+  const ex = exId ? exerciseById(exId) : null;
+  const draft = {
+    label: ex ? ex.label : "",
+    group: ex ? ex.group : "jambes",
+    sec: ex ? secondaryOf(ex).slice() : [],
+    load: ex ? ex.load : "kg",
+    cue: ex ? ex.cue || "" : ""
+  };
+  openSheet(ex ? "Modifier l'exercice" : "Nouvel exercice", function (body, close) {
+    function render() {
+      body.innerHTML =
+        '<label class="field"><span>Nom</span><input type="text" id="ne-label" class="input" maxlength="60" value="' + esc(draft.label) + '"></label>' +
+        '<label class="field"><span>Muscle principal</span><select id="ne-group" class="input">' +
+          MUSCLE_GROUPS.map((g) => '<option value="' + g.key + '"' + (draft.group === g.key ? " selected" : "") + ">" + esc(g.icon + " " + g.label) + "</option>").join("") +
+        "</select></label>" +
+        '<div class="field"><span>Muscles secondaires</span><div class="chips" id="ne-sec">' +
+          MUSCLE_GROUPS.filter((g) => g.key !== draft.group).map((g) =>
+            '<button type="button" class="chip' + (draft.sec.indexOf(g.key) >= 0 ? " is-active" : "") +
+            '" data-sec="' + g.key + '">' + esc(g.icon + " " + g.label) + "</button>").join("") +
+        "</div></div>" +
+        '<p class="hint">Les muscles secondaires comptent pour moitié dans le volume de la semaine.</p>' +
+        '<label class="field"><span>Type de charge</span><select id="ne-load" class="input">' +
+          [["kg", "Charge en kg"], ["corps", "Poids du corps (reps)"], ["temps", "Temps (secondes)"]].map((o) =>
+            '<option value="' + o[0] + '"' + (draft.load === o[0] ? " selected" : "") + ">" + o[1] + "</option>").join("") +
+        "</select></label>" +
+        '<label class="field"><span>Consigne (facultatif)</span><input type="text" id="ne-cue" class="input" maxlength="200" value="' + esc(draft.cue) + '"></label>' +
+        (ex && ex.edited ? '<button type="button" class="linkish" data-act="ne-reset">Revenir à la version d\'origine</button>' : "") +
+        '<div class="sheet-actions">' +
+          (ex && ex.custom ? '<button type="button" class="btn btn-danger-ghost" data-act="ne-del">Supprimer</button>' : '<button type="button" class="btn btn-ghost" data-act="c">Annuler</button>') +
+          '<button type="button" class="btn btn-primary" data-act="ok">' + (ex ? "Enregistrer" : "Créer") + "</button>" +
+        "</div>";
+
+      body.querySelector("#ne-group").addEventListener("change", function (e) {
+        draft.group = e.target.value;
+        draft.sec = draft.sec.filter((g) => g !== draft.group);
+        keep(); render();
+      });
+      body.querySelector("#ne-sec").addEventListener("click", function (e) {
+        const c = e.target.closest(".chip");
+        if (!c) return;
+        const i = draft.sec.indexOf(c.dataset.sec);
+        if (i >= 0) draft.sec.splice(i, 1); else draft.sec.push(c.dataset.sec);
+        keep(); render();
+      });
+      function keep() {
+        draft.label = body.querySelector("#ne-label").value;
+        draft.cue = body.querySelector("#ne-cue").value;
+        draft.load = body.querySelector("#ne-load").value;
+      }
+
+      const cancel = body.querySelector('[data-act="c"]');
+      if (cancel) cancel.addEventListener("click", function () { close(); done(null); });
+      const del = body.querySelector('[data-act="ne-del"]');
+      if (del) del.addEventListener("click", function () {
+        close();
+        confirmSheet("Supprimer « " + ex.label + " » ?",
+          "Les séances déjà enregistrées avec cet exercice restent dans l'historique.",
+          "Supprimer", function () { removeCustomExercise(ex.id); toast("Exercice supprimé"); done(null); });
+      });
+      const reset = body.querySelector('[data-act="ne-reset"]');
+      if (reset) reset.addEventListener("click", function () {
+        resetExercise(ex.id); close(); toast("Version d'origine rétablie"); done(exerciseById(ex.id));
+      });
+      body.querySelector('[data-act="ok"]').addEventListener("click", function () {
+        keep();
+        const fields = { label: draft.label, group: draft.group, sec: draft.sec, load: draft.load, cue: draft.cue };
+        const saved = ex ? updateExercise(ex.id, fields) : addCustomExercise(fields);
+        if (!saved) { body.querySelector("#ne-label").focus(); return; }
+        close();
+        toast(ex ? "Exercice modifié" : "Exercice créé");
+        done(saved);
+      });
+      if (!ex) body.querySelector("#ne-label").focus();
+    }
+    render();
+  });
+}
+
+export function openExerciseHistory(exId) {
+  const ex = exerciseById(exId);
+  if (!ex) return;
+  const hist = exerciseHistory(exId).slice().reverse();
+  openSheet(ex.label, function (body) {
+    body.innerHTML =
+      (hist.length
+        ? '<ul class="hist-list">' + hist.map((h) =>
+            "<li><strong>" + esc(new Date(h.date + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short" })) + "</strong> · " +
+            h.sets + " séries" +
+            (h.best ? " · meilleure " + (ex.load === "kg" ? h.best.weight + " kg × " + h.best.reps + " (1RM ≈ " + h.best.rm + ")" : h.best.reps + (ex.load === "temps" ? " s" : " reps")) +
+              (h.best.rpe ? " @RPE " + h.best.rpe : "") : "") +
+            (h.volume ? " · " + Math.round(h.volume) + " kg" : "") + "</li>").join("") + "</ul>"
+        : '<p class="empty">Jamais pratiqué.</p>') +
+      '<p class="hint">1RM estimé par la formule d\'Epley — pour comparer des séries à reps différentes, pas pour tenter un max.</p>';
+  });
+}
+
+// ------------------------------------------------------- minuteur course
+
+export function openIntervalTimer(presetKey, dateKey) {
+  const preset = RUN_PRESETS.find((p) => p.key === presetKey);
+  if (presetKey === "custom" || !preset) { openCustomInterval(dateKey); return; }
+  runInterval(preset, dateKey);
+}
+
+function openCustomInterval(dateKey) {
+  openSheet("Minuteur personnalisé", function (body, close) {
+    body.innerHTML =
+      '<label class="field"><span>Mode</span><select id="ci-mode" class="input">' +
+        '<option value="hiit">HIIT</option><option value="fractionne">Fractionné</option><option value="sprint">Sprint</option></select></label>' +
+      '<div class="nf-grid">' +
+        '<input type="number" id="ci-work" inputmode="numeric" placeholder="Travail (s)" min="5" max="1800" value="30">' +
+        '<input type="number" id="ci-rest" inputmode="numeric" placeholder="Repos (s)" min="5" max="1800" value="30">' +
+        '<input type="number" id="ci-rounds" inputmode="numeric" placeholder="Tours" min="1" max="60" value="8">' +
+      "</div>" +
+      '<div class="sheet-actions"><button type="button" class="btn btn-primary" data-act="go">Démarrer</button></div>';
+    body.querySelector('[data-act="go"]').addEventListener("click", function () {
+      const cfg = {
+        key: "custom", mode: body.querySelector("#ci-mode").value,
+        work: parseInt(body.querySelector("#ci-work").value, 10) || 30,
+        rest: parseInt(body.querySelector("#ci-rest").value, 10) || 30,
+        rounds: parseInt(body.querySelector("#ci-rounds").value, 10) || 8
+      };
+      cfg.label = RUN_MODES[cfg.mode].label + " " + cfg.work + "/" + cfg.rest + " × " + cfg.rounds;
+      close();
+      runInterval(cfg, dateKey);
+    });
+  });
+}
+
+function runInterval(cfg, dateKey) {
+  // Phases : échauffement implicite non compté ; travail / repos × tours.
+  const phases = [];
+  for (let r = 1; r <= cfg.rounds; r++) {
+    phases.push({ label: "Travail", kind: "work", seconds: cfg.work, round: r });
+    if (r < cfg.rounds) phases.push({ label: "Repos", kind: "rest", seconds: cfg.rest, round: r });
+  }
+  runPhases(cfg.label, phases, {
+    subtitle: RUN_MODES[cfg.mode].label,
+    onDone: function (elapsed, completed) {
+      openRunForm({ mode: cfg.mode, duration: elapsed, work: cfg.work, rest: cfg.rest,
+        rounds: completed ? cfg.rounds : Math.max(0, phases.filter((p) => p.done && p.kind === "work").length) }, dateKey);
+    }
+  });
+}
+
+// Feuille générique de phases chronométrées : sert aux minuteurs course et
+// aux routines guidées.
+function runPhases(title, phases, opts) {
+  let idx = -1, startedAt = 0, finished = false, paused = false;
+  const total = phases.reduce((a, p) => a + p.seconds, 0);
+
+  openSheet(title, function (body, close) {
+    const cd = makeCountdown(
+      (left) => {
+        const el = body.querySelector("#ph-left"); if (el) el.textContent = fmtClock(left);
+        const fill = body.querySelector("#ph-fill");
+        if (fill && idx >= 0) fill.style.width = (100 * (1 - left / phases[idx].seconds)).toFixed(1) + "%";
+        if (left <= 3 && left > 0 && Math.abs(left - Math.round(left)) < 0.11) cueTick();
+      },
+      () => { if (idx >= 0) phases[idx].done = true; next(); }
+    );
+
+    function next() {
+      idx++;
+      if (idx >= phases.length) { finish(true); return; }
+      const p = phases[idx];
+      if (p.kind === "rest") cueRest(); else cueStart();
+      render();
+      cd.start(p.seconds);
+    }
+
+    function finish(completed) {
+      if (finished) return;
+      finished = true;
+      cd.stop();
+      releaseAwake();
+      if (completed) cueDone();
+      const elapsed = Math.round((Date.now() - startedAt) / 1000);
+      close();
+      if (opts.onDone) opts.onDone(elapsed, completed);
+    }
+
+    function render() {
+      const p = idx >= 0 ? phases[idx] : null;
+      const nextP = phases[idx + 1];
+      const doneSec = phases.slice(0, Math.max(0, idx)).reduce((a, x) => a + x.seconds, 0);
+      body.innerHTML =
+        (opts.subtitle ? '<p class="sub" style="margin:0">' + esc(opts.subtitle) + "</p>" : "") +
+        (opts.intro && idx < 0 ? '<p class="sheet-text">' + esc(opts.intro) + "</p>" : "") +
+        '<div class="ph-card ' + (p ? "is-" + p.kind : "is-idle") + '">' +
+          '<span class="ph-label">' + (p ? esc(p.label) : "Prêt ?") + (p && p.round ? ' <span class="ph-round">tour ' + p.round + "/" + (opts.rounds || phases.filter((x) => x.kind === "work").length) + "</span>" : "") + "</span>" +
+          '<span class="ph-left" id="ph-left">' + (p ? fmtClock(p.seconds) : fmtClock(total)) + "</span>" +
+          (p && p.cue ? '<span class="ph-cue">' + esc(p.cue) + "</span>" : "") +
+          '<div class="bar"><div class="bar-fill" id="ph-fill" style="width:0%"></div></div>' +
+          '<span class="ph-progress">' + (p ? "phase " + (idx + 1) + "/" + phases.length + " · " : "") +
+            fmtClock(total - doneSec) + " restantes</span>" +
+        "</div>" +
+        (nextP ? '<p class="hint">Ensuite : ' + esc(nextP.label) + " · " + fmtClock(nextP.seconds) + "</p>" : "") +
+        (opts.caution ? '<p class="sheet-warn">⚠️ ' + esc(opts.caution) + "</p>" : "") +
+        '<div class="sheet-actions">' +
+          (idx < 0
+            ? '<button type="button" class="btn btn-primary btn-block" data-act="start">▶ Démarrer</button>'
+            : '<button type="button" class="btn btn-danger-ghost" data-act="stop">Arrêter</button>' +
+              '<button type="button" class="btn btn-ghost" data-act="pause">' + (paused ? "▶ Reprendre" : "⏸ Pause") + "</button>" +
+              '<button type="button" class="btn btn-ghost" data-act="skip">⏭ Passer</button>') +
+        "</div>";
+
+      const s = body.querySelector('[data-act="start"]');
+      if (s) s.addEventListener("click", function () { startedAt = Date.now(); keepAwake(); beep(880, 50); next(); });
+      const st = body.querySelector('[data-act="stop"]');
+      if (st) st.addEventListener("click", function () { finish(false); });
+      const pa = body.querySelector('[data-act="pause"]');
+      if (pa) pa.addEventListener("click", function () {
+        paused = !paused;
+        if (paused) cd.pause(); else cd.resume();
+        pa.textContent = paused ? "▶ Reprendre" : "⏸ Pause";
+      });
+      const sk = body.querySelector('[data-act="skip"]');
+      if (sk) sk.addEventListener("click", function () { cd.stop(); paused = false; next(); });
+    }
+
+    render();
+  }, { onClose: function () { if (!finished) { finished = true; cd.stop(); releaseAwake(); } } });
+}
+
+export function openRunForm(prefill, dateKey) {
+  const p = prefill || {};
+  openSheet("Enregistrer la sortie", function (body, close) {
+    body.innerHTML =
+      '<label class="field"><span>Type</span><select id="rf-mode" class="input">' +
+        Object.keys(RUN_MODES).map((k) => '<option value="' + k + '"' + ((p.mode || "liss") === k ? " selected" : "") + ">" + esc(RUN_MODES[k].label) + "</option>").join("") +
+      "</select></label>" +
+      '<div class="nf-grid">' +
+        '<input type="number" id="rf-min" inputmode="numeric" placeholder="Durée (min)" min="1" max="600" value="' + (p.duration ? Math.max(1, Math.round(p.duration / 60)) : "") + '">' +
+        '<input type="number" id="rf-km" inputmode="decimal" placeholder="Distance (km)" min="0" max="200" step="0.1" value="' + (p.distance || "") + '">' +
+      "</div>" +
+      (p.rounds ? '<p class="hint">' + p.rounds + " tours de " + p.work + " s / " + p.rest + " s</p>" : "") +
+      '<div class="field"><span>Effort ressenti (RPE)</span>' + rpeChips(p.rpe || null) + "</div>" +
+      '<label class="field"><span>Note</span><input type="text" id="rf-note" class="input" maxlength="300" placeholder="Essoufflement, sensations…"></label>' +
+      '<div class="sheet-actions"><button type="button" class="btn btn-ghost" data-act="c">Annuler</button>' +
+      '<button type="button" class="btn btn-primary" data-act="ok">Enregistrer</button></div>';
+    const getRpe = bindRpe(body);
+    body.querySelector('[data-act="c"]').addEventListener("click", close);
+    body.querySelector('[data-act="ok"]').addEventListener("click", function () {
+      const min = parseFloat(body.querySelector("#rf-min").value) || 0;
+      if (min <= 0) { body.querySelector("#rf-min").focus(); return; }
+      const w = addWorkout({
+        type: "course", mode: body.querySelector("#rf-mode").value,
+        duration: Math.round(min * 60), distance: body.querySelector("#rf-km").value,
+        work: p.work, rest: p.rest, rounds: p.rounds, rpe: getRpe(),
+        note: body.querySelector("#rf-note").value, date: dateKey
+      });
+      close();
+      if (w) toast("Sortie enregistrée" + (w.linked ? " — cardio du jour coché" : ""));
+    });
+  });
+}
+
+// --------------------------------------------------------- autre activité
+
+const ACTIVITY_QUICK = ["Sport de combat", "Natation", "Vélo", "Randonnée", "Escalade"];
+
+export function openActivityForm(dateKey) {
+  openSheet("Enregistrer une activité", function (body, close) {
+    body.innerHTML =
+      '<label class="field"><span>Activité</span>' +
+        '<input type="text" id="af-label" class="input" maxlength="40" placeholder="Ex : Sport de combat"></label>' +
+      '<div class="chips">' + ACTIVITY_QUICK.map((a) =>
+        '<button type="button" class="chip" data-fill="' + esc(a) + '">' + esc(a) + "</button>").join("") + "</div>" +
+      '<div class="nf-grid">' +
+        '<input type="number" id="af-min" inputmode="numeric" placeholder="Durée (min)" min="1" max="600">' +
+      "</div>" +
+      '<div class="field"><span>Effort ressenti (RPE)</span>' + rpeChips(null) + "</div>" +
+      '<label class="field"><span>Note</span><input type="text" id="af-note" class="input" maxlength="300" placeholder="Sensations…"></label>' +
+      '<div class="sheet-actions"><button type="button" class="btn btn-ghost" data-act="c">Annuler</button>' +
+      '<button type="button" class="btn btn-primary" data-act="ok">Enregistrer</button></div>';
+    const getRpe = bindRpe(body);
+    const label = body.querySelector("#af-label");
+    body.querySelectorAll("[data-fill]").forEach(function (chip) {
+      chip.addEventListener("click", function () { label.value = chip.dataset.fill; label.focus(); });
+    });
+    body.querySelector('[data-act="c"]').addEventListener("click", close);
+    body.querySelector('[data-act="ok"]').addEventListener("click", function () {
+      const min = parseFloat(body.querySelector("#af-min").value) || 0;
+      if (!label.value.trim()) { label.focus(); return; }
+      if (min <= 0) { body.querySelector("#af-min").focus(); return; }
+      const w = addWorkout({
+        type: "autre", activity: label.value.trim(),
+        duration: Math.round(min * 60), rpe: getRpe(),
+        note: body.querySelector("#af-note").value, date: dateKey
+      });
+      close();
+      if (w) toast("Activité enregistrée" + (w.linked ? " — cardio du jour coché" : ""));
+    });
+    label.focus();
+  });
+}
+
+// --------------------------------------------------------------- circuits
+// Type CrossFit / Hyrox : des stations enchaînées, un chrono, un tap par
+// station. Tours fixes (« for time ») ou AMRAP.
+
+function stationLabel(p) {
+  const ex = exerciseById(p.ex);
+  return (ex ? ex.label : p.ex) + " · " + p.qty + " " + (p.unit === "reps" ? "reps" : p.unit);
+}
+
+function tabCircuit(day) {
+  const list = visibleCircuits();
+  const hiddenCount = hiddenTemplates().filter((k) => circuitTemplates().some((t) => t.key === k)).length;
+  let html = '<div class="block-head"><h2>Circuits</h2></div>';
+  html += '<ul class="start-list">' + list.map(function (t) {
+    const names = t.plan.map((p) => (exerciseById(p.ex) || {}).label).filter(Boolean);
+    const head = t.mode === "amrap"
+      ? "AMRAP " + Math.round(t.cap / 60) + " min"
+      : t.rounds + " tours" + (t.cap ? " · limite " + Math.round(t.cap / 60) + " min" : "");
+    const last = workouts().filter((w) => w.template === t.key).map((w) => w.date).sort().pop() || null;
+    return '<li class="start-row">' +
+      '<button type="button" class="start-row-main" data-act="start-circuit" data-template="' + esc(t.key) + '" data-day="' + esc(day) + '">' +
+        '<span class="start-title">' + esc(t.label) + "</span>" +
+        '<span class="start-detail">' + esc(head + " · " + names.slice(0, 3).join(" · ") + (names.length > 3 ? " · +" + (names.length - 3) : "")) + "</span>" +
+        '<span class="start-last">' + esc(fmtLastUsed(last)) + "</span>" +
+      "</button>" +
+      '<span class="start-row-actions">' +
+        (t.builtin ? "" :
+          '<button type="button" class="row-act" data-act="edit-circuit" data-template="' + esc(t.key) + '" aria-label="Modifier ' + esc(t.label) + '">✎</button>') +
+        '<button type="button" class="row-act is-danger" data-act="del-template" data-template="' + esc(t.key) +
+          '" aria-label="' + (t.builtin ? "Masquer" : "Supprimer") + " " + esc(t.label) + '">✕</button>' +
+      "</span></li>";
+  }).join("") + "</ul>";
+  html += '<button type="button" class="btn btn-block btn-ghost" data-act="new-circuit">+ Nouveau circuit</button>';
+  if (hiddenCount) {
+    html += '<button type="button" class="linkish start-unhide" data-act="unhide-templates">Réafficher ' +
+      hiddenCount + " circuit" + (hiddenCount > 1 ? "s masqués" : " masqué") + "</button>";
+  }
+  html += '<p class="hint">Les stations s\'enchaînent, chaque station validée d\'un tap, le chrono tourne. ' +
+    "Un circuit compte comme une séance de musculation, sauf réglage contraire dans le circuit.</p>";
+  const records = circuitTemplates().map((t) => ({ t: t, b: circuitBest(t.key) })).filter((x) => x.b);
+  if (records.length) {
+    html += '<div class="block-head"><h2>Records</h2></div><ul class="bilan-list">' +
+      records.map((x) => "<li>🏆 " + esc(x.t.label) + " : <strong>" + esc(x.b.label) + "</strong> · " + esc(fmtLastUsed(x.b.w.date)) + "</li>").join("") + "</ul>";
+  }
+  html += '<div class="block-head"><h2>Derniers circuits</h2></div>' + recentList("circuit");
+  return html;
+}
+
+let circDraft = null;
+
+export function openCircuitEditor(key, resume) {
+  const existing = key ? circuitByKey(key) : null;
+  if (existing && existing.builtin) { toast("Les circuits de départ ne se modifient pas — crée le tien", "error"); return; }
+  if (!resume && !existing) circDraft = null;
+  if (!circDraft || circDraft.id !== (existing ? existing.key : null)) {
+    circDraft = existing
+      ? { id: existing.key, label: existing.label, mode: existing.mode, rounds: existing.rounds || 3, cap: existing.cap || 0,
+          link: existing.link, plan: existing.plan.map((p) => Object.assign({}, p)) }
+      : { id: null, label: "", mode: "rounds", rounds: 3, cap: 0, link: "auto", plan: [] };
+  }
+
+  openSheet(existing ? "Modifier le circuit" : "Nouveau circuit", function (body, close) {
+    const links = [
+      { v: "auto", l: "Compte comme une séance de musculation" },
+      { v: "entr-cardio", l: "Compte comme du cardio" },
+      { v: "none", l: "Ne rien cocher" }
+    ].filter((o) => o.v === "auto" || o.v === "none" || byId(o.v));
+
+    function render() {
+      const amrap = circDraft.mode === "amrap";
+      body.innerHTML =
+        '<label class="field"><span>Nom du circuit</span>' +
+          '<input type="text" id="ci-label" class="input" maxlength="60" placeholder="Ex : WOD du samedi, Hyrox 4 stations" value="' + esc(circDraft.label) + '"></label>' +
+        '<div class="field"><span>Format</span><div class="chips" id="ci-mode">' +
+          Object.keys(CIRCUIT_MODES).map((k) =>
+            '<button type="button" class="chip' + (circDraft.mode === k ? " is-active" : "") + '" data-mode="' + k + '">' + esc(CIRCUIT_MODES[k].label) + "</button>").join("") +
+        "</div></div>" +
+        '<p class="hint">' + esc(CIRCUIT_MODES[circDraft.mode].hint) + "</p>" +
+        '<div class="nf-grid">' +
+          (amrap ? "" : '<label class="field"><span>Tours</span><input type="number" id="ci-rounds" class="input" inputmode="numeric" min="1" max="30" value="' + circDraft.rounds + '"></label>') +
+          '<label class="field"><span>' + (amrap ? "Durée (min)" : "Limite (min, optionnel)") + '</span>' +
+            '<input type="number" id="ci-cap" class="input" inputmode="numeric" min="0" max="120" value="' + (circDraft.cap ? Math.round(circDraft.cap / 60) : "") + '"></label>' +
+        "</div>" +
+        '<div class="block-head" style="margin-top:14px"><h2>Stations</h2>' +
+          '<button type="button" class="btn btn-small btn-primary" data-act="ci-add">+ Ajouter</button></div>' +
+        (circDraft.plan.length
+          ? '<ul class="nut-foods">' + circDraft.plan.map(function (p, i) {
+              const ex = exerciseById(p.ex);
+              if (!ex) return "";
+              return '<li class="nut-food has-qty"><div class="nut-food-main">' +
+                '<span class="nut-food-label">' + esc(ex.label) + "</span>" +
+                '<div class="tpl-target">' +
+                  '<label><span>Quantité</span><input type="number" inputmode="numeric" min="1" max="10000" data-qty="' + i + '" value="' + p.qty + '"></label>' +
+                  '<label><span>Unité</span><select data-unit="' + i + '">' +
+                    Object.keys(CIRCUIT_UNITS).map((u) => '<option value="' + u + '"' + (p.unit === u ? " selected" : "") + ">" +
+                      (u === "reps" ? "reps" : u === "s" ? "secondes" : "mètres") + "</option>").join("") +
+                  "</select></label>" +
+                "</div></div>" +
+                '<div class="tpl-move">' +
+                  '<button type="button" data-act="ci-up" data-i="' + i + '" aria-label="Monter"' + (i === 0 ? " disabled" : "") + ">↑</button>" +
+                  '<button type="button" data-act="ci-down" data-i="' + i + '" aria-label="Descendre"' + (i === circDraft.plan.length - 1 ? " disabled" : "") + ">↓</button>" +
+                  '<button type="button" class="nut-del" data-act="ci-del" data-i="' + i + '" aria-label="Retirer">✕</button>' +
+                "</div></li>";
+            }).join("") + "</ul>"
+          : '<p class="empty">Aucune station. Ajoute-en au moins une.</p>') +
+        '<label class="field"><span>Case du jour</span><select id="ci-link" class="input">' +
+          links.map((o) => '<option value="' + o.v + '"' + (circDraft.link === o.v ? " selected" : "") + ">" + esc(o.l) + "</option>").join("") +
+        "</select></label>" +
+        '<div class="sheet-actions">' +
+          (existing ? '<button type="button" class="btn btn-danger-ghost" data-act="ci-remove">Supprimer</button>' : "") +
+          '<button type="button" class="btn btn-primary" data-act="ci-save">Enregistrer</button>' +
+        "</div>";
+
+      body.querySelector("#ci-label").addEventListener("input", (e) => { circDraft.label = e.target.value; });
+      body.querySelector("#ci-link").addEventListener("change", (e) => { circDraft.link = e.target.value; });
+      body.querySelector("#ci-mode").addEventListener("click", function (e) {
+        const c = e.target.closest(".chip");
+        if (!c) return;
+        circDraft.mode = c.dataset.mode;
+        if (circDraft.mode === "amrap" && !circDraft.cap) circDraft.cap = 600;
+        render();
+      });
+      const rounds = body.querySelector("#ci-rounds");
+      if (rounds) rounds.addEventListener("change", () => { circDraft.rounds = parseInt(rounds.value, 10) || 1; });
+      body.querySelector("#ci-cap").addEventListener("change", (e) => {
+        circDraft.cap = Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 60));
+      });
+      body.querySelectorAll("[data-qty]").forEach((el) => el.addEventListener("change", function () {
+        circDraft.plan[parseInt(el.dataset.qty, 10)].qty = parseInt(el.value, 10) || 1;
+      }));
+      body.querySelectorAll("[data-unit]").forEach((el) => el.addEventListener("change", function () {
+        circDraft.plan[parseInt(el.dataset.unit, 10)].unit = el.value;
+      }));
+      body.querySelectorAll('[data-act="ci-del"]').forEach((b) => b.addEventListener("click", function () {
+        circDraft.plan.splice(parseInt(b.dataset.i, 10), 1); render();
+      }));
+      body.querySelectorAll('[data-act="ci-up"], [data-act="ci-down"]').forEach((b) => b.addEventListener("click", function () {
+        const i = parseInt(b.dataset.i, 10);
+        const j = b.dataset.act === "ci-up" ? i - 1 : i + 1;
+        if (j < 0 || j >= circDraft.plan.length) return;
+        const tmp = circDraft.plan[i]; circDraft.plan[i] = circDraft.plan[j]; circDraft.plan[j] = tmp;
+        render();
+      }));
+      body.querySelector('[data-act="ci-add"]').addEventListener("click", function () {
+        close();
+        openExercisePicker(function (list) {
+          for (const ex of list || []) circDraft.plan.push({ ex: ex.id, qty: ex.load === "temps" ? 30 : 10, unit: ex.load === "temps" ? "s" : "reps" });
+          openCircuitEditor(circDraft.id, true);
+        }, function () { openCircuitEditor(circDraft.id, true); });
+      });
+      body.querySelector('[data-act="ci-save"]').addEventListener("click", function () {
+        if (!circDraft.label.trim()) { body.querySelector("#ci-label").focus(); return; }
+        if (!circDraft.plan.length) { toast("Ajoute au moins une station", "error"); return; }
+        if (circDraft.mode === "amrap" && !circDraft.cap) { toast("Indique la durée de l'AMRAP", "error"); return; }
+        const saved = upsertCircuit(circDraft);
+        circDraft = null;
+        close();
+        if (saved) toast(saved.label + " enregistré");
+      });
+      const rm = body.querySelector('[data-act="ci-remove"]');
+      if (rm) rm.addEventListener("click", function () {
+        const id = circDraft.id, label = circDraft.label;
+        circDraft = null;
+        close();
+        confirmSheet("Supprimer ce circuit ?", "« " + label + " » sera retiré. Les circuits déjà faits restent.",
+          "Supprimer", function () { removeTemplate(id); toast("Circuit supprimé"); });
+      });
+    }
+
+    render();
+  });
+}
+
+export function openCircuitRun(key, dateKey) {
+  const t = circuitByKey(key);
+  if (!t) return;
+  const amrap = t.mode === "amrap";
+  let startedAt = 0, pausedAt = 0, pausedTotal = 0, timer = null, finished = false;
+  let round = 0, station = 0, roundsDone = 0;
+
+  function elapsed() {
+    if (!startedAt) return 0;
+    return Math.max(0, Math.round(((pausedAt || Date.now()) - startedAt - pausedTotal) / 1000));
+  }
+
+  openSheet("🔥 " + t.label, function (body, close) {
+    function finish(completed) {
+      if (finished) return;
+      finished = true;
+      clearInterval(timer);
+      releaseAwake();
+      if (completed) cueDone();
+      const dur = elapsed();
+      close();
+      openFinishCircuit(t, dur, roundsDone, station, completed, dateKey);
+    }
+    function tick() {
+      const el = body.querySelector("#ci-clock");
+      if (!el || pausedAt) return;
+      const e = elapsed();
+      if (amrap) {
+        const left = Math.max(0, t.cap - e);
+        el.textContent = fmtClock(left);
+        if (left <= 0) finish(true);
+      } else {
+        el.textContent = fmtClock(e);
+        if (t.cap && e >= t.cap) finish(false);
+      }
+    }
+    function start() {
+      startedAt = Date.now(); round = 1; station = 0;
+      keepAwake(); cueStart();
+      clearInterval(timer); timer = setInterval(tick, 250);
+      render();
+    }
+    function nextStation() {
+      station++;
+      if (station >= t.plan.length) {
+        station = 0; roundsDone++;
+        if (!amrap && roundsDone >= t.rounds) { finish(true); return; }
+        round++; cueRest();
+      } else cueStart();
+      render();
+    }
+    function togglePause() {
+      if (pausedAt) { pausedTotal += Date.now() - pausedAt; pausedAt = 0; } else pausedAt = Date.now();
+      render();
+    }
+    function render() {
+      const started = round > 0;
+      body.innerHTML =
+        '<p class="sub" style="margin:0">' + esc(amrap ? "AMRAP " + Math.round(t.cap / 60) + " min"
+          : t.rounds + " tours" + (t.cap ? " · limite " + Math.round(t.cap / 60) + " min" : "")) + "</p>" +
+        '<div class="circ-card' + (pausedAt ? " is-paused" : "") + '">' +
+          '<span class="circ-round">' + (started ? "Tour " + round + (amrap ? "" : " / " + t.rounds) : "Prêt ?") + "</span>" +
+          '<span class="circ-clock" id="ci-clock">' + fmtClock(amrap ? Math.max(0, t.cap - elapsed()) : elapsed()) + "</span>" +
+          (started ? '<span class="circ-now">' + esc(stationLabel(t.plan[station])) + "</span>" : "") +
+        "</div>" +
+        '<ol class="circ-stations">' + t.plan.map((p, i) =>
+          '<li class="' + (started && i < station ? "is-done" : started && i === station ? "is-current" : "") + '">' + esc(stationLabel(p)) + "</li>").join("") + "</ol>" +
+        '<div class="sheet-actions">' +
+          (!started
+            ? '<button type="button" class="btn btn-primary btn-block" data-act="start">▶ Démarrer</button>'
+            : '<button type="button" class="btn btn-danger-ghost" data-act="stop">Terminer</button>' +
+              '<button type="button" class="btn btn-ghost" data-act="pause">' + (pausedAt ? "▶ Reprendre" : "⏸ Pause") + "</button>" +
+              '<button type="button" class="btn btn-primary" data-act="next">✓ Station faite</button>') +
+        "</div>";
+      const s = body.querySelector('[data-act="start"]'); if (s) s.addEventListener("click", start);
+      const n = body.querySelector('[data-act="next"]'); if (n) n.addEventListener("click", function () { if (!pausedAt) nextStation(); });
+      const p = body.querySelector('[data-act="pause"]'); if (p) p.addEventListener("click", togglePause);
+      const st = body.querySelector('[data-act="stop"]'); if (st) st.addEventListener("click", function () { finish(false); });
+    }
+    render();
+  }, { onClose: function () {
+    // Fermé d'un ✕ en plein effort : on propose quand même d'enregistrer.
+    if (finished) return;
+    finished = true;
+    clearInterval(timer); releaseAwake();
+    if (startedAt) openFinishCircuit(t, elapsed(), roundsDone, station, false, dateKey);
+  } });
+}
+
+function openFinishCircuit(t, duration, roundsDone, stationsDone, completed, dateKey) {
+  openSheet("Terminer le circuit", function (body, close) {
+    const summary = roundsDone + " tour" + (roundsDone > 1 ? "s" : "") +
+      (stationsDone ? " + " + stationsDone + " station" + (stationsDone > 1 ? "s" : "") : "") + " en " + fmtDuration(duration);
+    body.innerHTML =
+      '<p class="sheet-text">' + esc(t.label) + " · " + esc(summary) + (completed ? "" : " · arrêté avant la fin") + "</p>" +
+      '<div class="field"><span>Effort ressenti (RPE)</span>' + rpeChips(8) + "</div>" +
+      '<label class="field"><span>Note</span><input type="text" id="cf-note" class="input" maxlength="300" placeholder="Charges, sensations…"></label>' +
+      '<div class="sheet-actions"><button type="button" class="btn btn-ghost" data-act="c">Ne pas enregistrer</button>' +
+      '<button type="button" class="btn btn-primary" data-act="ok">Enregistrer</button></div>';
+    const getRpe = bindRpe(body);
+    body.querySelector('[data-act="c"]').addEventListener("click", close);
+    body.querySelector('[data-act="ok"]').addEventListener("click", function () {
+      const w = addWorkout({
+        type: "circuit", template: t.key, label: t.label, mode: t.mode,
+        rounds: roundsDone, stationsDone: stationsDone, stations: t.plan,
+        duration: duration, rpe: getRpe(), date: dateKey, note: body.querySelector("#cf-note").value
+      });
+      close();
+      if (!w) { toast("Rien à enregistrer", "error"); return; }
+      if (isCircuitPR(w)) toast("🏆 Nouveau record sur " + t.label + " !");
+      else toast("Circuit enregistré" + (w.linked ? " — case du jour cochée" : ""));
+    });
+  });
+}
+
+// ------------------------------------------------------------ détail
+
+export function openWorkout(id) {
+  const w = workoutById(id);
+  if (!w) return;
+  openSheet("Séance", function (body, close) {
+    let inner = "";
+    if (w.type === "muscu") {
+      inner = w.exercises.map(function (e) {
+        const ex = exerciseById(e.ex) || { label: e.ex, load: "kg" };
+        return "<p><strong>" + esc(ex.label) + "</strong><br>" +
+          e.sets.map((s) => (ex.load === "temps" ? s.reps + " s" : s.reps + " reps") + (ex.load === "kg" ? " × " + s.weight + " kg" : "")).join(" · ") + "</p>";
+      }).join("");
+    } else if (w.type === "course") {
+      inner = "<p>" + esc(RUN_MODES[w.mode].label) + " · " + fmtDuration(w.duration) +
+        (w.distance ? " · " + w.distance + " km" : "") +
+        (w.rounds ? "<br>" + w.rounds + " tours de " + w.work + " s / " + w.rest + " s" : "") + "</p>";
+    } else if (w.type === "circuit") {
+      inner = "<p><strong>" + esc(w.label) + "</strong> · " + (w.mode === "amrap" ? "AMRAP · " : "") +
+        w.rounds + " tour" + (w.rounds > 1 ? "s" : "") + (w.stationsDone ? " + " + w.stationsDone + " station" + (w.stationsDone > 1 ? "s" : "") : "") +
+        " · " + fmtDuration(w.duration) + "</p>" +
+        "<p>" + (w.stations || []).map((p) => esc(stationLabel(p))).join(" · ") + "</p>";
+    } else if (w.type === "autre") {
+      inner = "<p><strong>" + esc(w.activity) + "</strong> · " + fmtDuration(w.duration) + "</p>";
+    } else {
+      const r = ROUTINE_MAP[w.routine];
+      inner = "<p>" + esc(r ? r.label : w.routine) + " · " + fmtDuration(w.duration) + (w.completed === false ? " · interrompue" : "") + "</p>";
+    }
+    body.innerHTML = '<p class="sub" style="margin:0">' + esc(w.date) + (w.rpe ? " · RPE " + w.rpe : "") + "</p>" +
+      inner + (w.note ? '<p class="sheet-text">' + escLines(w.note) + "</p>" : "") +
+      (w.linked ? '<p class="hint">A coché la case « ' + esc(w.linked) + " » ce jour-là.</p>" : "") +
+      '<div class="sheet-actions"><button type="button" class="btn btn-danger-ghost" data-act="del">Supprimer</button></div>';
+    body.querySelector('[data-act="del"]').addEventListener("click", function () {
+      close();
+      confirmSheet("Supprimer cette séance ?", "La case du jour qu'elle a cochée reste cochée.", "Supprimer",
+        function () { removeWorkout(w.id); toast("Supprimée"); });
+    });
+  });
+}
+
+export function confirmDeleteWorkout(id) {
+  const w = workoutById(id);
+  if (!w) return;
+  confirmSheet("Supprimer cette séance ?", "La case du jour qu'elle a cochée reste cochée.", "Supprimer",
+    function () { removeWorkout(id); toast("Supprimée"); });
+}
+
+// ✕ sur une séance : suppression pour un modèle perso, masquage pour A et B.
+export function confirmDeleteTemplate(key) {
+  const t = anyTemplateByKey(key);
+  if (!t) return;
+  if (t.builtin) {
+    confirmSheet("Masquer « " + t.label + " » ?",
+      "Contenu de départ : masqué, pas supprimé. Un lien en bas de la liste permet de le réafficher.",
+      "Masquer", function () { hideTemplate(key); toast(t.label + " masquée"); });
+  } else {
+    confirmSheet("Supprimer « " + t.label + " » ?",
+      "Le modèle sera retiré. Les séances déjà enregistrées avec restent dans l'historique.",
+      "Supprimer", function () { removeTemplate(key); toast(t.label + " supprimée"); });
+  }
+}
+
+export function changeTemplateSort(key) { setTemplateSort(key); }
+export function restoreHiddenTemplates() { unhideTemplates(); toast("Séances réaffichées"); }
+
+export function hasSessionInProgress() { return !!session; }
+export function resumeSession() { if (session) openMuscuSession(session.template, true); }
