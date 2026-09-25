@@ -1160,10 +1160,12 @@ function runInterval(cfg, dateKey) {
 // aux routines guidées.
 function runPhases(title, phases, opts) {
   let idx = -1, startedAt = 0, finished = false, paused = false;
+  // Déclaré hors du rendu : onClose (plus bas) doit pouvoir l'arrêter.
+  let cd = null;
   const total = phases.reduce((a, p) => a + p.seconds, 0);
 
   openSheet(title, function (body, close) {
-    const cd = makeCountdown(
+    cd = makeCountdown(
       (left) => {
         const el = body.querySelector("#ph-left"); if (el) el.textContent = fmtClock(left);
         const fill = body.querySelector("#ph-fill");
@@ -1233,7 +1235,7 @@ function runPhases(title, phases, opts) {
     }
 
     render();
-  }, { onClose: function () { if (!finished) { finished = true; cd.stop(); releaseAwake(); } } });
+  }, { onClose: function () { if (!finished) { finished = true; if (cd) cd.stop(); releaseAwake(); } } });
 }
 
 export function openRunForm(prefill, dateKey) {

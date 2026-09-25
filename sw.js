@@ -1,7 +1,7 @@
 /* Service worker : coquille hors ligne + réception du partage système.
    Pas de push, pas de serveur — l'app reste entièrement locale. */
 
-const VERSION = "suivi-v45";
+const VERSION = "suivi-v46";
 // Préfixe propre à cette app : Cache Storage est partagé par origine, pas
 // par dossier — sans ce filtre, l'activation nettoierait aussi les caches
 // des PWA sœurs (diete-sport/, objectifs-routine/) servies depuis le même
